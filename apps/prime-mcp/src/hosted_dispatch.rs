@@ -98,14 +98,19 @@ async fn call_tool_hosted(hosted: &HostedPrime, tenant: &str, name: &str, args: 
             "tool {name} not yet available on the hosted backend"
         )),
 
-        // Hound is local-first: ingest runs where the source lives, so the whole
-        // code-graph toolset is served on the embedded stdio path, not here.
-        "hound_ingest" | "hound_ingest_docs" | "hound_impact" | "hound_report"
-        | "hound_pr_impact" | "hound_export" => tool_error(
-            "Hound runs in local mode where your source lives, not on the hosted backend. \
-             Run prime-mcp locally (stdio) or `allsource-prime --mode hound <path>` to build \
-             a code graph.",
+        // Hound INGEST is local-first (runs where your source lives); writes go
+        // to the embedded store and sync to the tenant. The READ-side hound tools,
+        // though, work over the SHARED hosted graph — that's the team-graph use:
+        // one teammate ingests + syncs, everyone queries the same hosted graph.
+        "hound_ingest" | "hound_ingest_docs" => tool_error(
+            "Hound ingest runs in local mode where your source lives, not on the hosted \
+             backend. Run prime-mcp locally and sync to your tenant; then query the shared \
+             graph here with hound_report / hound_impact / hound_pr_impact / hound_export.",
         ),
+        "hound_report" => call_hound_report_hosted(hosted, tenant, args).await,
+        "hound_impact" => call_hound_impact_hosted(hosted, tenant, args).await,
+        "hound_pr_impact" => call_hound_pr_impact_hosted(hosted, tenant, args).await,
+        "hound_export" => call_hound_export_hosted(hosted, tenant, args).await,
 
         _ => tool_error(&format!("Unknown tool: {name}")),
     }
@@ -328,6 +333,90 @@ async fn call_history(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value
     }
 }
 
+// ── Hound read-side tools over the shared hosted graph (team graphs) ────────
+//
+// All compute purely over the tenant's materialized `full_graph`, reusing the
+// same `report`/`pr`/`export` functions the embedded path uses — so a team that
+// syncs to one tenant queries the same graph here.
+
+async fn call_hound_report_hosted(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value {
+    let top = args.get("top").and_then(Value::as_u64).unwrap_or(10) as usize;
+    let markdown = args.get("markdown").and_then(Value::as_bool).unwrap_or(false);
+    match hosted.full_graph(tenant, None, None).await {
+        Ok(g) => {
+            let data = crate::report::compute(&g, top);
+            if markdown {
+                tool_result(json!({ "markdown": data.to_markdown() }))
+            } else {
+                tool_result(data.to_json())
+            }
+        }
+        Err(e) => tool_error(&e.to_string()),
+    }
+}
+
+async fn call_hound_impact_hosted(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value {
+    let Some(target) = args.get("target").and_then(Value::as_str) else {
+        return tool_error("missing 'target' — a function name or a node:function:<id> wire id");
+    };
+    let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(2) as usize;
+    match hosted.full_graph(tenant, None, None).await {
+        Ok(g) => tool_result(crate::pr::impact_of(&g, target, depth)),
+        Err(e) => tool_error(&e.to_string()),
+    }
+}
+
+async fn call_hound_pr_impact_hosted(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value {
+    let Some(files_val) = args.get("files").and_then(Value::as_array) else {
+        return tool_error("missing 'files' — changed file paths (e.g. `git diff --name-only`)");
+    };
+    let files: Vec<String> = files_val
+        .iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect();
+    if files.is_empty() {
+        return tool_error("'files' is empty — pass the PR's changed file paths");
+    }
+    let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(2) as usize;
+    let top = args.get("top").and_then(Value::as_u64).unwrap_or(20) as usize;
+    match hosted.full_graph(tenant, None, None).await {
+        Ok(g) => tool_result(crate::pr::pr_impact(&g, &files, depth).to_json(top)),
+        Err(e) => tool_error(&e.to_string()),
+    }
+}
+
+async fn call_hound_export_hosted(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value {
+    let Some(format) = args.get("format").and_then(Value::as_str) else {
+        return tool_error(&format!(
+            "missing 'format' — one of: {}",
+            crate::export::format_keys()
+        ));
+    };
+    let mermaid_max = args
+        .get("mermaid_max")
+        .and_then(Value::as_u64)
+        .unwrap_or(60) as usize;
+    match hosted.full_graph(tenant, None, None).await {
+        Ok(g) => {
+            if let Some(text) = crate::export::render_text(&g, format, mermaid_max) {
+                tool_result(json!({ "format": format, "content": text }))
+            } else if let Some(files) = crate::export::render_files(&g, format) {
+                let files_json: Vec<Value> = files
+                    .into_iter()
+                    .map(|(path, content)| json!({ "path": path, "content": content }))
+                    .collect();
+                tool_result(json!({ "format": format, "files": files_json }))
+            } else {
+                tool_error(&format!(
+                    "unknown format '{format}' — choose one of: {}",
+                    crate::export::format_keys()
+                ))
+            }
+        }
+        Err(e) => tool_error(&e.to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -430,5 +519,57 @@ mod tests {
         assert_eq!(v["result"]["isError"], json!(true));
         let text = v["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("not yet available on the hosted backend"));
+    }
+
+    /// Team graphs: one tenant's shared hosted graph answers the read-side hound
+    /// tools (`report` / `impact` / `pr_impact`) over the SAME `report`/`pr` functions
+    /// the embedded path uses.
+    #[tokio::test]
+    async fn hound_read_tools_over_shared_hosted_graph() {
+        let server = MockServer::start().await;
+        mount_empty_core(&server).await; // stateful fake Core
+        let hosted = HostedPrime::connect(server.uri(), None, 8, Duration::from_secs(60));
+        let t = "team-a";
+        let _ = hosted.stats(t).await; // warm the tenant so writes apply to the cache
+
+        // Seed: a.rs defines alpha + beta; alpha calls beta.
+        let _f = hosted
+            .add_node(t, "file", json!({ "path": "a.rs", "domain": "code" }))
+            .await
+            .unwrap();
+        let a = hosted
+            .add_node(t, "function", json!({ "name": "alpha", "file": "a.rs", "domain": "code" }))
+            .await
+            .unwrap();
+        let b = hosted
+            .add_node(t, "function", json!({ "name": "beta", "file": "a.rs", "domain": "code" }))
+            .await
+            .unwrap();
+        hosted
+            .add_edge_weighted(
+                t,
+                &format!("node:function:{}", a.as_str()),
+                &format!("node:function:{}", b.as_str()),
+                "calls",
+                0.6,
+                None,
+            )
+            .await
+            .unwrap();
+
+        // hound_report over the shared graph: 3 nodes.
+        let rep = call_hound_report_hosted(&hosted, t, &json!({})).await;
+        let text = rep["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("\"node_count\": 3"), "report: {text}");
+
+        // hound_impact of beta: alpha transitively calls it.
+        let imp = call_hound_impact_hosted(&hosted, t, &json!({ "target": "beta" })).await;
+        let text = imp["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("alpha"), "impact should surface caller alpha: {text}");
+
+        // hound_pr_impact for a.rs returns a review queue.
+        let pri = call_hound_pr_impact_hosted(&hosted, t, &json!({ "files": ["a.rs"] })).await;
+        let text = pri["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("review_queue"), "pr_impact: {text}");
     }
 }

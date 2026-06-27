@@ -13,7 +13,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use allsource_core::prime::types::FullGraph;
+use allsource_core::prime::types::{FullGraph, GraphNode};
 use serde_json::{json, Value};
 
 /// One changed symbol and the code that depends on it.
@@ -195,6 +195,91 @@ impl PrImpact {
             },
         })
     }
+}
+
+/// Single-symbol blast radius over a [`FullGraph`] — the `hound_impact` answer
+/// computed purely from the materialized graph (the hosted path has no live
+/// `neighbors_within`). Mirrors the embedded `hound_impact` output shape.
+#[must_use]
+pub fn impact_of(graph: &FullGraph, target: &str, depth: usize) -> Value {
+    let node_by_id: HashMap<&str, &GraphNode> =
+        graph.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    let mut incoming: HashMap<&str, Vec<&str>> = HashMap::new();
+    for e in &graph.edges {
+        if e.relation == "calls" {
+            incoming.entry(e.target.as_str()).or_default().push(e.source.as_str());
+        }
+    }
+
+    // Resolve the target: a wire id, or a function name (possibly several).
+    let targets: Vec<&GraphNode> = if target.starts_with("node:") {
+        graph.nodes.iter().filter(|n| n.id == target).collect()
+    } else {
+        graph
+            .nodes
+            .iter()
+            .filter(|n| {
+                n.node_type == "function"
+                    && n.properties.get("name").and_then(Value::as_str) == Some(target)
+            })
+            .collect()
+    };
+    if targets.is_empty() {
+        return json!({
+            "target": target, "matches": 0, "results": [],
+            "message": "no function with that name in the graph — ingest/sync the repo first?",
+        });
+    }
+
+    let results: Vec<Value> = targets
+        .iter()
+        .map(|node| {
+            let impacted = impacted_callers(&incoming, &node_by_id, node.id.as_str(), depth);
+            json!({
+                "target": node.id,
+                "target_name": node.properties.get("name").and_then(Value::as_str),
+                "target_file": node.properties.get("file").and_then(Value::as_str),
+                "impacted_count": impacted.len(),
+                "impacted": impacted,
+            })
+        })
+        .collect();
+    json!({ "target": target, "depth": depth, "matches": results.len(), "results": results })
+}
+
+/// BFS the incoming-`calls` graph from `start` up to `depth` hops, returning each
+/// transitive caller with its details + the hop distance.
+fn impacted_callers<'a>(
+    incoming: &HashMap<&'a str, Vec<&'a str>>,
+    node_by_id: &HashMap<&'a str, &'a GraphNode>,
+    start: &'a str,
+    depth: usize,
+) -> Vec<Value> {
+    let mut visited: HashSet<&str> = HashSet::from([start]);
+    let mut queue: VecDeque<(&str, usize)> = VecDeque::from([(start, 0usize)]);
+    let mut out = Vec::new();
+    while let Some((cur, d)) = queue.pop_front() {
+        if d >= depth {
+            continue;
+        }
+        if let Some(srcs) = incoming.get(cur) {
+            for &src in srcs {
+                if visited.insert(src) {
+                    if let Some(n) = node_by_id.get(src) {
+                        out.push(json!({
+                            "id": src,
+                            "name": n.properties.get("name").and_then(Value::as_str),
+                            "file": n.properties.get("file").and_then(Value::as_str),
+                            "line": n.properties.get("line"),
+                            "depth": d + 1,
+                        }));
+                    }
+                    queue.push_back((src, d + 1));
+                }
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]
