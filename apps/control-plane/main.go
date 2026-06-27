@@ -99,6 +99,11 @@ type ControlPlane struct {
 	delegation *delegationClient
 	turnstile  *TurnstileVerifier
 
+	// extractionGate hard-gates the hosted Hound doc-extraction proxy
+	// (ProxyExtraction) on the tenant's per-tier extraction-token allowance.
+	// Reads the meter + entitlement from Core tenant metadata; fails open.
+	extractionGate *x402.CoreQuotaChecker
+
 	// In-memory probe cache; the status endpoint reads from this so a Core
 	// outage doesn't take the status page down with it.
 	heartbeats *heartbeatEmitter
@@ -356,6 +361,7 @@ func NewControlPlane(ctx context.Context) (*ControlPlane, error) {
 		x402Facilitator: x402Facilitator,
 		delegation:      delegation,
 		turnstile:       NewTurnstileVerifier(),
+		extractionGate:  x402.NewCoreQuotaChecker(coreClient),
 	}
 
 	cp.setupMiddleware()
@@ -550,6 +556,14 @@ func (cp *ControlPlane) setupRoutes() {
 	// nodes/edges/vectors, recall, etc.) forward to the Prime service. Tenant
 	// is passed as a query param; Prime's own namespace logic consumes it.
 	api.Any("/prime/*path", cp.ProxyPrime)
+
+	// Hosted Hound doc-extraction LLM proxy — the enforcement point for the
+	// extraction-token HARD GATE (t-57fca0). Authenticates the tenant from its
+	// ask_ key (PRIME_LLM_API_KEY), blocks with 402 when the per-tier extraction
+	// allowance is spent, else forwards to AllSource's server-side LLM. prime-mcp
+	// points PRIME_LLM_ENDPOINT here for hosted extraction; BYO endpoints never
+	// touch this route. 2MB cap guards against oversized chat-completion bodies.
+	api.POST("/extraction/chat/completions", MaxBodySize(2*1024*1024), RequirePermission(entities.PermissionWrite), cp.ProxyExtraction)
 
 	// Cluster management
 	api.GET("/cluster/status", RequirePermission(entities.PermissionRead), cp.container.OperationsHandler.GetClusterStatus)

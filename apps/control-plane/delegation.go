@@ -363,6 +363,99 @@ func (cp *ControlPlane) ProxyPrime(c *gin.Context) {
 	cp.delegation.forwardRequest(c, c.Request.Method, cp.delegation.prime, downstreamPath, q, body, bearer, extraHeaders)
 }
 
+// forwardExtraction POSTs the OpenAI-compatible request body to the server-side
+// extraction LLM at the exact upstream URL (no path joining — the configured URL
+// is the full chat-completions endpoint), authenticating with AllSource's own
+// provider key. That key is NEVER returned to the caller: only the LLM's JSON
+// response (choices + usage) is copied back. Mirrors forwardRequest's status +
+// body copy so streaming and non-streaming replies both pass through.
+func (d *delegationClient) forwardExtraction(c *gin.Context, upstreamURL, apiKey string, body []byte) {
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "extraction build request", "message": err.Error()})
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, err := d.http.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "extraction upstream", "message": err.Error()})
+		return
+	}
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // close-on-defer, non-actionable
+
+	if ct := resp.Header.Get("Content-Type"); ct != "" {
+		c.Writer.Header().Set("Content-Type", ct)
+	}
+	c.Writer.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(c.Writer, resp.Body); err != nil {
+		// Response headers already sent — best we can do is drop it.
+		_ = err
+	}
+}
+
+// ProxyExtraction is the hosted Hound doc-extraction LLM proxy and the
+// enforcement point for the extraction-token HARD GATE (t-57fca0). A tenant
+// running prime-mcp in hosted mode points PRIME_LLM_ENDPOINT at this route and
+// PRIME_LLM_API_KEY at its own ask_ key, so the OpenAI-compatible
+// chat-completions request arrives authenticated. The handler:
+//
+//  1. resolves the tenant from the ask_ key (AuthMiddleware),
+//  2. HARD-GATES on HasExtractionQuota — a tenant past its per-tier extraction
+//     allowance gets 402 and the request never reaches an LLM (no spend, no
+//     charge — pure enforcement, per the chosen "hard-gate when over"),
+//  3. forwards the body to AllSource's server-side LLM (EXTRACTION_LLM_URL +
+//     EXTRACTION_LLM_API_KEY, never exposed to the tenant) and copies the
+//     OpenAI response back verbatim.
+//
+// prime-mcp parses choices+usage from that response and emits
+// prime.extraction.usage events; the billing reconciler meters them, which feeds
+// the next HasExtractionQuota decision. The proxy deliberately does NOT emit
+// usage — metering stays single-sourced in prime-mcp to avoid double counting.
+//
+// When EXTRACTION_LLM_URL is unset the route 503s: hosted extraction is opt-in
+// infrastructure. Tenants can always bring their own LLM by pointing
+// PRIME_LLM_ENDPOINT at their own OpenAI-compatible endpoint instead, which
+// never touches this proxy or the gate.
+func (cp *ControlPlane) ProxyExtraction(c *gin.Context) {
+	_, tenantID, _, ok := authIdentityFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
+		return
+	}
+
+	// HARD GATE — the whole point of the route. Over-allowance tenants are
+	// blocked before any LLM spend. HasExtractionQuota fails open on a Core blip
+	// so a transient outage never wrongly blocks a paying tenant.
+	if cp.extractionGate != nil && !cp.extractionGate.HasExtractionQuota(tenantID) {
+		c.JSON(http.StatusPaymentRequired, gin.H{
+			"error":   "extraction_quota_exceeded",
+			"message": "hosted Hound extraction tokens are exhausted for this billing period. Upgrade your plan, or set PRIME_LLM_ENDPOINT to your own OpenAI-compatible endpoint to bring your own LLM.",
+		})
+		return
+	}
+
+	upstream := strings.TrimSpace(os.Getenv("EXTRACTION_LLM_URL"))
+	if upstream == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":   "hosted_extraction_unconfigured",
+			"message": "hosted extraction LLM is not configured on this deployment. Set PRIME_LLM_ENDPOINT to your own OpenAI-compatible endpoint (BYO).",
+		})
+		return
+	}
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad request", "message": err.Error()})
+		return
+	}
+
+	cp.delegation.forwardExtraction(c, upstream, os.Getenv("EXTRACTION_LLM_API_KEY"), body)
+}
+
 // ProxyEventsQuery forwards GET /api/v1/events/query to Core with tenant_id
 // injected as a query param AND a per-request JWT scoped to the caller's
 // tenant + role. Core's query_events enforces tenant from auth, which with
