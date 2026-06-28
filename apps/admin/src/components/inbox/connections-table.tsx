@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Inbox, Mailbox, Plus, Trash2 } from "lucide-react";
+import { AtSign, Inbox, Mailbox, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { DisconnectDialog } from "@/components/inbox/disconnect-dialog";
 import type { InboxConnection } from "@/lib/inbox-api";
@@ -44,6 +44,8 @@ interface ConnectionsTableProps {
   onConnect: () => void;
   /** Open the "add hosted mailbox" (adopt existing grant) dialog. */
   onAddHosted: () => void;
+  /** Open the "add receiving address" dialog (Resend — no OAuth). */
+  onAddAddress: () => void;
   /** Disconnect a grant; resolves once removed (the page does the optimistic remove + toast). */
   onDisconnect: (conn: InboxConnection) => Promise<void>;
 }
@@ -55,6 +57,7 @@ export function ConnectionsTable({
   onSelect,
   onConnect,
   onAddHosted,
+  onAddAddress,
   onDisconnect,
 }: ConnectionsTableProps) {
   const [pendingDisconnect, setPendingDisconnect] = useState<InboxConnection | null>(null);
@@ -76,9 +79,13 @@ export function ConnectionsTable({
             <Mailbox className="mr-1.5 h-4 w-4" />
             Add hosted mailbox
           </Button>
-          <Button onClick={onConnect} data-testid="inbox-connect-btn">
+          <Button variant="outline" onClick={onConnect} data-testid="inbox-connect-btn">
             <Plus className="mr-1.5 h-4 w-4" />
-            Connect mailbox
+            Connect (OAuth)
+          </Button>
+          <Button onClick={onAddAddress} data-testid="inbox-add-address-btn">
+            <AtSign className="mr-1.5 h-4 w-4" />
+            Add address
           </Button>
         </div>
       </CardHeader>

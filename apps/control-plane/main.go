@@ -659,6 +659,10 @@ func (cp *ControlPlane) setupRoutes() {
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
 	api.POST("/webhooks/email", cp.container.EmailWebhookHandler.Email)
 	api.GET("/webhooks/email", cp.container.EmailWebhookHandler.EmailChallenge)
+	// Resend inbound webhook (Svix-verified). Registered only when Resend is configured.
+	if cp.container.ResendWebhookHandler != nil {
+		api.POST("/webhooks/resend/inbound", cp.container.ResendWebhookHandler.Inbound)
+	}
 	// Inbox onboarding (P3b): public OAuth redirect, authenticated by the sealed state.
 	api.GET("/webhooks/inbox/connect/callback", cp.container.InboxConnectHandler.Callback)
 	// NOTE: the admin inbox routes (connect/connections/messages/triage/draft/send)
@@ -719,6 +723,8 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.GET("/inbox/connect", cp.container.InboxConnectHandler.Start)
 	admin.GET("/inbox/connections", cp.container.InboxAdminHandler.ListConnections)
 	admin.POST("/inbox/connections", cp.container.InboxAdminHandler.AdoptGrant)
+	// Register a receiving address (Resend: a connection has no OAuth grant).
+	admin.POST("/inbox/addresses", cp.container.InboxAdminHandler.AddAddress)
 	admin.GET("/inbox/available-grants", cp.container.InboxAdminHandler.AvailableGrants)
 	admin.DELETE("/inbox/connections/:grant_id", cp.container.InboxAdminHandler.Disconnect)
 	admin.GET("/inbox/messages", cp.container.InboxAdminHandler.Messages)

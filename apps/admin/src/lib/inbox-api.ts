@@ -268,6 +268,27 @@ export async function adoptGrant(params: {
   return res.json();
 }
 
+/**
+ * Register a receiving address to a tenant (Resend: a connection is a verified
+ * address — no OAuth grant). Seals + writes the Core config under the address.
+ */
+export async function addAddress(params: {
+  tenant_id: string;
+  email: string;
+}): Promise<{ status: string; grant_id: string; email: string; tenant_id: string }> {
+  const url = `${getApiUrl()}/api/v1/admin/inbox/addresses`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    throw new ApiError(await readError(res), res.status);
+  }
+  return res.json();
+}
+
 // ── Messages ──────────────────────────────────────────────────────────
 
 export async function fetchMessages(params: {

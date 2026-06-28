@@ -14,6 +14,7 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/nylas"
+	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/resend"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/llm"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
 	"github.com/allsource/control-plane/internal/infrastructure/secrets"
@@ -195,6 +196,7 @@ type Container struct {
 	BackfillUsageHandler         *httphandlers.BackfillUsageHandler
 	WebhookHandler               *httphandlers.WebhookHandler
 	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
+	ResendWebhookHandler         *httphandlers.ResendWebhookHandler
 	InboxConnectHandler          *httphandlers.InboxConnectHandler
 	InboxAdminHandler            *httphandlers.InboxAdminHandler
 	AgentHandler                 *httphandlers.AgentHandler
@@ -604,6 +606,17 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		emailSealer = nil
 	}
 	emailWebhookHandler := httphandlers.NewEmailWebhookHandler(emailProvider, cfg.CoreClient, emailSealer)
+	// Resend connector (preferred when configured): owns sending + a Svix-verified
+	// inbound webhook. A connection is a verified receiving address (grant_id ≡ the
+	// address); no OAuth. nil when RESEND_API_KEY is unset.
+	var resendProvider *resend.Provider
+	if cfg.CoreClient != nil {
+		resendProvider = resend.NewFromEnv()
+	}
+	var resendWebhookHandler *httphandlers.ResendWebhookHandler
+	if resendProvider != nil {
+		resendWebhookHandler = httphandlers.NewResendWebhookHandler(resendProvider, cfg.CoreClient, emailSealer)
+	}
 	// Inbox onboarding (P3b): hosted-OAuth connect flow. Enabled only with a
 	// hosted-auth-capable provider (NYLAS_CLIENT_ID set); otherwise 503.
 	var inboxConnectHandler *httphandlers.InboxConnectHandler
@@ -619,11 +632,15 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		inboxDrafter = dc
 	}
 	// Inbox management (043): admin endpoints to list/disconnect connections,
-	// read the email stream, and triage/draft/send. nil sender when no provider.
+	// read the email stream, and triage/draft/send. The send path uses Resend when
+	// configured, else Nylas, else nil (send 503).
 	var inboxAdminHandler *httphandlers.InboxAdminHandler
-	if nylasProvider != nil {
+	switch {
+	case resendProvider != nil:
+		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, resendProvider).WithDrafter(inboxDrafter)
+	case nylasProvider != nil:
 		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nylasProvider).WithDrafter(inboxDrafter)
-	} else {
+	default:
 		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nil).WithDrafter(inboxDrafter)
 	}
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
@@ -735,6 +752,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		BackfillUsageHandler:         backfillUsageHandler,
 		WebhookHandler:               webhookHandler,
 		EmailWebhookHandler:          emailWebhookHandler,
+		ResendWebhookHandler:         resendWebhookHandler,
 		InboxConnectHandler:          inboxConnectHandler,
 		InboxAdminHandler:            inboxAdminHandler,
 		AgentHandler:                 agentHandler,

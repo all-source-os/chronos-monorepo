@@ -244,6 +244,60 @@ func (h *InboxAdminHandler) AdoptGrant(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "connected", "grant_id": match.ID, "email": match.Email, "tenant_id": req.TenantID})
 }
 
+// AddAddress handles POST /api/v1/admin/inbox/addresses — registers a receiving
+// address (e.g. sales@all-source.xyz) to a tenant for providers without an OAuth
+// grant flow (Resend: a connection is just a verified address). Seals
+// {tenant_id, grant_id=address, email, provider} under the address so the inbound
+// webhook resolves the tenant and the stream scopes to the mailbox. grant_id ≡
+// the address; send uses it as the From.
+func (h *InboxAdminHandler) AddAddress(c *gin.Context) {
+	if !h.configured() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "inbox not configured"})
+		return
+	}
+	var req struct {
+		TenantID string `json:"tenant_id"`
+		Email    string `json:"email"`
+	}
+	addr := ""
+	if c.ShouldBindJSON(&req) == nil {
+		addr = strings.ToLower(strings.TrimSpace(req.Email))
+	}
+	if req.TenantID == "" || addr == "" || !strings.Contains(addr, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id and a valid email are required"})
+		return
+	}
+	provider := "resend"
+	if h.sender != nil {
+		provider = h.sender.Name()
+	}
+	record, err := json.Marshal(grantRecord{
+		TenantID:    req.TenantID,
+		GrantID:     addr,
+		Email:       addr,
+		Provider:    provider,
+		ConnectedAt: time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "encode record failed"})
+		return
+	}
+	sealed, err := h.sealer.Seal(record)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "seal failed"})
+		return
+	}
+	if err := h.core.SetConfig(c.Request.Context(), clients.SetConfigRequest{
+		Key:       grantConfigKey(addr),
+		Value:     sealed,
+		ChangedBy: "inbox-add-address",
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist address"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "connected", "grant_id": addr, "email": addr, "tenant_id": req.TenantID})
+}
+
 // Messages handles GET /api/v1/admin/inbox/messages?tenant_id=&limit=. The inbox
 // view's data source is Core email.* events — not a new store.
 func (h *InboxAdminHandler) Messages(c *gin.Context) {

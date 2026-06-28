@@ -4,6 +4,7 @@ import { Button, Card, CardContent } from "@allsource/ui";
 import { AlertTriangle, Mail } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { AddAddressDialog } from "@/components/inbox/add-address-dialog";
 import { AddHostedDialog } from "@/components/inbox/add-hosted-dialog";
 import { ConnectDialog } from "@/components/inbox/connect-dialog";
 import { ConnectionsTable } from "@/components/inbox/connections-table";
@@ -49,6 +50,7 @@ export default function InboxPage() {
 
   const [connectOpen, setConnectOpen] = useState(false);
   const [addHostedOpen, setAddHostedOpen] = useState(false);
+  const [addAddressOpen, setAddAddressOpen] = useState(false);
 
   // ── Connections ───────────────────────────────────────────────────────
   const loadConnections = useCallback(async (): Promise<InboxConnection[]> => {
@@ -284,6 +286,7 @@ export default function InboxPage() {
         onSelect={handleSelect}
         onConnect={() => setConnectOpen(true)}
         onAddHosted={() => setAddHostedOpen(true)}
+        onAddAddress={() => setAddAddressOpen(true)}
         onDisconnect={handleDisconnect}
       />
 
@@ -309,6 +312,12 @@ export default function InboxPage() {
         open={addHostedOpen}
         onClose={() => setAddHostedOpen(false)}
         onAdopted={() => void loadConnections()}
+      />
+
+      <AddAddressDialog
+        open={addAddressOpen}
+        onClose={() => setAddAddressOpen(false)}
+        onAdded={() => void loadConnections()}
       />
 
       <Toaster toasts={toasts} onDismiss={dismiss} />

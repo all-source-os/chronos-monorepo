@@ -93,6 +93,7 @@ func serveInbox(h *InboxAdminHandler, method, target, body string) *httptest.Res
 	r := gin.New()
 	r.GET("/api/v1/admin/inbox/connections", h.ListConnections)
 	r.POST("/api/v1/admin/inbox/connections", h.AdoptGrant)
+	r.POST("/api/v1/admin/inbox/addresses", h.AddAddress)
 	r.GET("/api/v1/admin/inbox/available-grants", h.AvailableGrants)
 	r.DELETE("/api/v1/admin/inbox/connections/:grant_id", h.Disconnect)
 	r.GET("/api/v1/admin/inbox/messages", h.Messages)
@@ -272,6 +273,39 @@ func TestInbox_AdoptGrantByEmail(t *testing.T) {
 	_ = json.Unmarshal(plain, &rec)
 	if rec.TenantID != "tnt1" || rec.GrantID != "g-sales" || rec.Email != "sales@all-source.xyz" {
 		t.Errorf("bad sealed record: %s", plain)
+	}
+}
+
+func TestInbox_AddAddress(t *testing.T) {
+	core := &fakeInboxCore{}
+	h := NewInboxAdminHandler(core, newSealer(t), &fakeSender{})
+	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/addresses",
+		`{"tenant_id":"t1","email":"Sales@All-Source.xyz"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+	// Sealed under the lowercased address; grant_id ≡ the address.
+	if core.setReq.Key != "connector:email:grant:sales@all-source.xyz" {
+		t.Errorf("bad config key: %q", core.setReq.Key)
+	}
+	s, _ := core.setReq.Value.(string)
+	plain, err := newSealer(t).Open(s)
+	if err != nil {
+		t.Fatalf("open sealed: %v", err)
+	}
+	var rec grantRecord
+	_ = json.Unmarshal(plain, &rec)
+	if rec.TenantID != "t1" || rec.GrantID != "sales@all-source.xyz" || rec.Email != "sales@all-source.xyz" {
+		t.Errorf("bad sealed record: %+v", rec)
+	}
+}
+
+func TestInbox_AddAddressValidation(t *testing.T) {
+	h := NewInboxAdminHandler(&fakeInboxCore{}, newSealer(t), &fakeSender{})
+	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/addresses",
+		`{"tenant_id":"t1","email":"notanemail"}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 on invalid email, got %d", w.Code)
 	}
 }
 
