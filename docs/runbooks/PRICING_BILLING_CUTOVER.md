@@ -108,18 +108,20 @@ allowance between reconciliations:
 
 ## Still TODO — manual / human-gated steps
 
-1. **End-to-end purchase verification** — complete a real test checkout
-   (`4242 4242 4242 4242`) via `/pricing`; confirm webhook fires, signature
-   verifies, tenant metadata gets the right tier + `billing_period`.
-2. **Set up the `sales@all-source.xyz` inbox.** The `/pricing` Enterprise CTA (010)
-   points at `mailto:sales@…`; there is currently no inbox behind it, so Enterprise
-   leads are dropped. Provision the mailbox / alias before promoting the new pricing.
+1. **End-to-end purchase verification** — **TEST MODE DONE (2026-06-28)**: a test
+   checkout (`4242 4242 4242 4242`) via `/pricing` fired the webhook, signature
+   verified, tenant metadata got the right tier + `billing_period`. **Still
+   pending: re-run once on LIVE creds** after the TEST→LIVE swap (#3).
+2. ~~**Set up the `sales@all-source.xyz` inbox.**~~ **DONE (2026-06-28)** — `sales@all-source.xyz`
+   forwards to admin. The `/pricing` Enterprise CTA + dashboard billing page both
+   mailto this address (`config.ts:255`, `billing/page.tsx:102`), so Enterprise
+   leads now land in the admin inbox.
 3. **Swap TEST → LIVE LemonSqueezy.** Prod currently runs the TEST API key + test
    variants (intentional, to verify in prod). Before real launch: create live
    variants, set live `LEMON_SQUEEZY_API_KEY` + live `LEMON_SQUEEZY_VARIANT_MAP` +
    a live webhook, and **rotate the test API key** (it was shared in chat).
-4. **Add the `scale` backend binding.** 010's `config.ts` left `scale.billingTier`
-   null. Bind it to the canonical `scale` tier.
+4. ~~**Add the `scale` backend binding.**~~ **DONE** — `config.ts` binds the Scale
+   row to `tier: "scale"` (`apps/web/src/lib/config.ts:232`); no longer null.
 5. **Retired-tier backfill.** One-shot over existing tenants applying
    `MapRetiredTier` so no live subscription points at a removed variant.
 6. **Grandfather the free cohort** (§6): set `GrandfatherUntil = cutover + 90d` on
@@ -128,9 +130,9 @@ allowance between reconciliations:
 > ### 🛠 Resolve with — Control Plane fleet recovery (catalog: [`FLEET_HEALTH_RECOVERY.md`](./FLEET_HEALTH_RECOVERY.md))
 > The **retired-tier backfill (item #5)** and any **dunning drift** that follows the
 > cutover now have named recovery surfaces in the admin Control Plane (commits
-> a02667e / e233bee / b6e3c88 — **shipped to `main`, not yet deployed**; these
-> complement, don't replace, the steps above). All write audit events into Core;
-> none touches Postgres.
+> a02667e / e233bee / b6e3c88 — **DEPLOYED** on `allsource-control-plane` v87,
+> 2026-06-27; these complement, don't replace, the steps above). All write audit
+> events into Core; none touches Postgres.
 >
 > - **Retired-tier backfill across the cohort → `recovery_batch`.** `POST
 >   /api/v1/admin/recovery/batch` (MCP: `recovery_batch`) with `action:
