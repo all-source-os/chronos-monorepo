@@ -27,15 +27,15 @@ Response:
 {
   "api_key":       "eyJ...",
   "tenant_id":     "my-agent-at-example-com",
-  "tier":          "free",
-  "events_quota":  100000
+  "tier":          "trial",
+  "trial_ends_at": "2026-05-07T00:00:00Z"
 }
 ```
 
 That's it. The agent now has:
 - A dedicated tenant scoped to this identity
 - A long-lived API key it can use immediately
-- 100,000 events on the free tier — no credit card, no activation
+- A 14-day trial — no activation step, pick a plan before it ends
 - Full read/write access to its own event stream
 
 No dashboard login. No admin approval. No activation email. The `api_key` is valid the moment the 201 response lands.
@@ -104,9 +104,9 @@ Each user gets a dedicated tenant; the agent derives the tenant ID deterministic
 
 For teams with multiple agents sharing one tenant, skip self-provisioning and use the [agent key flow](/docs/agent-auth) instead — an admin creates a named key per agent from Settings → Team → Agent Keys.
 
-## From Free to Paid
+## From Trial to Paid
 
-Free tier gives each tenant 100K events/month, one stream, and 7-day retention. When an agent approaches that limit, the orchestrating system upgrades the tenant via the billing API:
+The 14-day trial gives each tenant time to prove itself. Before it ends — or when an agent approaches the trial quota — the orchestrating system moves the tenant onto a paid plan via the billing API:
 
 ```bash
 POST /api/v1/billing/upgrade
@@ -114,7 +114,7 @@ Authorization: Bearer <admin_key>
 
 {
   "tenant_id": "my-agent-at-example-com",
-  "tier":      "pro"
+  "tier":      "studio"
 }
 ```
 
@@ -126,10 +126,10 @@ The upgrade can be automated: the agent queries its own quota usage and triggers
 GET /api/v1/billing/usage
 Authorization: Bearer eyJ...
 
-→ { "events_used": 92341, "events_quota": 100000, "tier": "free", "period_ends": "2026-05-01T00:00:00Z" }
+→ { "events_used": 92341, "events_quota": 100000, "tier": "trial", "period_ends": "2026-05-01T00:00:00Z" }
 ```
 
-## What an Agent Gets for Free
+## What an Agent Gets
 
 Every self-provisioned AllSource tenant includes the full event store:
 

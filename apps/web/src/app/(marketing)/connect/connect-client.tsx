@@ -203,19 +203,19 @@ function UnauthenticatedCard({ claimToken }: { claimToken: string | null }) {
         <p className="text-sm text-muted-foreground">
           {claimToken ? (
             <>
-              You have a trial claim waiting. Sign in (or sign up — the free tier is enough) to
+              You have a trial claim waiting. Sign in (or sign up — the 14-day trial is enough) to
               attach it to your account.
             </>
           ) : (
             <>
-              You need an AllSource account before you can mint a Claude Desktop key. The free tier
-              is enough to follow the blog post end-to-end.
+              You need an AllSource account before you can mint a Claude Desktop key. The 14-day
+              trial is enough to follow the blog post end-to-end.
             </>
           )}
         </p>
         <div className="flex flex-wrap gap-2">
           <Link href={signupHref} className={cn(buttonVariants(), "gap-1.5")}>
-            Create free account
+            Start free trial
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link href={loginHref} className={cn(buttonVariants({ variant: "outline" }))}>

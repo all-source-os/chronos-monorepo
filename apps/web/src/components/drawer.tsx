@@ -62,7 +62,7 @@ export default function drawerDemo() {
             )}
           >
             <Icons.logo className="h-6 w-6" />
-            Get Started for Free
+            Start Free Trial
           </Link>
         </DrawerFooter>
       </DrawerContent>

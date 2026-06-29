@@ -15,9 +15,12 @@ import {
   resolveYearlyPerMonth,
 } from "@/lib/pricing-catalog";
 
-// Cards shown in the top row (everything except Enterprise, which renders as a
-// full-width strip below the cards per PRICING_EXPOSURE_PLAN.md §3).
-const cardTiers = siteConfig.pricing.filter((p) => !p.isEnterprise);
+// Cards shown in the top row: the paid hosted tiers only. Enterprise renders as
+// a full-width strip below (PRICING_EXPOSURE_PLAN.md §3); Self-Host is no longer
+// shown as a $0 marketing card — the product has no free plan, so the entry tier
+// on /pricing is Indie. (The MIT self-host path still lives in the "Why no free
+// plan?" FAQ.) The 14-day trial is how you start without paying immediately.
+const cardTiers = siteConfig.pricing.filter((p) => !p.isEnterprise && !p.isSelfHost);
 const enterpriseTier = siteConfig.pricing.find((p) => p.isEnterprise);
 
 // `catalog` carries live LemonSqueezy prices (source of truth). When present,
@@ -30,7 +33,7 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
   return (
     <Section
       title="Pricing"
-      subtitle="Pay for the events your agents write. Self-host for free if you'd rather."
+      subtitle="Pay for the events your agents write. Start with a 14-day trial — no charge until it ends."
     >
       {/* Billing toggle — single unambiguous label per state. */}
       <div className="flex justify-center mb-10">

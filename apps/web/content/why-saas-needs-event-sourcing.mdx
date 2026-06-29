@@ -60,7 +60,7 @@ before=2026-05-01T00:00:00Z" \
   -H "Authorization: Bearer $TENANT_API_KEY"
 ```
 
-The count in the response IS the billing metric. No CDC pipeline, no counter drift, no reconciliation jobs. AllSource's Control Plane even handles this natively — the tier system (Free: 100K events, Pro: 1M, Growth: 10M) is enforced at the API level.
+The count in the response IS the billing metric. No CDC pipeline, no counter drift, no reconciliation jobs. AllSource's Control Plane even handles this natively — the tier system (Indie: 500K events, Studio: 5M, Scale: 50M) is enforced at the API level.
 
 ## Multi-tenant isolation as a first-class feature
 
@@ -95,13 +95,13 @@ No log archaeology. No "can you reproduce the issue?" The event stream IS the re
 | PostgreSQL + audit tables + CDC + billing counters | 4+ services, weeks of work | Ongoing counter reconciliation, schema migrations break CDC |
 | AllSource event sourcing | 1 API call per event | Events are immutable — schema changes are new event types, old events stay valid |
 
-AllSource's free tier (100K events/month) covers most early-stage SaaS. At $29/month (Pro), you get 1M events — enough for a SaaS with hundreds of active users.
+AllSource's 14-day trial lets you validate the fit before paying. The entry Indie plan ($19/month) gives 500K events/month — enough for an early-stage SaaS — and Studio ($79/month) scales to 5M events for hundreds of active users.
 
 ## Getting started
 
 The fastest path:
 
-1. [Sign up](https://all-source.xyz/signup) (free, no credit card)
+1. [Sign up](https://all-source.xyz/signup) (14-day trial)
 2. Store your first event (one curl command)
 3. Build a projection for your most-queried state
 4. Replace your audit table with an event query

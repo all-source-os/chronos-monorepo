@@ -96,7 +96,7 @@ export default function AuditCompliancePage() {
                 href="/signup"
                 className={cn(buttonVariants({ size: "lg" }))}
               >
-                Start free
+                Start free trial
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link
@@ -202,7 +202,7 @@ curl -s https://api.all-source.xyz/api/v1/events/query \\
               href="/signup"
               className={cn(buttonVariants({ size: "lg" }))}
             >
-              Start free
+              Start free trial
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
             <Link

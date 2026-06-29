@@ -42,7 +42,7 @@ export default function TermsOfService() {
             </li>
             <li>You are responsible for all activities that occur under your account</li>
             <li>You must notify us immediately of any unauthorized use of your account</li>
-            <li>One person or entity may not maintain more than one free-tier account</li>
+            <li>One person or entity may not maintain more than one concurrent trial account</li>
           </ul>
         </section>
 
@@ -67,9 +67,11 @@ export default function TermsOfService() {
           <h2 className="text-xl font-semibold text-foreground mb-3">5. Plans and Billing</h2>
           <h3 className="text-lg font-medium text-foreground mt-4 mb-2">5.1 Plans</h3>
           <p className="text-muted-foreground leading-relaxed">
-            The Service is offered in multiple tiers: Developer (free), Team (paid), and Enterprise
-            (custom). Each tier has defined usage limits for events, streams, tenants, and retention
-            periods as described on our pricing page.
+            The hosted Service is offered in paid tiers (Indie, Studio, and Scale) and a custom
+            Enterprise tier. New accounts begin with a time-limited trial, after which a paid plan
+            is required to continue using the hosted Service. Each tier has defined usage limits for
+            events, streams, tenants, and retention periods as described on our pricing page. The
+            open-source core may also be self-hosted under its license at no charge.
           </p>
 
           <h3 className="text-lg font-medium text-foreground mt-4 mb-2">5.2 Billing</h3>
@@ -79,10 +81,12 @@ export default function TermsOfService() {
             except as required by law.
           </p>
 
-          <h3 className="text-lg font-medium text-foreground mt-4 mb-2">5.3 Free Tier</h3>
+          <h3 className="text-lg font-medium text-foreground mt-4 mb-2">5.3 Trial</h3>
           <p className="text-muted-foreground leading-relaxed">
-            The Developer tier is provided free of charge with limited resources. We reserve the
-            right to modify free-tier limits or discontinue the free tier with 30 days&apos; notice.
+            New hosted accounts include a time-limited trial (currently 14 days) with limited
+            resources so you can evaluate the Service. When the trial ends, a paid plan is required
+            to continue. We reserve the right to modify trial limits or duration with 30 days&apos;
+            notice.
           </p>
         </section>
 

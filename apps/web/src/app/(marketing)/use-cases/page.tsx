@@ -116,7 +116,7 @@ export default function UseCasesPage() {
                 href="/signup"
                 className={cn(buttonVariants({ variant: "default" }))}
               >
-                Start free <ChevronRight className="ml-1 h-4 w-4" />
+                Start free trial <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link
                 href="https://github.com/all-source-os/all-source"

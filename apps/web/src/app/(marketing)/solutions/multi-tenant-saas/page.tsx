@@ -97,7 +97,7 @@ export default function MultiTenantSaasPage() {
                 href="/signup"
                 className={cn(buttonVariants({ size: "lg" }))}
               >
-                Start free
+                Start free trial
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link
@@ -221,7 +221,7 @@ curl -s -X POST https://api.all-source.xyz/api/v1/events \\
               href="/signup"
               className={cn(buttonVariants({ size: "lg" }))}
             >
-              Start free
+              Start free trial
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
             <Link

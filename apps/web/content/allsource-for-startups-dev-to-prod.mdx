@@ -1,13 +1,13 @@
 ---
 title: "AllSource for Startups: From Local Dev to Production in 15 Minutes"
 publishedAt: "2026-04-23"
-summary: "The fastest path from zero to event sourcing for startups and side projects. Self-service onboard, free tier, no infrastructure to manage. Move to production when you're ready — not before."
+summary: "The fastest path from zero to event sourcing for startups and side projects. Self-service onboard, a 14-day trial, no infrastructure to manage. Move to production when you're ready — not before."
 author: "all.source team"
 image: "/assets/blog/allsource-for-startups-dev-to-prod.webp"
 category: "use-cases"
 ---
 
-**You don't need infrastructure to start using AllSource.** One API call gives you a tenant, an API key, and 100K events/month for free. No Docker, no Kubernetes, no config files. Here's how startups and projects under development should use AllSource — from first prototype to production.
+**You don't need infrastructure to start using AllSource.** One API call gives you a tenant, an API key, and a 14-day trial — no charge until it ends. No Docker, no Kubernetes, no config files. Here's how startups and projects under development should use AllSource — from first prototype to production.
 
 ## Phase 1: Prototype (5 minutes)
 
@@ -42,7 +42,7 @@ curl -X POST $ALLSOURCE_URL/api/v1/events \
   }'
 ```
 
-**What you have now:** a hosted event store with WAL durability, time-travel queries, and 100K events/month. No servers to manage. No database to provision. Just HTTP calls.
+**What you have now:** a hosted event store with WAL durability, time-travel queries, and a 14-day trial. No servers to manage. No database to provision. Just HTTP calls.
 
 **What you don't need yet:** Docker, Kubernetes, self-hosting, schema governance, RBAC, projections, MCP tools. All of that exists when you're ready — but none of it is required to start.
 
@@ -155,15 +155,15 @@ Now `cn sync` pushes your task events to AllSource. Your task history is durable
 
 You have beta users. You need reliability guarantees but you're not ready for enterprise infrastructure.
 
-### Upgrade to Pro ($29/month)
+### Pick a paid plan before the trial ends
 
-The free tier's 100K events/month will run out once you have real users. Pro gives you:
+Your 14-day trial ends once you've validated the idea — pick a hosted plan to keep ingesting. Studio ($79/month) is the popular choice for a growing SaaS:
 
-- **1M events/month** — enough for a SaaS with hundreds of active users
-- **5 streams** — separate event streams per feature or tenant
-- **30-day retention** — vs 7 days on free
+- **5M events/month** — enough for a SaaS with thousands of active users
+- **Unlimited streams** — separate event streams per feature or tenant
+- **90-day retention** — vs 14 days on the entry Indie plan
 - **x402 agent endpoints** — if you're building AI agent features
-- **MCP server (read-only)** — connect Claude Desktop for debugging
+- **Hosted MCP (read + write)** — connect Claude Desktop for debugging
 
 ### Add monitoring
 
@@ -211,7 +211,7 @@ What changes:
 | Setup time | 5 minutes | 1-2 hours |
 | Maintenance | Zero | You manage upgrades, backups, scaling |
 | Data location | Fly.io iad (US East) | Your infrastructure |
-| Cost | $0-$79/month | Your compute costs |
+| Cost | $19-$299/month (14-day trial first) | Your compute costs |
 | Best for | Most startups | Regulated industries, data sovereignty |
 
 **Our recommendation:** stay on the hosted version until you have a specific reason to self-host (regulatory requirement, data sovereignty law, or >10M events/month where self-hosting is cheaper). The hosted version has the same durability guarantees (WAL + Parquet) as self-hosted.
@@ -219,10 +219,10 @@ What changes:
 ## The pattern
 
 ```
-Day 1:    curl → onboard → ingest → query (free, 5 minutes)
+Day 1:    curl → onboard → ingest → query (trial, 5 minutes)
 Week 2:   Add SDK, schema validation, separate dev/prod tenants
-Month 2:  Upgrade to Pro, add monitoring, scope API keys
-Month 6+: Growth/Enterprise tier, or self-host if needed
+Month 2:  Pick a paid plan, add monitoring, scope API keys
+Month 6+: Scale/Enterprise tier, or self-host if needed
 ```
 
 Each step is additive. You never throw away work from the previous step. Your event types, schemas, and application code carry forward unchanged.

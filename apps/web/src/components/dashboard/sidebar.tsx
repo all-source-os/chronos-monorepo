@@ -49,7 +49,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const { tenant } = useAuthStore();
 
-  const isFreeTier = canonicalTier(tenant?.subscription_tier) === "self-host";
+  // Show the upgrade CTA for tenants on the entry self-host tier (also where any
+  // legacy `free` value normalizes to). Not a "free plan" — the product has none.
+  const isSelfHostTier = canonicalTier(tenant?.subscription_tier) === "self-host";
 
   return (
     <aside
@@ -127,15 +129,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </nav>
 
       {/* Upgrade CTA */}
-      {isFreeTier && !collapsed && (
+      {isSelfHostTier && !collapsed && (
         <div className="border-t border-border p-4">
           <div className="rounded-lg bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4">
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">Upgrade to Team</span>
+              <span className="text-sm font-medium">Upgrade to Studio</span>
             </div>
             <p className="mb-3 text-xs text-muted-foreground">
-              Get 10M events/month, unlimited streams, and MCP server access.
+              Get 5M events/month, unlimited streams, and hosted MCP read + write.
             </p>
             <Button size="sm" className="w-full" asChild>
               <Link href="/dashboard/billing">Upgrade now</Link>

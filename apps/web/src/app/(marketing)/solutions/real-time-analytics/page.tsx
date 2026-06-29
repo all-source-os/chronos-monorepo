@@ -96,7 +96,7 @@ export default function RealTimeAnalyticsPage() {
                 href="/signup"
                 className={cn(buttonVariants({ size: "lg" }))}
               >
-                Start free
+                Start free trial
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link
@@ -232,7 +232,7 @@ wscat -c "wss://api.all-source.xyz/api/v1/events/stream" \\
               href="/signup"
               className={cn(buttonVariants({ size: "lg" }))}
             >
-              Start free
+              Start free trial
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
             <Link

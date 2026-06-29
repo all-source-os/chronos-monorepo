@@ -161,7 +161,7 @@ export default function TenantSetupPage() {
                 <p className="mt-3 text-sm text-muted-foreground">
                   The tenant ID is derived from the email. The API key is a long-lived JWT with
                   developer role — it can read and write events, manage schemas, and create projections.
-                  Free tier: 100K events/month.
+                  New tenants start on a 14-day trial.
                 </p>
               </div>
 
@@ -250,7 +250,7 @@ export default function TenantSetupPage() {
                 },
                 {
                   title: "Use the onboard endpoint for automated setups",
-                  desc: "If your agent just needs to store and query events, /api/v1/onboard/start is the simplest path. One call, no bootstrap key needed, works immediately. The free tier (100K events/month) is generous enough for most agent workloads.",
+                  desc: "If your agent just needs to store and query events, /api/v1/onboard/start is the simplest path. One call, no bootstrap key needed, works immediately. New tenants start on a 14-day trial — pick a plan before it ends to keep ingesting.",
                 },
                 {
                   title: "Scope keys to the narrowest role",
@@ -317,7 +317,7 @@ export default function TenantSetupPage() {
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/signup" className={cn(buttonVariants({ variant: "default", size: "lg" }))}>
-              Get started free
+              Start free trial
             </Link>
             <Link href="/docs/api" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Full API reference

@@ -98,7 +98,7 @@ export default function StreamProcessingPage() {
             </p>
             <div className="mt-8 flex items-center justify-center gap-4">
               <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
-                Start free <ChevronRight className="ml-1 h-4 w-4" />
+                Start free trial <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link href="/docs/api" className={cn(buttonVariants({ variant: "outline" }))}>
                 Pipeline API docs
@@ -181,11 +181,11 @@ export default function StreamProcessingPage() {
         <Section className="py-16 text-center">
           <h2 className="text-3xl font-bold">Build your first pipeline in 5 minutes</h2>
           <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Free tier: 100K events/month. Pipelines included. No credit card required.
+            Start with a 14-day trial — pipelines included. Pick a plan when it ends.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/signup" className={cn(buttonVariants({ variant: "default", size: "lg" }))}>
-              Get started free
+              Start free trial
             </Link>
             <Link href="/platform/event-sourcing" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Event sourcing platform

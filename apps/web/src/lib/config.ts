@@ -160,6 +160,13 @@ export const siteConfig = {
   //                  Enterprise is negotiated).
   pricing: [
     {
+      // Self-Host is NOT advertised on /pricing — the product has no free plan
+      // (14-day trial, then paid/enterprise), so the public pricing cards and
+      // matrix filter this entry out (it reads as "Free"). It stays in this array
+      // ONLY so the authenticated dashboard can still render a tenant that's on
+      // the legacy `self-host` tier (the web analog of admin's planLabel) and so
+      // getPlanConfig's `pricing[0]` fallback resolves to a safe entry. The
+      // run-it-yourself MIT story lives in the "Why no free plan?" FAQ below.
       name: "Self-Host",
       tier: "self-host" as const,
       href: "https://github.com/all-source-os/all-source",

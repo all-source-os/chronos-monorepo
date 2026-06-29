@@ -48,13 +48,15 @@ type PlanOption = { value: TenantPlan | ""; label: string };
 const titleCase = (s: string) => (s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 // Canonical fallback tiers (subscription.go authority). The live options are
-// driven from GET /api/v1/billing/catalog (the paid tiers) bracketed by the
-// static free/enterprise ends, so the filter can never drift from the catalog
-// again (gap #4). This static list is the fallback when the catalog is
-// unreachable and matches the canonical tiers exactly.
+// driven from GET /api/v1/billing/catalog (the paid tiers) capped by the static
+// enterprise end, so the filter can never drift from the catalog again (gap #4).
+// This static list is the fallback when the catalog is unreachable and matches
+// the offered tiers exactly. There is intentionally no `free` option: the
+// product no longer offers a free plan (14-day trial, then paid/enterprise), and
+// the canonical catalog already excludes it. Legacy tenants still on `free` keep
+// rendering their badge via planLabel() — only the FILTER option is gone.
 const FALLBACK_PLAN_OPTIONS: PlanOption[] = [
   { value: "", label: "All Plans" },
-  { value: "free", label: "Free" },
   { value: "indie", label: "Indie" },
   { value: "studio", label: "Studio" },
   { value: "scale", label: "Scale" },
@@ -165,8 +167,11 @@ export default function TenantsPage() {
   );
 
   // Drive the plan filter options from the billing catalog so they can't drift
-  // from the canonical tiers (gap #4). Bracket the catalog's paid tiers with the
-  // static free/enterprise ends. On any failure, keep the canonical fallback.
+  // from the canonical tiers (gap #4). Cap the catalog's paid tiers with the
+  // static enterprise end. There is no `free` option — the catalog already
+  // excludes it and the product no longer sells a free plan; the `t !== "free"`
+  // guard stays defensive so a stray catalog `free` can never re-add it. On any
+  // failure, keep the canonical fallback.
   useEffect(() => {
     let cancelled = false;
     fetchCatalog()
@@ -181,7 +186,6 @@ export default function TenantsPage() {
         if (paid.length === 0) return; // empty/odd catalog → keep fallback
         setPlanOptions([
           { value: "", label: "All Plans" },
-          { value: "free", label: "Free" },
           ...paid.map((t) => ({ value: t as TenantPlan, label: titleCase(t) })),
           { value: "enterprise", label: "Enterprise" },
         ]);

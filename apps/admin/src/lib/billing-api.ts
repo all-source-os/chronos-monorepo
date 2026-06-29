@@ -175,10 +175,11 @@ export interface CatalogTier {
 /**
  * Fetch the billing catalog (canonical PAID tiers) from the Control Plane,
  * same-origin via the BFF. The `/billing/catalog` endpoint returns the
- * configured paid tiers (indie/studio/scale); the admin plan filter brackets
- * these with the static `free`/`enterprise` ends so it can never drift from the
- * catalog again. Always returns an array via asList; on any failure the caller
- * falls back to the canonical static list.
+ * configured paid tiers (indie/studio/scale); the admin plan filter caps these
+ * with the static `enterprise` end so it can never drift from the catalog again.
+ * There is no `free` end — the product no longer sells a free plan and the
+ * catalog already excludes it. Always returns an array via asList; on any
+ * failure the caller falls back to the canonical static list.
  */
 export async function fetchCatalog(): Promise<CatalogTier[]> {
   const res = await fetch(`${getApiUrl()}/api/v1/billing/catalog`, {

@@ -8,12 +8,13 @@ import { fetchCatalog, indexByTier, resolveMonthly } from "@/lib/pricing-catalog
 export const revalidate = 3600;
 
 // Comparison matrix rows. Each row maps a label to a per-tier cell, keyed by the
-// stable public tier id from siteConfig.pricing — Self-Host included as a column.
+// stable public tier id from siteConfig.pricing. Self-Host is intentionally NOT
+// a column — the product has no free plan, so the matrix starts at Indie (the
+// run-it-yourself MIT path lives in the "Why no free plan?" FAQ instead).
 const matrixRows: { label: string; cells: Record<string, string> }[] = [
   {
     label: "Events / mo",
     cells: {
-      "self-host": "Unlimited (your hw)",
       indie: "500K + 50K x402",
       studio: "5M + 500K x402",
       scale: "50M + 5M x402",
@@ -23,7 +24,6 @@ const matrixRows: { label: string; cells: Record<string, string> }[] = [
   {
     label: "Retention",
     cells: {
-      "self-host": "Forever",
       indie: "14 days",
       studio: "90 days",
       scale: "365 days",
@@ -33,7 +33,6 @@ const matrixRows: { label: string; cells: Record<string, string> }[] = [
   {
     label: "MCP",
     cells: {
-      "self-host": "Full (self-host)",
       indie: "read",
       studio: "read + write",
       scale: "read + write + dedicated",
@@ -43,7 +42,6 @@ const matrixRows: { label: string; cells: Record<string, string> }[] = [
   {
     label: "Streams",
     cells: {
-      "self-host": "Unlimited",
       indie: "3",
       studio: "Unlimited",
       scale: "Unlimited",
@@ -53,7 +51,6 @@ const matrixRows: { label: string; cells: Record<string, string> }[] = [
   {
     label: "Support",
     cells: {
-      "self-host": "GitHub community",
       indie: "Email 48h",
       studio: "Email 24h + Discord",
       scale: "Priority + Slack",
@@ -63,7 +60,10 @@ const matrixRows: { label: string; cells: Record<string, string> }[] = [
 ];
 
 export default async function PricingPage() {
-  const tiers = siteConfig.pricing;
+  // Self-Host is excluded everywhere on /pricing — no free plan is advertised, so
+  // the cards, matrix, and price row all start at Indie. (siteConfig.pricing still
+  // carries Self-Host for the authenticated dashboard's legacy-tenant rendering.)
+  const tiers = siteConfig.pricing.filter((p) => !p.isSelfHost);
   const catalog = await fetchCatalog();
   const prices = indexByTier(catalog);
 
@@ -72,7 +72,7 @@ export default async function PricingPage() {
       {/* Above the fold: promise, toggle, cards, enterprise strip, x402 lines. */}
       <PricingSection catalog={catalog} />
 
-      {/* Below the fold: comparison matrix with Self-Host as a column. */}
+      {/* Below the fold: comparison matrix, Indie → Enterprise (no free plan). */}
       <Section title="Compare tiers" subtitle="Everything, side by side">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] border-collapse text-sm">

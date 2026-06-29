@@ -56,7 +56,7 @@ When you go direct, a few things to do:
 
 **Anything outside your network.** Mobile apps, browser clients, third-party integrations, public APIs — every caller you don't personally operate. The gateway is the only AllSource endpoint that should be reachable from the public internet. Point these at `https://api.all-source.xyz` (or your self-hosted equivalent).
 
-**Multi-tenant SaaS.** Each tenant has its own quota (e.g., 100k events/month on the free plan, 10M on growth). The gateway tracks usage per tenant and enforces limits. Implementing that yourself on top of direct Core means reimplementing usage projections, quota checks, and 429 responses — the gateway already does it correctly and consistently with billing.
+**Multi-tenant SaaS.** Each tenant has its own quota (e.g., 500K events/month on Indie, 50M on Scale). The gateway tracks usage per tenant and enforces limits. Implementing that yourself on top of direct Core means reimplementing usage projections, quota checks, and 429 responses — the gateway already does it correctly and consistently with billing.
 
 **Untrusted clients.** Anything that could behave badly. One bug in a customer's integration loops on Core's ingest endpoint and degrades everything else. The gateway gives you a throttle point.
 
@@ -64,7 +64,7 @@ When you go direct, a few things to do:
 
 When you go through the gateway:
 
-1. **Let the gateway own plan definitions.** Free / growth / pro / enterprise tiers are configured centrally. Don't duplicate them in your app.
+1. **Let the gateway own plan definitions.** The trial and the Indie / Studio / Scale / Enterprise tiers are configured centrally. Don't duplicate them in your app.
 2. **Don't bypass the cache with rapid key rotation.** If you're rotating keys faster than the 120s validation window, you're hitting Core's auth endpoint a lot anyway. Slow the rotation down or stop rotating.
 3. **Expect per-tenant rate-limit 429s.** These are a feature — they're how your quota system communicates with callers. Handle them with exponential backoff client-side and honor the `Retry-After` header.
 

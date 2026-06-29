@@ -214,7 +214,7 @@ function SignUpContent() {
             <CardHeader className="space-y-2 px-6 pb-0 pt-4 text-center sm:px-8 sm:pt-6">
               <CardTitle className="text-2xl font-semibold">Create an account</CardTitle>
               <CardDescription className="text-base">
-                Get started with AllSource for free
+                Start your 14-day AllSource trial
               </CardDescription>
             </CardHeader>
             <CardContent className="px-6 pb-6 pt-6 sm:px-8 sm:pb-8">
@@ -404,11 +404,11 @@ function SignUpContent() {
 
                   {/* Features highlight */}
                   <div className="mt-6 space-y-3 rounded-lg bg-muted/50 p-4">
-                    <p className="text-sm font-medium">Start free with:</p>
+                    <p className="text-sm font-medium">Your 14-day trial includes:</p>
                     <ul className="space-y-2 text-sm text-muted-foreground">
                       <li className="flex items-center gap-2">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                        10K events/month
+                        Full hosted event store
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -482,7 +482,7 @@ function SignUpLoading() {
           <CardHeader className="space-y-2 px-6 pb-0 pt-4 text-center sm:px-8 sm:pt-6">
             <CardTitle className="text-2xl font-semibold">Create an account</CardTitle>
             <CardDescription className="text-base">
-              Get started with AllSource for free
+              Start your 14-day AllSource trial
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center px-6 pb-6 pt-6 sm:px-8 sm:pb-8">

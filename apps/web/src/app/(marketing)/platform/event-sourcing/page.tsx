@@ -109,7 +109,7 @@ export default function EventSourcingPage() {
             </p>
             <div className="mt-8 flex items-center justify-center gap-4">
               <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
-                Start free <ChevronRight className="ml-1 h-4 w-4" />
+                Start free trial <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link href="/docs/api" className={cn(buttonVariants({ variant: "outline" }))}>
                 API docs
@@ -196,11 +196,12 @@ export default function EventSourcingPage() {
         <Section className="py-16 text-center">
           <h2 className="text-3xl font-bold">Start capturing events in 60 seconds</h2>
           <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Free tier: 100K events/month. No credit card required. Open source, self-host or cloud.
+            Start with a 14-day trial on the hosted plans, or self-host the open-source core for free
+            under MIT.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/signup" className={cn(buttonVariants({ variant: "default", size: "lg" }))}>
-              Get started free
+              Start free trial
             </Link>
             <Link href="/compare/eventstoredb" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Compare with EventStoreDB

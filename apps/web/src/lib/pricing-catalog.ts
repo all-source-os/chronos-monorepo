@@ -63,8 +63,12 @@ export const PriceUnavailable = "—";
 
 /**
  * isFixedConfigPrice reports whether a config price string is fixed metadata
- * (not priced by LemonSqueezy) — $0 self-host and Custom enterprise. Those are
- * authoritative from config and can't drift, so they're safe to display as-is.
+ * (not priced by LemonSqueezy) — Custom enterprise, plus the legacy "$0"/"Free"
+ * self-host string. Those are authoritative from config and can't drift, so
+ * they're safe to display as-is. NOTE: Self-Host is no longer marketed as a free
+ * plan (it's gone from /pricing), so the "$0"/"Free" branch now only ever fires
+ * on the authenticated dashboard when rendering a tenant still on the legacy
+ * self-host tier — never on a public pricing surface.
  */
 export function isFixedConfigPrice(price: string | undefined): boolean {
   return price === "$0" || price === "Free" || price === "Custom";

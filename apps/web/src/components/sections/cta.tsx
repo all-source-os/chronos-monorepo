@@ -32,7 +32,7 @@ export default function CtaSection() {
     <Section
       id="cta"
       title="Give your AI agents an event log that remembers every event"
-      subtitle="Immutable event sourcing with time-travel queries, 43 MCP tools, and x402 agent payments. Free tier — no credit card required."
+      subtitle="Immutable event sourcing with time-travel queries, 43 MCP tools, and x402 agent payments. Start with a 14-day trial."
       className="relative overflow-hidden rounded-xl py-16"
     >
       {/* Animated gradient background */}
@@ -85,7 +85,7 @@ export default function CtaSection() {
               ) : (
                 <>
                   <Icons.logo className="h-4 w-4" />
-                  Get Started Free
+                  Start Free Trial
                 </>
               )}
             </motion.button>
@@ -93,7 +93,7 @@ export default function CtaSection() {
         )}
         {errorMessage && <p className="mt-2 text-sm text-destructive">{errorMessage}</p>}
         <p className="mt-3 text-xs text-muted-foreground">
-          No credit card required. 10K events/month free.
+          14-day trial. Pick a plan when it ends — or self-host for free under MIT.
         </p>
       </motion.div>
 
