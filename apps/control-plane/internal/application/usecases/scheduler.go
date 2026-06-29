@@ -33,6 +33,7 @@ type OperationScheduler struct {
 	syncEventsUsageUC     *billing.SyncEventsUsageUseCase
 	syncExtractionUsageUC *billing.SyncExtractionUsageUseCase
 	syncSubsUC            *SyncSubscriptionsUseCase
+	expireTrialsUC        *ExpireTrialsUseCase
 	tasks                 []ScheduledTask
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
@@ -65,6 +66,11 @@ func NewOperationScheduler(
 			// missed or signature-rejected. Webhooks are primary; this is the
 			// safety net so tiers don't go stale without manual replays.
 			{Name: "subscription_sync", Interval: 15 * time.Minute, Enabled: true},
+			// Suspend self-service trials whose 14-day window has elapsed without
+			// converting to a paid plan (prompt 048). Hourly is plenty — a trial
+			// is a 14-day box, so suspending within the hour of expiry is timely;
+			// the suspend is reversible + audited (billing.trial.expired).
+			{Name: "trial_expiry", Interval: 1 * time.Hour, Enabled: true},
 		},
 	}
 }
@@ -103,6 +109,12 @@ func (s *OperationScheduler) SetSyncExtractionUsageUseCase(uc *billing.SyncExtra
 // Must be called before Start if subscription_sync is enabled.
 func (s *OperationScheduler) SetSyncSubscriptionsUseCase(uc *SyncSubscriptionsUseCase) {
 	s.syncSubsUC = uc
+}
+
+// SetExpireTrialsUseCase sets the trial-expiry sweep use case.
+// Must be called before Start if trial_expiry is enabled.
+func (s *OperationScheduler) SetExpireTrialsUseCase(uc *ExpireTrialsUseCase) {
+	s.expireTrialsUC = uc
 }
 
 // Start begins running scheduled tasks in the background.
@@ -162,6 +174,8 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeExtractionUsageSync(ctx)
 	case "subscription_sync":
 		s.executeSubscriptionSync(ctx)
+	case "trial_expiry":
+		s.executeTrialExpiry(ctx)
 	default:
 		log.Printf("Unknown scheduled task: %s", task.Name)
 	}
@@ -371,6 +385,43 @@ func (s *OperationScheduler) executeSubscriptionSync(ctx context.Context) {
 
 	auditEvent, _ := entities.NewAuditEvent("billing.subscription.scheduled_sync", "execute", "SCHEDULER", "/billing/subscriptions") //nolint:errcheck
 	auditEvent.AddMetadata("updated", fmt.Sprintf("%d", updated))
+	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
+	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
+}
+
+// executeTrialExpiry suspends self-service trial tenants whose 14-day window has
+// elapsed and who have no active paid subscription (prompt 048). Reversible +
+// audited; logs how many it actioned. No-op when the use case is not wired.
+func (s *OperationScheduler) executeTrialExpiry(ctx context.Context) {
+	if s.expireTrialsUC == nil {
+		return
+	}
+
+	results := s.expireTrialsUC.ExecuteAll(ctx)
+
+	var suspended, skipped, errored int
+	for _, r := range results {
+		switch {
+		case r.Error != nil:
+			errored++
+			log.Printf("Scheduler: trial expiry failed for tenant %s: %v", r.TenantID, r.Error)
+		case r.Suspended:
+			suspended++
+			log.Printf("Scheduler: trial expired — suspended tenant %s", r.TenantID)
+		default:
+			skipped++
+		}
+	}
+
+	if suspended == 0 && errored == 0 {
+		return // nothing expired; stay quiet
+	}
+
+	log.Printf("Scheduler: trial expiry complete — suspended=%d skipped=%d errors=%d", suspended, skipped, errored)
+
+	auditEvent, _ := entities.NewAuditEvent("billing.trial.scheduled_expiry", "execute", "SCHEDULER", "/billing/trial-expiry") //nolint:errcheck
+	auditEvent.AddMetadata("suspended", fmt.Sprintf("%d", suspended))
+	auditEvent.AddMetadata("skipped", fmt.Sprintf("%d", skipped))
 	auditEvent.AddMetadata("errors", fmt.Sprintf("%d", errored))
 	_ = s.auditRepo.Log(auditEvent) //nolint:errcheck
 }

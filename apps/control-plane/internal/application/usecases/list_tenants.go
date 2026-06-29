@@ -11,7 +11,21 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
-// defaultPlan is the default subscription tier when none is set.
+// defaultPlan is the READ-TIME fallback tier for a tenant whose metadata
+// carries no subscription.tier. It is deliberately still "free" — and ONLY a
+// read-time fallback, NEVER a creation default (prompt 048).
+//
+// A tenant with no tier in metadata genuinely PREDATES the trial rollout (every
+// new self-service mint now stamps subscription.tier="trial" + trial_expires_at,
+// see usecases.TrialSubscriptionMetadata). Relabeling those legacy tenants as
+// "trial" would (a) rewrite history and (b) hand them a 14-day clock they never
+// had, suspending grandfathered tenants out of the blue. So a missing tier reads
+// as the grandfathered "free", and the operator migrates real free tenants to
+// comped enterprise via docs/runbooks/RETIRE_FREE_PLAN.md — never automatically.
+//
+// The no-free-as-a-CREATION-default invariant is enforced by
+// TestNoFreeTierMintedAsCreationDefault; this read-time fallback is exempt
+// because it inspects EXISTING tenants, it does not mint new ones.
 const defaultPlan = "free"
 
 // ListTenantsRequest holds pagination and filter parameters.

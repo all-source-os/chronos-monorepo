@@ -81,14 +81,16 @@ func TestRegisterAgent(t *testing.T) {
 		if resp.TenantID != "agent-my-claude-agent" {
 			t.Errorf("expected tenant_id agent-my-claude-agent, got %s", resp.TenantID)
 		}
-		if resp.Tier != "free" {
-			t.Errorf("expected tier free, got %s", resp.Tier)
+		// Self-service agent registration now starts a 14-day trial, not a
+		// permanent free tier (prompt 048): tier=trial + trial quotas.
+		if resp.Tier != TrialTierName {
+			t.Errorf("expected tier %s, got %s", TrialTierName, resp.Tier)
 		}
-		if resp.Quotas.EventsQuota != AgentFreeTierEventsQuota {
-			t.Errorf("expected events_quota %d, got %d", AgentFreeTierEventsQuota, resp.Quotas.EventsQuota)
+		if resp.Quotas.EventsQuota != TrialEventsQuota {
+			t.Errorf("expected events_quota %d, got %d", TrialEventsQuota, resp.Quotas.EventsQuota)
 		}
-		if resp.Quotas.QueriesQuota != AgentFreeTierQueriesQuota {
-			t.Errorf("expected queries_quota %d, got %d", AgentFreeTierQueriesQuota, resp.Quotas.QueriesQuota)
+		if resp.Quotas.QueriesQuota != TrialQueriesQuota {
+			t.Errorf("expected queries_quota %d, got %d", TrialQueriesQuota, resp.Quotas.QueriesQuota)
 		}
 
 		// Verify API key was signed via injected function

@@ -542,6 +542,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	if syncSubsUC != nil {
 		scheduler.SetSyncSubscriptionsUseCase(syncSubsUC)
 	}
+	// Trial-expiry sweep (prompt 048): suspend self-service trials whose 14-day
+	// window elapsed without converting to a paid plan. Reversible + audited.
+	expireTrialsUC := usecases.NewExpireTrialsUseCase(tenantRepo, auditRepo, cfg.CoreClient)
+	scheduler.SetExpireTrialsUseCase(expireTrialsUC)
 
 	// Billing-config verifier (also reused by the read-only tenant analysis below
 	// for its fleet-level plan/billing finding — ONE source of truth so the

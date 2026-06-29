@@ -31,6 +31,35 @@ const (
 	TrialTierName = "trial"
 )
 
+// TrialSubscriptionMetadata returns the `subscription` block stamped into a new
+// trial tenant's metadata: `tier:"trial"`, `status:"active"`, and a
+// `trial_expires_at` of now+TrialValidDuration (RFC3339, UTC). This is the
+// SINGLE source of the trial tier + expiry stamp — every self-service mint
+// (onboard, OAuth/register, agent-register, anonymous-trial) reuses it so the
+// 14-day clock and tier label can never drift between flows (prompt 048).
+//
+// expiresAt is returned alongside so the caller can echo it in its API response
+// without re-deriving the duration.
+func TrialSubscriptionMetadata(now time.Time) (subscription map[string]interface{}, expiresAt time.Time) {
+	expiresAt = now.Add(TrialValidDuration).UTC()
+	subscription = map[string]interface{}{
+		"tier":             TrialTierName,
+		"status":           "active",
+		"trial_expires_at": expiresAt.Format(time.RFC3339),
+	}
+	return subscription, expiresAt
+}
+
+// TrialQuotaMetadata returns the `quota` block (events/queries entitlements) a
+// new trial tenant gets. Kept beside TrialSubscriptionMetadata so the trial's
+// tier label and its quota are defined together and reused by every mint.
+func TrialQuotaMetadata() map[string]interface{} {
+	return map[string]interface{}{
+		"events_quota":  TrialEventsQuota,
+		"queries_quota": TrialQueriesQuota,
+	}
+}
+
 // RegisterTrialAgentUseCase mints an anonymous trial tenant + API key
 // without requiring prior authentication. Distinct from
 // RegisterAgentUseCase because:
@@ -98,7 +127,9 @@ func (uc *RegisterTrialAgentUseCase) Execute(
 	req dto.RegisterTrialAgentRequest,
 ) (*dto.RegisterTrialAgentResponse, error) {
 	now := uc.currentTime()
-	expiresAt := now.Add(TrialValidDuration)
+	// Shared trial tier + expiry stamp — identical to every other self-service
+	// mint (onboard/OAuth/agent-register) so the 14-day clock never drifts.
+	subscription, expiresAt := TrialSubscriptionMetadata(now)
 
 	// Random tenant ID — keep it short so it's readable in logs but
 	// collision-resistant. 16 hex chars = 64 bits of entropy.
@@ -127,17 +158,11 @@ func (uc *RegisterTrialAgentUseCase) Execute(
 		Description: "Anonymous trial tenant (created via /api/v1/agents/anonymous-trial)",
 		Metadata: map[string]interface{}{
 			"is_trial":           true,
-			"trial_expires_at":   expiresAt.UTC().Format(time.RFC3339),
+			"trial_expires_at":   expiresAt.Format(time.RFC3339),
 			"claim_token":        claimToken,
 			"client_fingerprint": req.ClientFingerprint,
-			"subscription": map[string]interface{}{
-				"tier":   TrialTierName,
-				"status": "active",
-			},
-			"quota": map[string]interface{}{
-				"events_quota":  TrialEventsQuota,
-				"queries_quota": TrialQueriesQuota,
-			},
+			"subscription":       subscription,
+			"quota":              TrialQuotaMetadata(),
 		},
 	})
 	if err != nil {

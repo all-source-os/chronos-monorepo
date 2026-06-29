@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/allsource/control-plane/internal/application/dto"
 	"github.com/allsource/control-plane/internal/domain/entities"
@@ -11,7 +12,9 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
-// Free-tier quota constants. Used by agent registration and referenced in tests.
+// Legacy free-tier quota constants. Self-registered agents now start a 14-day
+// trial (prompt 048) and get Trial*Quota instead — these are retained only for
+// reference/back-compat and the agent-register test's historical assertions.
 const (
 	AgentFreeTierEventsQuota  = 10000
 	AgentFreeTierQueriesQuota = 1000
@@ -68,21 +71,22 @@ func (uc *RegisterAgentUseCase) Execute(ctx context.Context, req dto.RegisterAge
 	slug := entities.TenantSlug(req.AgentName)
 	tenantID := fmt.Sprintf("agent-%s", slug)
 
+	// A self-registered agent is a self-service signup, so it starts a 14-day
+	// trial, NOT a permanent free tier (prompt 048). Same shared tier + expiry
+	// stamp as onboard / OAuth / anonymous-trial so the 14-day clock can't drift.
+	// The scheduler's trial-expiry sweep suspends the agent's tenant once
+	// trial_expires_at passes (reversible — operator/claim can re-activate).
+	subscription, _ := TrialSubscriptionMetadata(time.Now())
+
 	// Create tenant with agent metadata
 	tenantResp, err := uc.createTenantUC.Execute(dto.CreateTenantRequest{
 		ID:          tenantID,
 		Name:        req.AgentName,
 		Description: fmt.Sprintf("Agent tenant for %s (%s)", req.AgentName, req.AgentType),
 		Metadata: map[string]interface{}{
-			"agent_type": req.AgentType,
-			"subscription": map[string]interface{}{
-				"tier":   defaultPlan,
-				"status": "active",
-			},
-			"quota": map[string]interface{}{
-				"events_quota":  AgentFreeTierEventsQuota,
-				"queries_quota": AgentFreeTierQueriesQuota,
-			},
+			"agent_type":   req.AgentType,
+			"subscription": subscription,
+			"quota":        TrialQuotaMetadata(),
 		},
 	})
 	if err != nil {
@@ -126,11 +130,11 @@ func (uc *RegisterAgentUseCase) Execute(ctx context.Context, req dto.RegisterAge
 	return &dto.RegisterAgentResponse{
 		TenantID:      tenantResp.ID,
 		APIKey:        apiKey,
-		Tier:          defaultPlan,
+		Tier:          TrialTierName,
 		WalletAddress: walletAddress,
 		Quotas: dto.AgentQuotas{
-			EventsQuota:  AgentFreeTierEventsQuota,
-			QueriesQuota: AgentFreeTierQueriesQuota,
+			EventsQuota:  TrialEventsQuota,
+			QueriesQuota: TrialQueriesQuota,
 		},
 	}, nil
 }
@@ -178,9 +182,9 @@ func (uc *RegisterAgentUseCase) writeRegisteredEvent(ctx context.Context, tenant
 	payload := map[string]any{
 		"agent_name":    req.AgentName,
 		"agent_type":    req.AgentType,
-		"tier":          defaultPlan,
-		"events_quota":  AgentFreeTierEventsQuota,
-		"queries_quota": AgentFreeTierQueriesQuota,
+		"tier":          TrialTierName,
+		"events_quota":  TrialEventsQuota,
+		"queries_quota": TrialQueriesQuota,
 	}
 	if walletAddress != "" {
 		payload["wallet_address"] = walletAddress

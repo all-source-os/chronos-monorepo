@@ -79,7 +79,13 @@ impl TenantQuotas {
         }
     }
 
-    /// Free tier quotas
+    /// Free tier quotas.
+    ///
+    /// RETAINED for GRANDFATHERED tenants only. New self-service signups no
+    /// longer default to free — they start a 14-day trial (`trial_tier`) which
+    /// the Control Plane stamps with `trial_expires_at` and suspends on expiry
+    /// (prompt 048). Do NOT assign this to a NEW tenant; it stays so existing
+    /// free tenants keep their original quota until an operator migrates them.
     pub fn free_tier() -> Self {
         Self {
             max_events_per_day: 10_000,
@@ -88,6 +94,26 @@ impl TenantQuotas {
             max_api_keys: 2,
             max_projections: 5,
             max_pipelines: 2,
+        }
+    }
+
+    /// Trial tier quotas — the default preset for NEW self-service tenants
+    /// (prompt 048). A trial is a 14-day, time-boxed evaluation (the Control
+    /// Plane owns the `trial_expires_at` clock + the expiry suspend sweep); the
+    /// quota only needs to let an evaluator genuinely exercise ingest + query +
+    /// MCP during those two weeks, so it sits above the crippled free tier but
+    /// below the paid tiers. Mirrors the Control Plane's trial entitlements
+    /// (`TrialEventsQuota` / `TrialQueriesQuota` — see
+    /// `register_trial_agent.go`); the CP enforces the billing-period numbers,
+    /// Core just sets the per-day/per-hour ceilings an active trial runs under.
+    pub fn trial_tier() -> Self {
+        Self {
+            max_events_per_day: 100_000,
+            max_storage_bytes: 5_368_709_120, // 5 GB
+            max_queries_per_hour: 10_000,
+            max_api_keys: 5,
+            max_projections: 25,
+            max_pipelines: 10,
         }
     }
 
@@ -705,6 +731,27 @@ mod tests {
         assert_eq!(tenant.name(), "Test Tenant");
         assert!(tenant.is_active());
         assert_eq!(tenant.usage().total_events(), 0);
+    }
+
+    #[test]
+    fn trial_tier_is_the_new_signup_preset_and_beats_free() {
+        // Prompt 048: new self-service tenants get the trial preset, NOT free.
+        // The trial must let an evaluator genuinely use the product, so every
+        // dimension is >= the (retained, grandfathered-only) free tier and the
+        // two presets are distinct — a trial is never silently the free quota.
+        let trial = TenantQuotas::trial_tier();
+        let free = TenantQuotas::free_tier();
+
+        assert_ne!(trial, free, "trial must not equal the free quota");
+        assert!(trial.max_events_per_day() >= free.max_events_per_day());
+        assert!(trial.max_queries_per_hour() >= free.max_queries_per_hour());
+        assert!(trial.max_storage_bytes() >= free.max_storage_bytes());
+        assert!(trial.max_api_keys() >= free.max_api_keys());
+        assert!(trial.max_projections() >= free.max_projections());
+
+        // Free tier is RETAINED (grandfathered tenants) — its definition must
+        // not have been deleted or zeroed.
+        assert_eq!(free.max_events_per_day(), 10_000);
     }
 
     #[test]

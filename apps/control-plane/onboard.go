@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain"
 	"github.com/allsource/control-plane/internal/domain/entities"
 )
@@ -59,20 +60,22 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 		name = strings.Split(req.Email, "@")[0]
 	}
 
+	// New self-service signups start a 14-day trial, NOT a permanent free tier
+	// (prompt 048 — the marketing/catalog already say "no free plan"). The tier
+	// label + trial_expires_at come from the shared usecases.TrialSubscriptionMetadata
+	// so onboard, OAuth, and agent-register can't drift; the scheduler's
+	// trial-expiry sweep suspends the tenant when trial_expires_at passes.
+	subscription, _ := usecases.TrialSubscriptionMetadata(time.Now())
+
 	// Create tenant via the CreateTenantUseCase
 	tenantResp, err := cp.container.CreateTenantUC.Execute(dto.CreateTenantRequest{
 		ID:          tenantID,
 		Name:        name,
 		Description: fmt.Sprintf("Onboarded tenant for %s", req.Email),
 		Metadata: map[string]interface{}{
-			"email": req.Email,
-			"subscription": map[string]interface{}{
-				"tier":   "free",
-				"status": "active",
-			},
-			"quota": map[string]interface{}{
-				"events_quota": 10000,
-			},
+			"email":        req.Email,
+			"subscription": subscription,
+			"quota":        usecases.TrialQuotaMetadata(),
 		},
 	})
 	if err != nil {
@@ -112,12 +115,13 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 	curls := buildSampleCurls(baseURL, apiKey, tenantResp.ID)
 
 	c.JSON(http.StatusCreated, gin.H{
-		"tenant_id":       tenantResp.ID,
-		"api_key":         apiKey,
-		"sample_events":   ingestedCount,
-		"tier":            "free",
-		"events_quota":    10000,
-		"getting_started": curls,
+		"tenant_id":        tenantResp.ID,
+		"api_key":          apiKey,
+		"sample_events":    ingestedCount,
+		"tier":             usecases.TrialTierName,
+		"trial_expires_at": subscription["trial_expires_at"],
+		"events_quota":     usecases.TrialEventsQuota,
+		"getting_started":  curls,
 	})
 }
 

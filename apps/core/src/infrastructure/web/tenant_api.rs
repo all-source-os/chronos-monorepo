@@ -20,7 +20,7 @@ pub struct CreateTenantRequest {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub quota_preset: Option<String>, // "free", "professional", "unlimited"
+    pub quota_preset: Option<String>, // "trial", "free", "professional", "unlimited"
     pub quotas: Option<TenantQuotas>,
     #[serde(default)]
     pub is_demo: bool,
@@ -115,6 +115,32 @@ pub struct IncrementUsageResponse {
 // Handlers
 // ============================================================================
 
+/// Resolve the quotas for a tenant being created.
+///
+/// Policy (prompt 048): NEW self-service tenants default to the TRIAL preset,
+/// never free — a 14-day evaluation, not a permanent free tier (the Control
+/// Plane owns the `trial_expires_at` clock + the expiry suspend sweep). The
+/// `free_tier()` quota is RETAINED but only resolves when a caller EXPLICITLY
+/// asks for `quota_preset: "free"` — that path exists for GRANDFATHERED tenants
+/// (an operator re-provisioning an existing free tenant), not for new signups.
+///
+/// Precedence: an explicit `quotas` value wins; otherwise a recognized preset;
+/// otherwise (unknown preset OR no preset at all) we fall back to the trial
+/// tier, so an under-specified create can never silently mint a free-quota
+/// tenant.
+fn resolve_create_quotas(quotas: Option<TenantQuotas>, quota_preset: Option<&str>) -> TenantQuotas {
+    if let Some(quotas) = quotas {
+        return quotas;
+    }
+    match quota_preset {
+        Some("trial") => TenantQuotas::trial_tier(),
+        Some("free") => TenantQuotas::free_tier(), // grandfathered tenants only
+        Some("professional") => TenantQuotas::professional(),
+        Some("unlimited") => TenantQuotas::unlimited(),
+        _ => TenantQuotas::trial_tier(),
+    }
+}
+
 /// Create tenant (admin only)
 /// POST /api/v1/tenants
 pub async fn create_tenant_handler(
@@ -122,19 +148,8 @@ pub async fn create_tenant_handler(
     Admin(_): Admin,
     Json(req): Json<CreateTenantRequest>,
 ) -> Result<(StatusCode, Json<TenantResponse>), (StatusCode, String)> {
-    // Determine quotas
-    let quotas = if let Some(quotas) = req.quotas {
-        quotas
-    } else if let Some(preset) = req.quota_preset {
-        match preset.as_str() {
-            "free" => TenantQuotas::free_tier(),
-            "professional" => TenantQuotas::professional(),
-            "unlimited" => TenantQuotas::unlimited(),
-            _ => TenantQuotas::default(),
-        }
-    } else {
-        TenantQuotas::default()
-    };
+    // Determine quotas (see resolve_create_quotas for the policy + rationale).
+    let quotas = resolve_create_quotas(req.quotas, req.quota_preset.as_deref());
 
     let tenant_id = TenantId::new(req.id).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
@@ -702,6 +717,49 @@ mod tests {
         // which axum surfaces as a 400 — no separate validation needed.
         let err = serde_json::from_str::<IncrementUsageRequest>(r#"{"count": -1}"#);
         assert!(err.is_err(), "negative count must fail to deserialize");
+    }
+
+    #[test]
+    fn new_tenant_defaults_to_trial_quota_not_free() {
+        // Prompt 048: a create with no quotas and no preset must resolve to the
+        // TRIAL tier (the new-signup default), never free and never the old
+        // standard fallback — so an under-specified create can't mint free.
+        assert_eq!(
+            resolve_create_quotas(None, None),
+            TenantQuotas::trial_tier()
+        );
+        // An unknown preset also falls back to trial, never free.
+        assert_eq!(
+            resolve_create_quotas(None, Some("bogus")),
+            TenantQuotas::trial_tier()
+        );
+        // The explicit "trial" preset resolves to the trial tier.
+        assert_eq!(
+            resolve_create_quotas(None, Some("trial")),
+            TenantQuotas::trial_tier()
+        );
+    }
+
+    #[test]
+    fn free_preset_still_resolves_to_free_for_grandfathered_tenants() {
+        // The free_tier() quota is RETAINED: an operator explicitly asking for
+        // `quota_preset:"free"` (re-provisioning a grandfathered tenant) still
+        // gets the free quota. This change stops NEW free, it does not delete it.
+        assert_eq!(
+            resolve_create_quotas(None, Some("free")),
+            TenantQuotas::free_tier()
+        );
+    }
+
+    #[test]
+    fn explicit_quotas_win_over_preset_default() {
+        // A caller-supplied quotas value always wins (e.g. the demo flow sending
+        // unlimited), regardless of the trial default.
+        let custom = TenantQuotas::unlimited();
+        assert_eq!(
+            resolve_create_quotas(Some(custom.clone()), None),
+            custom
+        );
     }
 
     #[test]

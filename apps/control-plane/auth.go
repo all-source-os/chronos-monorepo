@@ -568,18 +568,22 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 	tenantSlug := entities.TenantSlug(email)
 	tenantID := tenantSlug
 
+	// New self-service signups (OAuth + email register, which funnels here) start a
+	// 14-day trial, NOT a permanent free tier (prompt 048). Shared tier + expiry
+	// stamp so this can't drift from onboard / agent-register; the scheduler's
+	// trial-expiry sweep suspends the tenant once trial_expires_at passes.
+	// NOTE: Core force-maps "already exists" to 4xx below, so a RETURNING user's
+	// login does not overwrite their stored subscription — this trial stamp only
+	// lands on the genuinely-new tenant Core actually creates (201).
+	trialSubscription, _ := usecases.TrialSubscriptionMetadata(time.Now())
+
 	tenantBody := map[string]interface{}{
 		"id":   tenantID,
 		"name": name,
 		"slug": tenantSlug,
 		"metadata": map[string]interface{}{
-			"subscription": map[string]interface{}{
-				"tier":   "free",
-				"status": "active",
-			},
-			"quota": map[string]interface{}{
-				"events_quota": 10000,
-			},
+			"subscription": trialSubscription,
+			"quota":        usecases.TrialQuotaMetadata(),
 		},
 	}
 
