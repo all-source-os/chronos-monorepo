@@ -184,9 +184,16 @@ type EventEntry struct {
 
 // TenantResponse represents a tenant from Core.
 type TenantResponse struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Status    string         `json:"status"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Status is a lifecycle string IF Core ever sends one; today Core only emits
+	// the `active` bool below, so the repo derives status from Active (+ a
+	// metadata.lifecycle_status hint). Kept for forward-compat.
+	Status string `json:"status"`
+	// Active is Core's real lifecycle flag (deactivate/activate flip it). Decoding
+	// this is what makes a suspended/archived tenant actually read back as not
+	// active — without it every tenant defaulted to "active" in the admin.
+	Active    bool           `json:"active"`
 	IsDemo    bool           `json:"is_demo,omitempty"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`

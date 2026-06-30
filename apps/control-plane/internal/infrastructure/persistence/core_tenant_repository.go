@@ -87,6 +87,21 @@ func (r *CoreTenantRepository) FindActive() ([]*entities.Tenant, error) {
 func (r *CoreTenantRepository) Update(tenant *entities.Tenant) error {
 	ctx := context.Background()
 
+	// Record the lifecycle status in metadata so suspended-vs-archived survives the
+	// round-trip: Core only has an `active` bool and cannot tell the two apart, so
+	// without this hint a deactivated tenant would always read back as "suspended".
+	// The Deactivate/Activate calls below flip Core's `active` flag; this just
+	// preserves WHICH not-active state it is.
+	if tenant.Metadata == nil {
+		tenant.Metadata = map[string]any{}
+	}
+	switch tenant.Status {
+	case entities.TenantStatusSuspended, entities.TenantStatusArchived:
+		tenant.Metadata["lifecycle_status"] = string(tenant.Status)
+	case entities.TenantStatusActive:
+		delete(tenant.Metadata, "lifecycle_status")
+	}
+
 	// Update metadata if present
 	if len(tenant.Metadata) > 0 {
 		if _, err := r.client.UpdateTenantMetadata(ctx, tenant.ID, tenant.Metadata); err != nil {
@@ -129,6 +144,12 @@ func (r *CoreTenantRepository) Exists(id string) (bool, error) {
 
 // coreTenantToEntity converts a Core API tenant response to a domain entity.
 func coreTenantToEntity(resp *clients.TenantResponse) *entities.Tenant {
+	// Derive lifecycle status. Prefer an explicit Core `status` string if one is
+	// ever sent; otherwise fall back to the real signal Core DOES emit — the
+	// `active` bool — combined with the metadata.lifecycle_status hint the repo
+	// writes on suspend/archive. Before this, the code read only `resp.Status`
+	// (which Core never sends), so EVERY tenant defaulted to active and the admin
+	// could never show a suspended/archived tenant.
 	status := entities.TenantStatusActive
 	switch resp.Status {
 	case "suspended", "inactive":
@@ -137,6 +158,18 @@ func coreTenantToEntity(resp *clients.TenantResponse) *entities.Tenant {
 		status = entities.TenantStatusDeleted
 	case "archived":
 		status = entities.TenantStatusArchived
+	case "active":
+		status = entities.TenantStatusActive
+	default:
+		// No explicit status from Core — derive from the active flag.
+		if !resp.Active {
+			status = entities.TenantStatusSuspended
+			if resp.Metadata != nil {
+				if ls, ok := resp.Metadata["lifecycle_status"].(string); ok && ls == "archived" {
+					status = entities.TenantStatusArchived
+				}
+			}
+		}
 	}
 
 	// Pull HomeRegion out of metadata. Legacy tenants written before
