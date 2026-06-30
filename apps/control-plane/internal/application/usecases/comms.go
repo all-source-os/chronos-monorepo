@@ -394,6 +394,21 @@ type SendMessageRequest struct {
 	Body     string `json:"body,omitempty"`
 	DryRun   bool   `json:"dry_run"`
 	Actor    string `json:"-"` // from the admin JWT
+
+	// --- Proactive-comms efficiency correlation tags (prompt 050) ---
+	// These flow onto the admin.message.sent / comms.holdout Core events so the
+	// efficiency reconciler can group by campaign/stage/variant and join to goals.
+	// A scheduled lifecycle-trail job sets them; an operator one-off omits them
+	// (Campaign then defaults to the template key). GENERAL — not trail-specific.
+	Campaign   string `json:"campaign,omitempty"`
+	TrailStage string `json:"trail_stage,omitempty"`
+	Variant    string `json:"variant,omitempty"`
+	Cohort     string `json:"cohort,omitempty"`
+	// HoldoutPct (0–100) is the share of this campaign's cohort to hold out for
+	// causal lift. Honored ONLY for marketing templates (operational/critical sends
+	// are NEVER held out). 0 disables holdout. The split is deterministic per
+	// (tenant, campaign) — see HoldoutAssignment.
+	HoldoutPct int `json:"holdout_pct,omitempty"`
 }
 
 // SendMessageResult is the response for POST /api/v1/admin/messages.
@@ -403,10 +418,16 @@ type SendMessageResult struct {
 	DryRun     bool   `json:"dry_run"`
 	Sent       bool   `json:"sent"`
 	Skipped    bool   `json:"skipped"`
-	SkipReason string `json:"skip_reason,omitempty"` // skipped_opt_out | skipped_rate_limit
+	SkipReason string `json:"skip_reason,omitempty"` // skipped_opt_out | skipped_rate_limit | held_out
 	Recipient  string `json:"recipient,omitempty"`
 	Subject    string `json:"subject,omitempty"`
 	Message    string `json:"message,omitempty"`
+	// HeldOut is true when the deterministic holdout splitter suppressed this send
+	// (a comms.holdout marker was recorded instead) so causal lift is measurable.
+	HeldOut bool `json:"held_out,omitempty"`
+	// MessageID is the ESP message id (when the sender returns one) — the join key
+	// the engagement webhook correlates delivered/opened/clicked back to.
+	MessageID string `json:"message_id,omitempty"`
 }
 
 // Skip reasons recorded in admin.message.sent (skipped=true) and returned to the
@@ -414,7 +435,20 @@ type SendMessageResult struct {
 const (
 	SkipOptOut    = "skipped_opt_out"
 	SkipRateLimit = "skipped_rate_limit"
+	// SkipHeldOut marks a send suppressed by the holdout splitter (recorded as a
+	// comms.holdout event, NOT admin.message.sent — it never counts as a send).
+	SkipHeldOut = "held_out"
 )
+
+// messageIDSender is an OPTIONAL EmailClient capability: a sender that returns the
+// ESP message id (Resend does; the SMTP client does not). When the configured
+// client implements it, the send path records that id on admin.message.sent and
+// writes a correlation record so the engagement webhook can join delivered/opened/
+// clicked back to the send. SMTP-only deployments simply carry no message id (and
+// produce no ESP engagement webhooks), so the funnel degrades cleanly to send-only.
+type messageIDSender interface {
+	SendEmailWithID(ctx context.Context, req clients.SendEmailRequest) (messageID string, err error)
+}
 
 // SendMessage sends an operator→tenant email via the EXISTING SMTP EmailClient,
 // honoring per-tenant opt-out (marketing templates only) and a per-tenant per-
@@ -463,6 +497,11 @@ func (uc *CommsUseCase) SendMessage(ctx context.Context, req SendMessageRequest)
 		return nil, ErrCommsNoRecipient
 	}
 
+	// Build the efficiency correlation tags once (tenant_id, campaign_id, stage,
+	// variant, cohort, tier, send_ts). message_id + holdout are stamped later.
+	sendTS := time.Now().UTC().Format(time.RFC3339)
+	tags := uc.commsTagsFor(req, tenant, tmplKey, sendTS)
+
 	// Opt-out check (marketing templates honor it; operational templates are
 	// exempt because they are service-critical).
 	if tmpl.Category == CategoryMarketing && commsOptedOut(tenant.Metadata) {
@@ -470,7 +509,7 @@ func (uc *CommsUseCase) SendMessage(ctx context.Context, req SendMessageRequest)
 		result.SkipReason = SkipOptOut
 		result.Message = "tenant has opted out of marketing comms"
 		if !req.DryRun {
-			_, _ = uc.recorder.record(ctx, MessageSentEventType, "message:"+tenantID, uc.messagePayload(tenantID, tmplKey, recipient, subject, req.Actor, true, SkipOptOut)) //nolint:errcheck // audit best-effort on skip
+			_, _ = uc.recorder.record(ctx, MessageSentEventType, "message:"+tenantID, uc.messagePayload(tags, tmplKey, recipient, subject, req.Actor, true, SkipOptOut)) //nolint:errcheck // audit best-effort on skip
 		}
 		return result, nil
 	}
@@ -484,37 +523,83 @@ func (uc *CommsUseCase) SendMessage(ctx context.Context, req SendMessageRequest)
 			result.Skipped = true
 			result.SkipReason = SkipRateLimit
 			result.Message = "rate-limited: same template sent within the cooldown"
-			_, _ = uc.recorder.record(ctx, MessageSentEventType, "message:"+tenantID, uc.messagePayload(tenantID, tmplKey, recipient, subject, req.Actor, true, SkipRateLimit)) //nolint:errcheck // audit best-effort on skip
+			_, _ = uc.recorder.record(ctx, MessageSentEventType, "message:"+tenantID, uc.messagePayload(tags, tmplKey, recipient, subject, req.Actor, true, SkipRateLimit)) //nolint:errcheck // audit best-effort on skip
 			return result, nil
 		}
 	}
 
+	// Holdout split (causal lift). ONLY marketing templates with a campaign holdout
+	// opt in; operational/critical templates are NEVER held out — you must not
+	// suppress a security/dunning/transactional message to run a marketing
+	// experiment. The split is deterministic per (tenant, campaign).
+	eligibleForHoldout := tmpl.Category == CategoryMarketing && req.HoldoutPct > 0
+	heldOut := eligibleForHoldout && HoldoutAssignment(tenantID, tags.CampaignID, req.HoldoutPct)
+
 	if req.DryRun {
-		result.Message = "dry-run: would send"
+		result.HeldOut = heldOut
+		if heldOut {
+			result.Message = "dry-run: would be HELD OUT (suppressed for causal lift)"
+		} else {
+			result.Message = "dry-run: would send"
+		}
 		return result, nil
 	}
 
-	// Send via the EXISTING SMTP client (the check_usage_warnings.go path).
+	// Held out: suppress the actual send, record a comms.holdout marker carrying the
+	// SAME tags (holdout=true) so conversion(held-out) is measurable against
+	// conversion(sent). No email leaves the building.
+	if heldOut {
+		holdoutTags := tags
+		holdoutTags.Holdout = true
+		result.Skipped = true
+		result.HeldOut = true
+		result.SkipReason = SkipHeldOut
+		result.Message = "held out for causal lift (no send)"
+		if _, err := uc.recorder.record(ctx, HoldoutEventType, "holdout:"+tenantID, uc.messagePayload(holdoutTags, tmplKey, recipient, subject, req.Actor, true, SkipHeldOut)); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+
+	// Send via the configured client. When it returns an ESP message id (Resend),
+	// stamp it on the send event + a correlation record so engagement webhooks can
+	// join delivered/opened/clicked back to this send. The SMTP client returns no
+	// id (the funnel then degrades to send-only, which is correct — SMTP emits no
+	// engagement webhooks).
 	if uc.emailClient == nil {
 		return nil, fmt.Errorf("%w: email client not configured", ErrCommsInvalidInput)
 	}
-	if err := uc.emailClient.SendEmail(ctx, clients.SendEmailRequest{To: recipient, Subject: subject, Body: body}); err != nil {
+	var messageID string
+	if s, ok := uc.emailClient.(messageIDSender); ok {
+		id, sendErr := s.SendEmailWithID(ctx, clients.SendEmailRequest{To: recipient, Subject: subject, Body: body})
+		if sendErr != nil {
+			return nil, fmt.Errorf("send message to %s: %w", tenantID, sendErr)
+		}
+		messageID = id
+	} else if err := uc.emailClient.SendEmail(ctx, clients.SendEmailRequest{To: recipient, Subject: subject, Body: body}); err != nil {
 		return nil, fmt.Errorf("send message to %s: %w", tenantID, err)
 	}
+	tags.MessageID = messageID
 
 	// Audit AFTER a successful send so admin.message.sent (sent=true) is the
-	// durable record the rate limiter reads.
-	if _, err := uc.recorder.record(ctx, MessageSentEventType, "message:"+tenantID, uc.messagePayload(tenantID, tmplKey, recipient, subject, req.Actor, false, "")); err != nil {
+	// durable record the rate limiter reads — now carrying the efficiency tags.
+	if _, err := uc.recorder.record(ctx, MessageSentEventType, "message:"+tenantID, uc.messagePayload(tags, tmplKey, recipient, subject, req.Actor, false, "")); err != nil {
 		return nil, err
 	}
+	// Correlation record (Core config) so the engagement webhook resolves the ESP
+	// message id → these tags. Best-effort: a failure here doesn't fail the send
+	// (the send event already carries the tags; only webhook resolution degrades).
+	if messageID != "" {
+		_ = uc.recorder.setCorrelation(ctx, tags) //nolint:errcheck // best-effort correlation
+	}
 	result.Sent = true
+	result.MessageID = messageID
 	result.Message = "message sent"
 	return result, nil
 }
 
-func (uc *CommsUseCase) messagePayload(tenantID, template, recipient, subject, actor string, skipped bool, skipReason string) map[string]any {
+func (uc *CommsUseCase) messagePayload(tags CommsTags, template, recipient, subject, actor string, skipped bool, skipReason string) map[string]any {
 	p := map[string]any{
-		"tenant_id": tenantID,
 		"template":  template,
 		"recipient": recipient,
 		"subject":   subject,
@@ -524,7 +609,31 @@ func (uc *CommsUseCase) messagePayload(tenantID, template, recipient, subject, a
 	if skipReason != "" {
 		p["skip_reason"] = skipReason
 	}
+	// Stamp the efficiency correlation tags (tenant_id, campaign_id, message_id,
+	// trail_stage, variant, cohort, tier, send_ts, holdout) so the reconciler can
+	// group + join this send. tenant_id comes from the tags, not a separate arg.
+	tags.ApplyTo(p)
 	return p
+}
+
+// commsTagsFor builds the correlation envelope for a send from the request + the
+// tenant's tier at send time. Campaign defaults to the template key for an operator
+// one-off that names no campaign, so every send is still attributable.
+func (uc *CommsUseCase) commsTagsFor(req SendMessageRequest, tenant *entities.Tenant, tmplKey, sendTS string) CommsTags {
+	campaign := strings.TrimSpace(req.Campaign)
+	if campaign == "" {
+		campaign = tmplKey
+	}
+	sub := extractSubscriptionForHealth(tenant.Metadata)
+	return CommsTags{
+		TenantID:   tenant.ID,
+		CampaignID: campaign,
+		TrailStage: strings.TrimSpace(req.TrailStage),
+		Variant:    strings.TrimSpace(req.Variant),
+		Cohort:     strings.TrimSpace(req.Cohort),
+		Tier:       effectiveBillingTier(tenant.Metadata, sub),
+		SendTS:     sendTS,
+	}
 }
 
 // rateLimited reports whether an admin.message.sent (sent=true) event exists for

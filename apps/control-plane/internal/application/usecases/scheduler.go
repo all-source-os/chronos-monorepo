@@ -34,6 +34,7 @@ type OperationScheduler struct {
 	syncExtractionUsageUC *billing.SyncExtractionUsageUseCase
 	syncSubsUC            *SyncSubscriptionsUseCase
 	expireTrialsUC        *ExpireTrialsUseCase
+	commsEfficiencyUC     *CommsEfficiencyUseCase
 	tasks                 []ScheduledTask
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
@@ -71,6 +72,11 @@ func NewOperationScheduler(
 			// is a 14-day box, so suspending within the hour of expiry is timely;
 			// the suspend is reversible + audited (billing.trial.expired).
 			{Name: "trial_expiry", Interval: 1 * time.Hour, Enabled: true},
+			// Recompute the proactive-comms efficiency projection (funnel + causal
+			// lift) by joining engagement events to goal events in Core (prompt 050).
+			// 15 min: it's an operator read-model, not hot-path; the API also computes
+			// live on demand, so staleness between ticks is cosmetic.
+			{Name: "comms_efficiency", Interval: 15 * time.Minute, Enabled: true},
 		},
 	}
 }
@@ -115,6 +121,12 @@ func (s *OperationScheduler) SetSyncSubscriptionsUseCase(uc *SyncSubscriptionsUs
 // Must be called before Start if trial_expiry is enabled.
 func (s *OperationScheduler) SetExpireTrialsUseCase(uc *ExpireTrialsUseCase) {
 	s.expireTrialsUC = uc
+}
+
+// SetCommsEfficiencyUseCase sets the proactive-comms efficiency reconciler.
+// Must be called before Start if comms_efficiency is enabled.
+func (s *OperationScheduler) SetCommsEfficiencyUseCase(uc *CommsEfficiencyUseCase) {
+	s.commsEfficiencyUC = uc
 }
 
 // Start begins running scheduled tasks in the background.
@@ -176,9 +188,27 @@ func (s *OperationScheduler) executeTask(ctx context.Context, task ScheduledTask
 		s.executeSubscriptionSync(ctx)
 	case "trial_expiry":
 		s.executeTrialExpiry(ctx)
+	case "comms_efficiency":
+		s.executeCommsEfficiency(ctx)
 	default:
 		log.Printf("Unknown scheduled task: %s", task.Name)
 	}
+}
+
+// executeCommsEfficiency recomputes the proactive-comms efficiency projection
+// (funnel + causal lift) from Core events and persists it for the admin panel.
+// No-op when the reconciler is not wired (no Core client).
+func (s *OperationScheduler) executeCommsEfficiency(ctx context.Context) {
+	if s.commsEfficiencyUC == nil {
+		return
+	}
+	proj, err := s.commsEfficiencyUC.ExecuteAll(ctx)
+	if err != nil {
+		log.Printf("Scheduler: comms efficiency reconcile failed: %v", err)
+		return
+	}
+	log.Printf("Scheduler: comms efficiency reconciled — groups=%d hero_sent=%d hero_converted=%d lift=%.3f",
+		len(proj.Groups), proj.Hero.Sent, proj.Hero.Converted, proj.Hero.Lift)
 }
 
 func (s *OperationScheduler) executeCompaction(ctx context.Context) {

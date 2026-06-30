@@ -1,11 +1,16 @@
 package usecases
 
 import (
+	"context"
+	"log"
 	"sync"
+	"time"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/application/usecases/signals"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
+	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
 // keyedMutex serializes work per string key (here: per tenant ID). Lazily
@@ -38,6 +43,11 @@ type UpdateSubscriptionMetadataUseCase struct {
 	tenantRepo repositories.TenantRepository
 	auditRepo  repositories.AuditRepository
 	locks      *keyedMutex
+	// coreClient is optional (set via WithCoreClient). When wired, the apply path
+	// emits a subscription.activated / subscription.upgraded Core event on a tier
+	// transition so the comms-efficiency engine can measure trial→paid conversion
+	// (prompt 050). nil → the emit is a no-op; entitlement writes are unaffected.
+	coreClient clients.CoreClient
 }
 
 // NewUpdateSubscriptionMetadataUseCase creates a new UpdateSubscriptionMetadataUseCase.
@@ -50,6 +60,16 @@ func NewUpdateSubscriptionMetadataUseCase(
 		auditRepo:  auditRepo,
 		locks:      &keyedMutex{},
 	}
+}
+
+// WithCoreClient wires the Core client so a tier transition emits a durable
+// subscription.activated / subscription.upgraded event (the trial→paid signal the
+// comms-efficiency reconciler joins against). Returns the receiver for chaining.
+// Kept as an optional builder so the existing 2-arg constructor — called in ~17
+// places — is untouched.
+func (uc *UpdateSubscriptionMetadataUseCase) WithCoreClient(c clients.CoreClient) *UpdateSubscriptionMetadataUseCase {
+	uc.coreClient = c
+	return uc
 }
 
 // UpsertSubscription atomically upserts a single subscription into the tenant's
@@ -115,6 +135,12 @@ func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant
 		tenant.Metadata = make(map[string]interface{})
 	}
 
+	// Capture the PRE-merge tier state so we can detect a trial→paid (or paid
+	// upgrade) transition after persisting and emit the comms-efficiency signal.
+	prevTier := effectiveBillingTier(tenant.Metadata, extractSubscriptionForHealth(tenant.Metadata))
+	prevPaid := signals.PaidTier(prevTier)
+	prevTrial := TenantIsActiveTrial(tenant.Metadata)
+
 	// Merge billing metadata into tenant metadata, preserving non-billing keys
 	billingMap := billing.ToMetadataMap()
 	for k, v := range billingMap {
@@ -164,6 +190,14 @@ func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant
 	auditEvent.WithResource("tenant", tenant.ID).WithTenant(tenant.ID)
 	_ = uc.auditRepo.Log(auditEvent) //nolint:errcheck
 
+	// Emit the trial→paid / upgrade signal AFTER a successful persist (the state
+	// change already happened — this only RECORDS it; it changes no entitlement and
+	// moves no money). Best-effort; nil coreClient → no-op.
+	if billing.Subscription != nil && billing.Subscription.Tier != "" {
+		newTier := effectiveBillingTier(tenant.Metadata, extractSubscriptionForHealth(tenant.Metadata))
+		uc.emitTierTransition(tenant.ID, prevTier, newTier, prevPaid, prevTrial)
+	}
+
 	return &dto.TenantResponse{
 		ID:          tenant.ID,
 		Name:        tenant.Name,
@@ -174,4 +208,42 @@ func (uc *UpdateSubscriptionMetadataUseCase) applyLocked(tenant *entities.Tenant
 		UpdatedAt:   tenant.UpdatedAt,
 		Metadata:    tenant.Metadata,
 	}, nil
+}
+
+// emitTierTransition records a subscription.activated (trial/free → paid: the HERO
+// conversion) or subscription.upgraded (paid → higher paid: expansion) Core event
+// into the CUSTOMER tenant's own stream, so the comms-efficiency reconciler can
+// join "did the welcome/upgrade email cause this?" within the attribution window.
+// Idempotent webhooks/renewals at the SAME tier emit nothing; downgrades and
+// cancels (newTier not paid) emit nothing.
+func (uc *UpdateSubscriptionMetadataUseCase) emitTierTransition(tenantID, prevTier, newTier string, prevPaid, prevTrial bool) {
+	if uc.coreClient == nil {
+		return
+	}
+	if !signals.PaidTier(newTier) {
+		return // not a paid state (downgrade to free / cancel) — nothing to mark
+	}
+	var eventType string
+	switch {
+	case !prevPaid:
+		eventType = GoalSubscriptionActivated // trial/free → paid
+	case entities.TierRank(newTier) > entities.TierRank(prevTier):
+		eventType = GoalSubscriptionUpgraded // paid → higher paid
+	default:
+		return // same tier (renewal / replayed webhook) or downgrade — no marker
+	}
+	if _, err := uc.coreClient.IngestEvent(context.Background(), clients.IngestEventRequest{
+		EventType: eventType,
+		EntityID:  tenantID, // customer stream — the efficiency join reads here
+		TenantID:  tenantID,
+		Payload: map[string]any{
+			"tenant_id":  tenantID,
+			"tier":       entities.MapRetiredTier(newTier),
+			"prev_tier":  entities.MapRetiredTier(prevTier),
+			"from_trial": prevTrial,
+			"at":         time.Now().UTC().Format(time.RFC3339Nano),
+		},
+	}); err != nil {
+		log.Printf("UpdateSubscription: emit %s for tenant %s failed: %v", eventType, tenantID, err)
+	}
 }

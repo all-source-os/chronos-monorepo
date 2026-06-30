@@ -2,6 +2,8 @@ package usecases
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
@@ -79,6 +81,80 @@ func (r commsRecorder) record(ctx context.Context, eventType, entityID string, p
 		return resp.EventID, nil
 	}
 	return resp.ID, nil
+}
+
+// recordIdempotent ingests a comms event under the admin-comms tenant with
+// first-ingest dedupe (ExpectedVersion: 0): a replayed ESP webhook for the same
+// (message_id, type) entity hits a version conflict and is dropped, so a
+// re-delivered engagement event never double-counts the funnel. Returns
+// duplicate=true on the conflict path (the caller maps it to a 200 "duplicate").
+func (r commsRecorder) recordIdempotent(ctx context.Context, eventType, entityID string, payload map[string]any) (duplicate bool, err error) {
+	if r.coreClient == nil {
+		return false, nil
+	}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	if _, ok := payload["at"]; !ok {
+		payload["at"] = time.Now().UTC().Format(time.RFC3339Nano)
+	}
+	var firstIngest uint64
+	_, err = r.coreClient.IngestEvent(ctx, clients.IngestEventRequest{
+		EventType:       eventType,
+		EntityID:        entityID,
+		TenantID:        CommsAuditTenant,
+		Payload:         payload,
+		Metadata:        map[string]any{"idempotency_key": entityID},
+		ExpectedVersion: &firstIngest,
+	})
+	if err != nil {
+		if errors.Is(err, clients.ErrVersionConflict) {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, nil
+}
+
+// setCorrelation writes a send's efficiency tags to Core config keyed by the ESP
+// message id, so the engagement webhook can resolve message_id → (tenant,
+// campaign, variant, …). Stored as a JSON string value (the same string-valued
+// config shape the grant/wallet lookups use). No-op when Core is not wired.
+func (r commsRecorder) setCorrelation(ctx context.Context, tags CommsTags) error {
+	if r.coreClient == nil || tags.MessageID == "" {
+		return nil
+	}
+	b, err := json.Marshal(tags)
+	if err != nil {
+		return err
+	}
+	return r.coreClient.SetConfig(ctx, clients.SetConfigRequest{
+		Key:       commsCorrelationKey(tags.MessageID),
+		Value:     string(b),
+		ChangedBy: "comms-efficiency",
+	})
+}
+
+// getCorrelation reads a send's efficiency tags back from Core config by ESP
+// message id (the engagement webhook's resolve step). Returns ok=false when the
+// record is absent or unreadable (the webhook then degrades to an untagged event).
+func (r commsRecorder) getCorrelation(ctx context.Context, messageID string) (CommsTags, bool) {
+	if r.coreClient == nil || messageID == "" {
+		return CommsTags{}, false
+	}
+	entry, err := r.coreClient.GetConfig(ctx, commsCorrelationKey(messageID))
+	if err != nil || entry == nil {
+		return CommsTags{}, false
+	}
+	s, ok := entry.Value.(string)
+	if !ok || s == "" {
+		return CommsTags{}, false
+	}
+	var tags CommsTags
+	if json.Unmarshal([]byte(s), &tags) != nil {
+		return CommsTags{}, false
+	}
+	return tags, true
 }
 
 // queryComms reads comms events of a given type from the admin-comms tenant.

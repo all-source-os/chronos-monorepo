@@ -193,6 +193,12 @@ func tierRank(tier string) int {
 	}
 }
 
+// TierRank exposes the canonical tier ordering (free<indie<studio<scale<
+// enterprise; retired tiers normalized first; unknown→0) so callers can detect an
+// upgrade (rank increase) without re-deriving the ladder. Used by the comms
+// efficiency engine to tell a paid upgrade from a first activation.
+func TierRank(tier string) int { return tierRank(tier) }
+
 // HighestActiveTier returns the highest-ranked tier among active subscriptions
 // and the winning subscription id. Returns ("free", "") when none are active.
 func HighestActiveTier(subs map[string]SubscriptionRef) (tier, subscriptionID string) {

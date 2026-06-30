@@ -662,6 +662,10 @@ func (cp *ControlPlane) setupRoutes() {
 	// Resend inbound webhook (Svix-verified). Registered only when Resend is configured.
 	if cp.container.ResendWebhookHandler != nil {
 		api.POST("/webhooks/resend/inbound", cp.container.ResendWebhookHandler.Inbound)
+		// Resend ENGAGEMENT webhook (delivered/opened/clicked/bounced/complained) →
+		// engagement Core events for the comms-efficiency engine (prompt 050). Public
+		// + Svix-verified like the inbound path; idempotent (replay = one event).
+		api.POST("/webhooks/resend/events", cp.container.ResendWebhookHandler.Events)
 	}
 	// Inbox onboarding (P3b): public OAuth redirect, authenticated by the sealed state.
 	api.GET("/webhooks/inbox/connect/callback", cp.container.InboxConnectHandler.Callback)
@@ -762,6 +766,13 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.POST("/messages", cp.container.CommsHandler.SendMessage)
 	admin.POST("/tenants/:id/notes", cp.container.CommsHandler.AddNote)
 	admin.GET("/tenants/:id/notes", cp.container.CommsHandler.ListNotes)
+
+	// Proactive-comms EFFICIENCY (prompt 050) — read-only operator analytic: the
+	// funnel (delivered→click→goal-in-window), causal lift vs holdout, time-to-goal,
+	// and unsub/complaint cost per campaign/stage/variant/tier, with trial→paid as
+	// the hero metric. Every figure is joined from Core events by a CP reconciler
+	// (no parallel analytics stack). ?refresh=true forces a live recompute.
+	admin.GET("/comms/efficiency", cp.container.CommsEfficiencyHandler.GetEfficiency)
 
 	// Read-only "view as tenant" impersonation (ADMIN_TENANT_POWER_TOOL §5 / Phase 7
 	// CP half). Inside the /api/v1/admin group → inherit AdminAuthMiddleware (admin

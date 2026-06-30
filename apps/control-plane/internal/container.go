@@ -151,6 +151,10 @@ type Container struct {
 	// Use Cases — Proactive comms (ADMIN_TENANT_POWER_TOOL §4 Pillar C / Phase 6)
 	CommsUC *usecases.CommsUseCase
 
+	// Use Case — Proactive-comms efficiency engine (prompt 050). Operator-level
+	// cross-tenant attribution reconciler: engagement ⋈ goal events in Core.
+	CommsEfficiencyUC *usecases.CommsEfficiencyUseCase
+
 	// Use Cases — Read-only view-as impersonation (ADMIN_TENANT_POWER_TOOL §5 / Phase 7)
 	ViewAsUC *usecases.ViewAsUseCase
 	// ViewAsAuditor is exposed so the global ViewAsWriteRefusal middleware can
@@ -203,6 +207,7 @@ type Container struct {
 	FleetHealthHandler           *httphandlers.FleetHealthHandler
 	RecoveryHandler              *httphandlers.RecoveryHandler
 	CommsHandler                 *httphandlers.CommsHandler
+	CommsEfficiencyHandler       *httphandlers.CommsEfficiencyHandler
 	ViewAsHandler                *httphandlers.ViewAsHandler
 	MetricsHandler               *httphandlers.MetricsHandler
 
@@ -402,8 +407,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	claimTrialAgentUC := usecases.NewClaimTrialAgentUseCase(tenantRepo, auditRepo, cfg.CoreClient)
 	agentPaymentHistoryUC := usecases.NewGetAgentPaymentHistoryUseCase(cfg.CoreClient)
 
-	// Initialize use cases — Webhooks
-	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo)
+	// Initialize use cases — Webhooks. WithCoreClient lets the apply path emit the
+	// subscription.activated / subscription.upgraded signal the comms-efficiency
+	// engine measures trial→paid against (prompt 050; nil-safe when Core absent).
+	updateSubscriptionUC := usecases.NewUpdateSubscriptionMetadataUseCase(tenantRepo, auditRepo).WithCoreClient(cfg.CoreClient)
 	migrateEarlyAdoptersUC := usecases.NewMigrateEarlyAdoptersUseCase(tenantRepo, updateSubscriptionUC, auditRepo)
 	var changePlanUC *usecases.ChangePlanUseCase
 	if cfg.LSClient != nil {
@@ -509,6 +516,13 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		JWTSecret:   cfg.JWTSecret,
 	})
 
+	// Initialize use case — Proactive-comms EFFICIENCY reconciler (prompt 050). An
+	// operator-level, cross-tenant analytic (control-plane's job, like the billing
+	// reconcilers): it joins engagement events ⋈ goal events in Core and writes an
+	// operator-side projection. Read-only — touches no money, no entitlements.
+	// nil-safe (Compute returns an empty projection when Core is absent).
+	commsEfficiencyUC := usecases.NewCommsEfficiencyUseCase(tenantRepo, auditRepo, cfg.CoreClient)
+
 	// Initialize use case — Read-only view-as impersonation (ADMIN_TENANT_POWER_TOOL
 	// §5 / Phase 7 CP half). The signer (AuthClient.SignViewAsJWT) is injected so the
 	// signing key stays in AuthClient; the auditor reuses the EXISTING IngestEvent
@@ -546,6 +560,9 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	// window elapsed without converting to a paid plan. Reversible + audited.
 	expireTrialsUC := usecases.NewExpireTrialsUseCase(tenantRepo, auditRepo, cfg.CoreClient)
 	scheduler.SetExpireTrialsUseCase(expireTrialsUC)
+	// Proactive-comms efficiency reconciler (prompt 050): recompute the funnel +
+	// causal-lift projection on a tick and persist it for the admin panel.
+	scheduler.SetCommsEfficiencyUseCase(commsEfficiencyUC)
 
 	// Billing-config verifier (also reused by the read-only tenant analysis below
 	// for its fleet-level plan/billing finding — ONE source of truth so the
@@ -619,7 +636,10 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	}
 	var resendWebhookHandler *httphandlers.ResendWebhookHandler
 	if resendProvider != nil {
-		resendWebhookHandler = httphandlers.NewResendWebhookHandler(resendProvider, cfg.CoreClient, emailSealer)
+		// WithEngagement wires the comms-efficiency ingress (prompt 050): the
+		// engagement webhook (delivered/opened/clicked/…) → engagement Core events.
+		// Additive — the existing inbound (email.received) path is unchanged.
+		resendWebhookHandler = httphandlers.NewResendWebhookHandler(resendProvider, cfg.CoreClient, emailSealer).WithEngagement(commsUC)
 	}
 	// Inbox onboarding (P3b): hosted-OAuth connect flow. Enabled only with a
 	// hosted-auth-capable provider (NYLAS_CLIENT_ID set); otherwise 503.
@@ -651,6 +671,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	fleetHealthHandler := httphandlers.NewFleetHealthHandler(fleetHealthUC)
 	recoveryHandler := httphandlers.NewRecoveryHandler(recoveryUC)
 	commsHandler := httphandlers.NewCommsHandler(commsUC)
+	commsEfficiencyHandler := httphandlers.NewCommsEfficiencyHandler(commsEfficiencyUC)
 	viewAsHandler := httphandlers.NewViewAsHandler(viewAsUC)
 
 	// Metrics passthrough (ADMIN_TENANT_POWER_TOOL §3 Gap 2). Re-fetches the QS
@@ -728,6 +749,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		FleetHealthUC:                fleetHealthUC,
 		RecoveryUC:                   recoveryUC,
 		CommsUC:                      commsUC,
+		CommsEfficiencyUC:            commsEfficiencyUC,
 		ViewAsUC:                     viewAsUC,
 		ViewAsAuditor:                viewAsAuditor,
 		Scheduler:                    scheduler,
@@ -763,6 +785,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		FleetHealthHandler:           fleetHealthHandler,
 		RecoveryHandler:              recoveryHandler,
 		CommsHandler:                 commsHandler,
+		CommsEfficiencyHandler:       commsEfficiencyHandler,
 		ViewAsHandler:                viewAsHandler,
 		MetricsHandler:               metricsHandler,
 		MetricsPassthroughUC:         metricsPassthroughUC,
