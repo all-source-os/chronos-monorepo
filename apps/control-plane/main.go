@@ -657,8 +657,6 @@ func (cp *ControlPlane) setupRoutes() {
 
 	// Webhooks (public — no JWT auth, signature verification instead)
 	api.POST("/webhooks/lemonsqueezy", cp.container.WebhookHandler.LemonSqueezy)
-	api.POST("/webhooks/email", cp.container.EmailWebhookHandler.Email)
-	api.GET("/webhooks/email", cp.container.EmailWebhookHandler.EmailChallenge)
 	// Resend inbound webhook (Svix-verified). Registered only when Resend is configured.
 	if cp.container.ResendWebhookHandler != nil {
 		api.POST("/webhooks/resend/inbound", cp.container.ResendWebhookHandler.Inbound)
@@ -667,9 +665,7 @@ func (cp *ControlPlane) setupRoutes() {
 		// + Svix-verified like the inbound path; idempotent (replay = one event).
 		api.POST("/webhooks/resend/events", cp.container.ResendWebhookHandler.Events)
 	}
-	// Inbox onboarding (P3b): public OAuth redirect, authenticated by the sealed state.
-	api.GET("/webhooks/inbox/connect/callback", cp.container.InboxConnectHandler.Callback)
-	// NOTE: the admin inbox routes (connect/connections/messages/triage/draft/send)
+	// NOTE: the admin inbox routes (connections/addresses/messages/triage/draft/send)
 	// live on the /api/v1/admin group below — they need AdminAuthMiddleware (the
 	// scheme the admin app's session uses), like /tenants and /fleet, not the
 	// api-group AuthMiddleware+RequirePermission (which 401s the admin session).
@@ -721,15 +717,11 @@ func (cp *ControlPlane) setupRoutes() {
 	admin.GET("/fleet/health", cp.container.FleetHealthHandler.GetFleetHealth)
 	admin.GET("/fleet/health/:id", cp.container.FleetHealthHandler.GetTenantHealth)
 
-	// AI inbox management (P3b onboarding + 043). AdminAuthMiddleware-gated like
-	// /tenants and /fleet so the admin app's session authenticates. The public
-	// OAuth callback stays on the api group above.
-	admin.GET("/inbox/connect", cp.container.InboxConnectHandler.Start)
+	// AI inbox management (043). AdminAuthMiddleware-gated like /tenants and /fleet
+	// so the admin app's session authenticates.
 	admin.GET("/inbox/connections", cp.container.InboxAdminHandler.ListConnections)
-	admin.POST("/inbox/connections", cp.container.InboxAdminHandler.AdoptGrant)
-	// Register a receiving address (Resend: a connection has no OAuth grant).
+	// Register a receiving address (Resend: a connection is a verified address).
 	admin.POST("/inbox/addresses", cp.container.InboxAdminHandler.AddAddress)
-	admin.GET("/inbox/available-grants", cp.container.InboxAdminHandler.AvailableGrants)
 	admin.DELETE("/inbox/connections/:grant_id", cp.container.InboxAdminHandler.Disconnect)
 	admin.GET("/inbox/messages", cp.container.InboxAdminHandler.Messages)
 	admin.POST("/inbox/triage", cp.container.InboxAdminHandler.Triage)

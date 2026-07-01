@@ -54,24 +54,17 @@ func (f *fakeInboxCore) QueryEvents(_ context.Context, _ clients.QueryEventsRequ
 
 type fakeSender struct {
 	result *emailprovider.SendResult
-	grants []emailprovider.Grant
 	called bool
 	err    error
 }
 
-func (f *fakeSender) Name() string { return "nylas" }
+func (f *fakeSender) Name() string { return "resend" }
 func (f *fakeSender) Send(_ context.Context, _ string, _ emailprovider.SendRequest) (*emailprovider.SendResult, error) {
 	f.called = true
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.result, nil
-}
-func (f *fakeSender) ListGrants(_ context.Context) ([]emailprovider.Grant, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	return f.grants, nil
 }
 
 type fakeDrafter struct {
@@ -92,9 +85,7 @@ func serveInbox(h *InboxAdminHandler, method, target, body string) *httptest.Res
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.GET("/api/v1/admin/inbox/connections", h.ListConnections)
-	r.POST("/api/v1/admin/inbox/connections", h.AdoptGrant)
 	r.POST("/api/v1/admin/inbox/addresses", h.AddAddress)
-	r.GET("/api/v1/admin/inbox/available-grants", h.AvailableGrants)
 	r.DELETE("/api/v1/admin/inbox/connections/:grant_id", h.Disconnect)
 	r.GET("/api/v1/admin/inbox/messages", h.Messages)
 	r.POST("/api/v1/admin/inbox/triage", h.Triage)
@@ -249,33 +240,6 @@ func TestInbox_SendNoConnection(t *testing.T) {
 	}
 }
 
-func TestInbox_AdoptGrantByEmail(t *testing.T) {
-	sealer := newSealer(t)
-	core := &fakeInboxCore{}
-	sender := &fakeSender{grants: []emailprovider.Grant{
-		{ID: "g-sales", Email: "sales@all-source.xyz", Provider: "nylas"},
-		{ID: "g-other", Email: "other@x.com", Provider: "google"},
-	}}
-	h := NewInboxAdminHandler(core, sealer, sender)
-	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/connections", `{"tenant_id":"tnt1","email":"sales@all-source.xyz"}`)
-	if w.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d (%s)", w.Code, w.Body.String())
-	}
-	if core.setReq.Key != "connector:email:grant:g-sales" {
-		t.Errorf("bad config key: %q", core.setReq.Key)
-	}
-	sealed, _ := core.setReq.Value.(string)
-	plain, err := sealer.Open(sealed)
-	if err != nil {
-		t.Fatalf("stored value not sealed: %v", err)
-	}
-	var rec grantRecord
-	_ = json.Unmarshal(plain, &rec)
-	if rec.TenantID != "tnt1" || rec.GrantID != "g-sales" || rec.Email != "sales@all-source.xyz" {
-		t.Errorf("bad sealed record: %s", plain)
-	}
-}
-
 func TestInbox_AddAddress(t *testing.T) {
 	core := &fakeInboxCore{}
 	h := NewInboxAdminHandler(core, newSealer(t), &fakeSender{})
@@ -306,14 +270,6 @@ func TestInbox_AddAddressValidation(t *testing.T) {
 		`{"tenant_id":"t1","email":"notanemail"}`)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("want 400 on invalid email, got %d", w.Code)
-	}
-}
-
-func TestInbox_AdoptGrantNotFound(t *testing.T) {
-	h := NewInboxAdminHandler(&fakeInboxCore{}, newSealer(t), &fakeSender{grants: nil})
-	w := serveInbox(h, http.MethodPost, "/api/v1/admin/inbox/connections", `{"tenant_id":"tnt1","email":"nope@x.com"}`)
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d", w.Code)
 	}
 }
 

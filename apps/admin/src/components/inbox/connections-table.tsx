@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { AtSign, Inbox, Mailbox, Plus, Trash2 } from "lucide-react";
+import { AtSign, Inbox, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { DisconnectDialog } from "@/components/inbox/disconnect-dialog";
 import type { InboxConnection } from "@/lib/inbox-api";
@@ -41,10 +41,7 @@ interface ConnectionsTableProps {
   /** The grant_id of the connection whose stream is currently open. */
   selectedGrantId?: string;
   onSelect: (conn: InboxConnection) => void;
-  onConnect: () => void;
-  /** Open the "add hosted mailbox" (adopt existing grant) dialog. */
-  onAddHosted: () => void;
-  /** Open the "add receiving address" dialog (Resend — no OAuth). */
+  /** Open the "add receiving address" dialog. */
   onAddAddress: () => void;
   /** Disconnect a grant; resolves once removed (the page does the optimistic remove + toast). */
   onDisconnect: (conn: InboxConnection) => Promise<void>;
@@ -55,8 +52,6 @@ export function ConnectionsTable({
   isLoading,
   selectedGrantId,
   onSelect,
-  onConnect,
-  onAddHosted,
   onAddAddress,
   onDisconnect,
 }: ConnectionsTableProps) {
@@ -71,18 +66,10 @@ export function ConnectionsTable({
             Connected mailboxes
           </CardTitle>
           <CardDescription>
-            Mailboxes connected via hosted OAuth. Select one to view its email stream.
+            Receiving addresses connected to tenants. Select one to view its email stream.
           </CardDescription>
         </div>
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={onAddHosted} data-testid="inbox-add-hosted-btn">
-            <Mailbox className="mr-1.5 h-4 w-4" />
-            Add hosted mailbox
-          </Button>
-          <Button variant="outline" onClick={onConnect} data-testid="inbox-connect-btn">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Connect (OAuth)
-          </Button>
           <Button onClick={onAddAddress} data-testid="inbox-add-address-btn">
             <AtSign className="mr-1.5 h-4 w-4" />
             Add address
@@ -101,8 +88,8 @@ export function ConnectionsTable({
             className="py-12 text-center text-sm text-muted-foreground"
             data-testid="inbox-connections-empty"
           >
-            No mailboxes connected yet. Click <span className="font-medium">Connect mailbox</span>{" "}
-            to start.
+            No addresses connected yet. Click <span className="font-medium">Add address</span> to
+            start.
           </div>
         ) : (
           <div data-testid="inbox-connections-table">

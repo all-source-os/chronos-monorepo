@@ -12,8 +12,6 @@ import (
 	"github.com/allsource/control-plane/internal/application/usecases/billing"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
-	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider"
-	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/nylas"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/emailprovider/resend"
 	"github.com/allsource/control-plane/internal/infrastructure/clients/llm"
 	"github.com/allsource/control-plane/internal/infrastructure/persistence"
@@ -199,9 +197,7 @@ type Container struct {
 	EarlyAdopterMigrationHandler *httphandlers.EarlyAdopterMigrationHandler
 	BackfillUsageHandler         *httphandlers.BackfillUsageHandler
 	WebhookHandler               *httphandlers.WebhookHandler
-	EmailWebhookHandler          *httphandlers.EmailWebhookHandler
 	ResendWebhookHandler         *httphandlers.ResendWebhookHandler
-	InboxConnectHandler          *httphandlers.InboxConnectHandler
 	InboxAdminHandler            *httphandlers.InboxAdminHandler
 	AgentHandler                 *httphandlers.AgentHandler
 	FleetHealthHandler           *httphandlers.FleetHealthHandler
@@ -610,26 +606,16 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	earlyAdopterMigrationHandler := httphandlers.NewEarlyAdopterMigrationHandler(migrateEarlyAdoptersUC)
 	backfillUsageHandler := httphandlers.NewBackfillUsageHandler(backfillEventsUsedUC)
 	webhookHandler := httphandlers.NewWebhookHandler(processLSWebhookUC)
-	// Email inbox connector (P0): enabled only when both Core and a provider are
-	// configured. nil provider -> the handler returns 503. See emailprovider/nylas.
-	var emailProvider emailprovider.Provider
-	var nylasProvider *nylas.Provider
-	if cfg.CoreClient != nil {
-		if np, err := nylas.NewFromEnv(); err == nil {
-			emailProvider = np
-			nylasProvider = np
-		}
-	}
-	// Sealer decrypts per-grant records in Core config (P3a). nil when
-	// CONNECTOR_SECRET_KEY is unset (legacy plaintext path during migration).
+	// Email inbox connector — Resend is the sole provider (send + a Svix-verified
+	// inbound webhook + the engagement webhook). A connection is a verified
+	// receiving address (grant_id ≡ the address); no OAuth.
+	// Sealer decrypts the sealed connection records in Core config; nil when
+	// CONNECTOR_SECRET_KEY is unset.
 	emailSealer, err := secrets.NewSealerFromEnv()
 	if err != nil {
 		emailSealer = nil
 	}
-	emailWebhookHandler := httphandlers.NewEmailWebhookHandler(emailProvider, cfg.CoreClient, emailSealer)
-	// Resend connector (preferred when configured): owns sending + a Svix-verified
-	// inbound webhook. A connection is a verified receiving address (grant_id ≡ the
-	// address); no OAuth. nil when RESEND_API_KEY is unset.
+	// resendProvider is nil when RESEND_API_KEY is unset → inbox endpoints 503.
 	var resendProvider *resend.Provider
 	if cfg.CoreClient != nil {
 		resendProvider = resend.NewFromEnv()
@@ -638,33 +624,20 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 	if resendProvider != nil {
 		// WithEngagement wires the comms-efficiency ingress (prompt 050): the
 		// engagement webhook (delivered/opened/clicked/…) → engagement Core events.
-		// Additive — the existing inbound (email.received) path is unchanged.
 		resendWebhookHandler = httphandlers.NewResendWebhookHandler(resendProvider, cfg.CoreClient, emailSealer).WithEngagement(commsUC)
 	}
-	// Inbox onboarding (P3b): hosted-OAuth connect flow. Enabled only with a
-	// hosted-auth-capable provider (NYLAS_CLIENT_ID set); otherwise 503.
-	var inboxConnectHandler *httphandlers.InboxConnectHandler
-	if nylasProvider != nil && nylasProvider.HasHostedAuth() {
-		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nylasProvider, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
-	} else {
-		inboxConnectHandler = httphandlers.NewInboxConnectHandler(nil, cfg.CoreClient, emailSealer, os.Getenv("NYLAS_REDIRECT_URI"))
-	}
-	// AI draft generation (045): optional. nil interface when ANTHROPIC_API_KEY is
-	// unset → the generate endpoint returns 503; the rest of the inbox is unaffected.
+	// AI draft generation (045): optional. nil when ANTHROPIC_API_KEY is unset →
+	// the generate endpoint returns 503; the rest of the inbox is unaffected.
 	var inboxDrafter httphandlers.InboxDrafter
 	if dc := llm.NewFromEnv(); dc != nil {
 		inboxDrafter = dc
 	}
-	// Inbox management (043): admin endpoints to list/disconnect connections,
-	// read the email stream, and triage/draft/send. The send path uses Resend when
-	// configured, else Nylas, else nil (send 503).
+	// Inbox management (043): list/disconnect connections, read the stream, and
+	// triage/draft/send. Send goes through Resend; nil provider → send 503.
 	var inboxAdminHandler *httphandlers.InboxAdminHandler
-	switch {
-	case resendProvider != nil:
+	if resendProvider != nil {
 		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, resendProvider).WithDrafter(inboxDrafter)
-	case nylasProvider != nil:
-		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nylasProvider).WithDrafter(inboxDrafter)
-	default:
+	} else {
 		inboxAdminHandler = httphandlers.NewInboxAdminHandler(cfg.CoreClient, emailSealer, nil).WithDrafter(inboxDrafter)
 	}
 	agentHandler := httphandlers.NewAgentHandler(agentPaymentHistoryUC)
@@ -777,9 +750,7 @@ func NewContainerWithConfig(cfg ContainerConfig) *Container {
 		EarlyAdopterMigrationHandler: earlyAdopterMigrationHandler,
 		BackfillUsageHandler:         backfillUsageHandler,
 		WebhookHandler:               webhookHandler,
-		EmailWebhookHandler:          emailWebhookHandler,
 		ResendWebhookHandler:         resendWebhookHandler,
-		InboxConnectHandler:          inboxConnectHandler,
 		InboxAdminHandler:            inboxAdminHandler,
 		AgentHandler:                 agentHandler,
 		FleetHealthHandler:           fleetHealthHandler,

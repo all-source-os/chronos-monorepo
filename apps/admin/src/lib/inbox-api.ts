@@ -177,36 +177,6 @@ export interface SendResponse {
   warning?: string;
 }
 
-export interface ConnectResponse {
-  auth_url: string;
-  tenant_id: string;
-}
-
-// ── Connect (hosted OAuth — leaves and re-enters the app) ─────────────
-
-/**
- * Start the hosted-OAuth round trip. Returns the provider auth_url the browser
- * is sent to; the CP's callback bounces back to `return_to?status=connected|error`.
- * `return_to` MUST be an absolute URL whose origin is on the CP's
- * ADMIN_DASHBOARD_ORIGIN allowlist or the CP drops it (no open redirect).
- */
-export async function startConnect(params: {
-  tenant_id: string;
-  email?: string;
-  return_to: string;
-}): Promise<ConnectResponse> {
-  const qs = new URLSearchParams();
-  qs.set("tenant_id", params.tenant_id);
-  if (params.email) qs.set("email", params.email);
-  qs.set("return_to", params.return_to);
-  const url = `${getApiUrl()}/api/v1/admin/inbox/connect?${qs.toString()}`;
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) {
-    throw new ApiError(await readError(res), res.status);
-  }
-  return res.json();
-}
-
 // ── Connections ───────────────────────────────────────────────────────
 
 export async function fetchConnections(tenantId?: string): Promise<InboxConnection[]> {
@@ -228,45 +198,7 @@ export async function disconnect(grantId: string): Promise<void> {
   }
 }
 
-// ── Adopt a hosted/existing provider grant (no OAuth login) ────────────
-
-/** A provider mailbox (Nylas grant) available to adopt. */
-export interface AvailableGrant {
-  grant_id: string;
-  email: string;
-  provider: string;
-  /** Already mapped to a tenant (has a Core config record). */
-  registered: boolean;
-}
-
-/** List the provider's grants (hosted + connected), with a registered flag. */
-export async function availableGrants(): Promise<AvailableGrant[]> {
-  const url = `${getApiUrl()}/api/v1/admin/inbox/available-grants`;
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) {
-    throw new ApiError(await readError(res), res.status);
-  }
-  return asList<AvailableGrant>((await res.json()) ?? {}, "grants");
-}
-
-/** Register an existing grant to a tenant (seals + writes the Core config). */
-export async function adoptGrant(params: {
-  tenant_id: string;
-  grant_id?: string;
-  email?: string;
-}): Promise<{ status: string; grant_id: string; email: string; tenant_id: string }> {
-  const url = `${getApiUrl()}/api/v1/admin/inbox/connections`;
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) {
-    throw new ApiError(await readError(res), res.status);
-  }
-  return res.json();
-}
+// ── Register a receiving address ──────────────────────────────────────
 
 /**
  * Register a receiving address to a tenant (Resend: a connection is a verified

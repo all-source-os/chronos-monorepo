@@ -2,11 +2,8 @@
 
 import { Button, Card, CardContent } from "@allsource/ui";
 import { AlertTriangle, Mail } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AddAddressDialog } from "@/components/inbox/add-address-dialog";
-import { AddHostedDialog } from "@/components/inbox/add-hosted-dialog";
-import { ConnectDialog } from "@/components/inbox/connect-dialog";
 import { ConnectionsTable } from "@/components/inbox/connections-table";
 import { MessageStream } from "@/components/inbox/message-stream";
 import { Toaster, useToasts } from "@/components/inbox/toast";
@@ -33,9 +30,6 @@ import {
 const MESSAGE_LIMIT = 100;
 
 export default function InboxPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
   const { toasts, toastSuccess, toastError, dismiss } = useToasts();
 
   const [connections, setConnections] = useState<InboxConnection[]>([]);
@@ -48,8 +42,6 @@ export default function InboxPage() {
   const [threads, setThreads] = useState<EmailThread[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
 
-  const [connectOpen, setConnectOpen] = useState(false);
-  const [addHostedOpen, setAddHostedOpen] = useState(false);
   const [addAddressOpen, setAddAddressOpen] = useState(false);
 
   // ── Connections ───────────────────────────────────────────────────────
@@ -108,27 +100,6 @@ export default function InboxPage() {
     },
     [loadMessages]
   );
-
-  // ── OAuth round-trip: finish the connect flow on mount via ?status= ────
-  // The CP callback bounces back to /inbox?status=connected&email=… (or
-  // ?status=error&reason=…). Toast the outcome, refresh the list, then strip the
-  // query so a refresh doesn't re-toast.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: run only when the connect query params change; the toast/load helpers are stable.
-  useEffect(() => {
-    const status = searchParams.get("status");
-    if (!status) return;
-
-    if (status === "connected") {
-      const email = searchParams.get("email");
-      toastSuccess(email ? `Connected ${email}.` : "Mailbox connected.");
-      void loadConnections();
-    } else if (status === "error") {
-      const reason = searchParams.get("reason");
-      toastError(reason ? `Connect failed: ${reason}` : "Connecting the mailbox failed.");
-    }
-    // Strip the connect params from the URL (keep the path).
-    router.replace("/inbox");
-  }, [searchParams]);
 
   // Initial load.
   useEffect(() => {
@@ -242,9 +213,6 @@ export default function InboxPage() {
     [selected, loadMessages, toastSuccess, toastError]
   );
 
-  // The /inbox page must be an absolute URL for the CP return_to allowlist.
-  const returnTo = typeof window !== "undefined" ? `${window.location.origin}/inbox` : "";
-
   return (
     <div className="space-y-6" data-testid="inbox-page">
       <div>
@@ -284,8 +252,6 @@ export default function InboxPage() {
         isLoading={connectionsLoading}
         selectedGrantId={selected?.grant_id}
         onSelect={handleSelect}
-        onConnect={() => setConnectOpen(true)}
-        onAddHosted={() => setAddHostedOpen(true)}
         onAddAddress={() => setAddAddressOpen(true)}
         onDisconnect={handleDisconnect}
       />
@@ -299,19 +265,6 @@ export default function InboxPage() {
         onDraft={handleDraft}
         onSend={handleSend}
         onGenerate={handleGenerate}
-      />
-
-      <ConnectDialog
-        open={connectOpen}
-        onClose={() => setConnectOpen(false)}
-        returnTo={returnTo}
-        defaultTenantId={selected?.tenant_id}
-      />
-
-      <AddHostedDialog
-        open={addHostedOpen}
-        onClose={() => setAddHostedOpen(false)}
-        onAdopted={() => void loadConnections()}
       />
 
       <AddAddressDialog
