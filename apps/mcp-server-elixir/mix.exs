@@ -38,7 +38,7 @@ defmodule McpServerElixir.MixProject do
 
       # HTTP Client
       {:tesla, "~> 1.11"},
-      {:hackney, "~> 1.20"},
+      {:hackney, "~> 4.5"},
       {:jason, "~> 1.4"},
 
       # WebSocket Client
