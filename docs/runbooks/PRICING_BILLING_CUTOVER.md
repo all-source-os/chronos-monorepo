@@ -126,7 +126,8 @@ allowance between reconciliations:
          written from one value by `task ls-webhook-register`; `webhook_secret_len:32`,
          HMAC self-test green).
    - [x] **Store Test Mode OFF** — checkouts now charge real cards.
-   - [ ] **Rotate/revoke the test API key** (it was shared in chat). ← remaining
+   - [x] **Test API key revoked** (2026-06-28) — the chat-shared key is dead; only
+         the live key remains.
    - Cutover tooling: `Taskfile.yml` `ls-variant` / `ls-variants` /
      `ls-webhook-register` / `ls-config-check` (read `LEMON_SQUEEZY_API_KEY` from
      `.env`).
