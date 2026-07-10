@@ -116,10 +116,20 @@ allowance between reconciliations:
    forwards to admin. The `/pricing` Enterprise CTA + dashboard billing page both
    mailto this address (`config.ts:255`, `billing/page.tsx:102`), so Enterprise
    leads now land in the admin inbox.
-3. **Swap TEST → LIVE LemonSqueezy.** Prod currently runs the TEST API key + test
-   variants (intentional, to verify in prod). Before real launch: create live
-   variants, set live `LEMON_SQUEEZY_API_KEY` + live `LEMON_SQUEEZY_VARIANT_MAP` +
-   a live webhook, and **rotate the test API key** (it was shared in chat).
+3. **Swap TEST → LIVE LemonSqueezy.** **SUBSTANTIALLY DONE (2026-06-28):**
+   - [x] Live `LEMON_SQUEEZY_API_KEY` set on `allsource-control-plane`.
+   - [x] **Variant map unchanged** — LS shares one product/variant catalog across
+         test/live (test mode is a runtime toggle, *not* a separate namespace like
+         Stripe), so the same ids resolve live. `config-check` confirms all 6
+         `variant_keys` map + `issues:null`.
+   - [x] Live webhook registered + `LEMON_SQUEEZY_WEBHOOK_SECRET` set to match (both
+         written from one value by `task ls-webhook-register`; `webhook_secret_len:32`,
+         HMAC self-test green).
+   - [x] **Store Test Mode OFF** — checkouts now charge real cards.
+   - [ ] **Rotate/revoke the test API key** (it was shared in chat). ← remaining
+   - Cutover tooling: `Taskfile.yml` `ls-variant` / `ls-variants` /
+     `ls-webhook-register` / `ls-config-check` (read `LEMON_SQUEEZY_API_KEY` from
+     `.env`).
 4. ~~**Add the `scale` backend binding.**~~ **DONE** — `config.ts` binds the Scale
    row to `tier: "scale"` (`apps/web/src/lib/config.ts:232`); no longer null.
 5. **Retired-tier backfill.** One-shot over existing tenants applying
