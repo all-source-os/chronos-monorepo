@@ -380,10 +380,14 @@ tasks:
         set -eu
         : "${LEMON_SQUEEZY_API_KEY:?set LEMON_SQUEEZY_API_KEY in .env (your LIVE LS API key)}"
         echo ">> GET {{.LS_API}}/variants/{{.VARIANT_ID}}"
-        curl -sS -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
+        RESP=$(curl -sS -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
           -H 'Accept: application/vnd.api+json' \
-          "{{.LS_API}}/variants/{{.VARIANT_ID}}" \
-          | jq '.data | {id, name: .attributes.name, status: .attributes.status, price: .attributes.price} // .'
+          "{{.LS_API}}/variants/{{.VARIANT_ID}}")
+        if [ "$(printf '%s' "$RESP" | jq -r '(.data|type) // "null"')" != "object" ]; then
+          echo "!! variant {{.VARIANT_ID}} did not resolve under this key — raw response:"
+          printf '%s' "$RESP" | jq '.errors // .'; exit 1
+        fi
+        printf '%s' "$RESP" | jq '.data | {id, name: .attributes.name, status: .attributes.status, price: .attributes.price}'
 
   ls-variants:
     desc: >-
@@ -395,11 +399,19 @@ tasks:
       - |
         set -eu
         : "${LEMON_SQUEEZY_API_KEY:?set LEMON_SQUEEZY_API_KEY in .env (your LIVE LS API key)}"
-        echo ">> GET {{.LS_API}}/variants?filter[store_id]={{.LS_STORE}}"
-        curl -sS -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
+        # /v1/variants does NOT support filter[store_id] (variants belong to
+        # products, not stores). LS API keys are account-scoped, so an unfiltered
+        # list returns this account's variants; page[size]=100 covers our catalog.
+        echo ">> GET {{.LS_API}}/variants?page[size]=100"
+        RESP=$(curl -sS -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
           -H 'Accept: application/vnd.api+json' \
-          "{{.LS_API}}/variants?filter%5Bstore_id%5D={{.LS_STORE}}" \
-          | jq -r '.data[] | [.id, (.attributes.status), (.attributes.price|tostring), (.attributes.name)] | @tsv' \
+          "{{.LS_API}}/variants?page%5Bsize%5D=100")
+        if [ "$(printf '%s' "$RESP" | jq -r '(.data|type) // "null"')" != "array" ]; then
+          echo "!! response has no .data array (auth error or bad request) — raw response:"
+          printf '%s' "$RESP" | jq '.errors // .'; exit 1
+        fi
+        printf '%s' "$RESP" \
+          | jq -r '.data[] | [.id, (.attributes.status), ((.attributes.price // "-")|tostring), (.attributes.name)] | @tsv' \
           | awk -F'\t' 'BEGIN{printf "%-10s %-10s %-8s %s\n","ID","STATUS","PRICE","NAME"; printf "%-10s %-10s %-8s %s\n","--","------","-----","----"} {printf "%-10s %-10s %-8s %s\n",$1,$2,$3,$4}'
 
   ls-webhook-register:
