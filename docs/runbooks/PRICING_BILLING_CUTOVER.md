@@ -118,10 +118,16 @@ allowance between reconciliations:
    leads now land in the admin inbox.
 3. **Swap TEST → LIVE LemonSqueezy.** **SUBSTANTIALLY DONE (2026-06-28):**
    - [x] Live `LEMON_SQUEEZY_API_KEY` set on `allsource-control-plane`.
-   - [x] **Variant map unchanged** — LS shares one product/variant catalog across
-         test/live (test mode is a runtime toggle, *not* a separate namespace like
-         Stripe), so the same ids resolve live. `config-check` confirms all 6
-         `variant_keys` map + `issues:null`.
+   - [x] **Variant map UPDATED to live ids (2026-07-10).** ⚠️ Correction: LS test
+         and live variants are **separate objects with different ids** here — the
+         test ids (`1755xxx`) 404 under the live key. `config-check` passing was a
+         false positive: it validates map *format/tier/period*, NOT that each id
+         resolves at LS, so the stale map shipped and `/api/v1/billing/catalog`
+         returned `tiers:[]` → every paid price rendered `—` and Indie checkout
+         404'd. Live ids (from `task ls-variants`): indie m/a `1890953`/`1890952`,
+         studio `1890950`/`1890949`, scale `1890948`/`1890945`. LEMON_SQUEEZY_VARIANT_MAP
+         reset to these. **Lesson: always `task ls-variants` under the LIVE key and
+         confirm `/billing/catalog` is non-empty before calling the swap done.**
    - [x] Live webhook registered + `LEMON_SQUEEZY_WEBHOOK_SECRET` set to match (both
          written from one value by `task ls-webhook-register`; `webhook_secret_len:32`,
          HMAC self-test green).
