@@ -1,16 +1,22 @@
 package usecases
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
+
+// variantResolveTimeout bounds the live LS lookups check 2d makes so a slow or
+// unreachable LS can't hang the config-check (boot self-test + admin endpoint).
+const variantResolveTimeout = 10 * time.Second
 
 // Severity levels for a billing config issue.
 const (
@@ -166,6 +172,41 @@ func (uc *VerifyBillingConfigUseCase) Execute() BillingConfigReport {
 				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q maps to an empty variant id; that tier/period checkout would resolve to free", key))
 		}
 	}
+
+	// 2d. Live variant RESOLUTION — the map can be well-formed (2/2b/2c all green)
+	// yet point at variant ids that don't exist under the LIVE key: LS test and
+	// live variants are DISTINCT objects, so a stale test-id map 404s live. That
+	// false green shipped an empty /billing/catalog (every paid price rendered
+	// "—") and 404'd Indie checkout. Resolve each required variant against LS so
+	// "ok" means genuinely SELLABLE, not merely well-formatted.
+	ctx, cancel := context.WithTimeout(context.Background(), variantResolveTimeout)
+	defer cancel()
+	resolved := 0
+	for _, tier := range requiredCatalogTiers {
+		for _, period := range requiredCatalogPeriods {
+			id, err := uc.lsClient.LookupVariantID(tier, period)
+			if err != nil || id == "" {
+				continue // already flagged by 2b as catalog_variant_missing
+			}
+			v, err := uc.lsClient.GetVariant(ctx, id)
+			if err != nil {
+				add(SeverityError, "variant_unresolved",
+					fmt.Sprintf("LemonSqueezy variant %q for %s:%s does not resolve under the live key (%v) — /billing/catalog omits this tier and checkout 404s. Usually a stale test-id map or a wrong/revoked LEMON_SQUEEZY_API_KEY.", id, tier, period, err))
+				continue
+			}
+			if v == nil || v.Price <= 0 {
+				price := 0
+				if v != nil {
+					price = v.Price
+				}
+				add(SeverityError, "variant_no_price",
+					fmt.Sprintf("LemonSqueezy variant %q for %s:%s resolved but has price<=0 (%d cents); GetCatalogUseCase skips it, so the tier vanishes from the price page", id, tier, period, price))
+				continue
+			}
+			resolved++
+		}
+	}
+	report.Facts["variants_resolved"] = fmt.Sprintf("%d/%d", resolved, len(requiredCatalogTiers)*len(requiredCatalogPeriods))
 
 	// 3. Webhook secret present + within the LS dashboard length cap.
 	switch n := len(uc.webhookSecret); {

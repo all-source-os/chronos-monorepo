@@ -1,6 +1,8 @@
 package usecases
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -11,10 +13,29 @@ type verifyMockLS struct {
 	clients.LemonSqueezyClient
 	variants clients.VariantMap
 	storeID  string
+	// prices maps variantID -> price cents for GetVariant. When nil, every
+	// variant resolves at a default positive price (so format-only tests aren't
+	// forced to enumerate ids). A 0 entry means "resolved but unpriced".
+	prices map[string]int
+	// getErr maps variantID -> error GetVariant should return (unresolvable).
+	getErr map[string]error
 }
 
 func (m *verifyMockLS) VariantMap() clients.VariantMap { return m.variants }
 func (m *verifyMockLS) GetStoreID() string             { return m.storeID }
+
+// GetVariant backs check 2d's live resolution. Default: any id resolves at
+// 1900c so existing format-only tests still pass; override via prices/getErr.
+func (m *verifyMockLS) GetVariant(_ context.Context, id string) (*clients.VariantResponse, error) {
+	if e, ok := m.getErr[id]; ok {
+		return nil, e
+	}
+	price := 1900
+	if m.prices != nil {
+		price = m.prices[id]
+	}
+	return &clients.VariantResponse{ID: id, Name: id, Price: price}, nil
+}
 
 // LookupVariantID resolves tier+period against the configured variant map,
 // mirroring the real client's catalog lookup so the catalog-coverage check has a
@@ -47,6 +68,40 @@ func hasCode(r BillingConfigReport, code string) bool {
 		}
 	}
 	return false
+}
+
+func TestVerifyBillingConfig_VariantUnresolved(t *testing.T) {
+	// Well-formed map, but indie:monthly's id 404s under the live key (the exact
+	// test-id-in-live-map footgun). Format checks pass; 2d must fail loudly.
+	ls := &verifyMockLS{
+		variants: fullVariants(),
+		storeID:  "store-1",
+		getErr:   map[string]error{"1": fmt.Errorf("get variant returned status 404")},
+	}
+	r := NewVerifyBillingConfigUseCase(ls, "0123456789abcdef0123456789abcdef").Execute()
+	if r.OK {
+		t.Fatalf("expected NOT ok when a mapped variant 404s live, got ok")
+	}
+	if !hasCode(r, "variant_unresolved") {
+		t.Fatalf("expected variant_unresolved issue, got %+v", r.Issues)
+	}
+	if got := r.Facts["variants_resolved"]; got != "5/6" {
+		t.Fatalf("expected variants_resolved 5/6, got %q", got)
+	}
+}
+
+func TestVerifyBillingConfig_VariantNoPrice(t *testing.T) {
+	// Variant resolves but has price 0 (mispriced in LS) — GetCatalogUseCase would
+	// skip it, so the tier vanishes from the price page. 2d flags it.
+	ls := &verifyMockLS{
+		variants: fullVariants(),
+		storeID:  "store-1",
+		prices:   map[string]int{"1": 0, "2": 1900, "3": 1900, "4": 1900, "5": 1900, "6": 1900},
+	}
+	r := NewVerifyBillingConfigUseCase(ls, "0123456789abcdef0123456789abcdef").Execute()
+	if r.OK || !hasCode(r, "variant_no_price") {
+		t.Fatalf("expected NOT ok + variant_no_price, got ok=%v issues=%+v", r.OK, r.Issues)
+	}
 }
 
 func TestVerifyBillingConfig_Skipped(t *testing.T) {
