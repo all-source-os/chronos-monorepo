@@ -39,6 +39,9 @@ export default function BillingPage() {
   // Set after returning from checkout / an in-place plan change.
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
   const [planChanged, setPlanChanged] = useState(false);
+  // User-visible error when a checkout/plan-change fails, so the button doesn't
+  // just spin "Redirecting…" then silently do nothing.
+  const [planError, setPlanError] = useState<string | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "success") setCheckoutSuccess(true);
@@ -89,10 +92,15 @@ export default function BillingPage() {
     }
   };
 
-  // A tenant already on a paid hosted tier has a subscription — changing tier
-  // swaps it in place (no new checkout, no duplicate sub). Free (incl. Self-Host,
-  // whose backend tier is `free`) starts a fresh checkout.
-  const hasActiveSubscription = currentTier !== "self-host";
+  // Only the self-serve paid tiers (indie/studio/scale) have a real LemonSqueezy
+  // subscription that can be swapped IN PLACE via change-plan. Enterprise is a
+  // manual/sales-led override with NO LS subscription, and free/self-host has
+  // none — for those, "change tier" must start a fresh CHECKOUT, not change-plan
+  // (which 500s with "no active subscription to change"). This was the bug: an
+  // Enterprise tenant clicking Downgrade hit change-plan and got a 500.
+  const hasActiveSubscription = (["indie", "studio", "scale"] as const).includes(
+    currentTier as "indie" | "studio" | "scale"
+  );
 
   const handleUpgrade = async (
     planTier: string,
@@ -103,8 +111,9 @@ export default function BillingPage() {
       return;
     }
     setUpgradingTier(planTier);
+    setPlanError(null);
 
-    // Existing subscriber → in-place plan change.
+    // Existing self-serve subscriber → in-place plan change.
     if (hasActiveSubscription) {
       try {
         const response = await apiClient.changePlan(planTier, billingPeriod);
@@ -114,14 +123,16 @@ export default function BillingPage() {
           return;
         }
         setUpgradingTier(null);
+        setPlanError(response.error || "Couldn't change your plan. Please try again.");
       } catch (error) {
         setUpgradingTier(null);
         console.error("Failed to change plan:", error);
+        setPlanError("Couldn't change your plan. Please try again or contact support.");
       }
       return;
     }
 
-    // First-time → new checkout.
+    // No active LS subscription (enterprise/free/self-host) → new checkout.
     try {
       const response = await apiClient.createCheckout(planTier, billingPeriod, {
         tenantId: tenant?.id,
@@ -133,9 +144,11 @@ export default function BillingPage() {
         return; // navigating away; keep the spinner until the redirect happens
       }
       setUpgradingTier(null);
+      setPlanError(response.error || "Couldn't start checkout. Please try again.");
     } catch (error) {
       setUpgradingTier(null);
       console.error("Failed to create checkout:", error);
+      setPlanError("Couldn't start checkout. Please try again or contact support.");
     }
   };
 
@@ -330,6 +343,12 @@ export default function BillingPage() {
               <h2 className="text-lg font-semibold">Available Plans</h2>
               <p className="text-sm text-muted-foreground">Choose the plan that fits your needs</p>
             </div>
+
+            {planError && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {planError}
+              </p>
+            )}
 
             {/* Billing toggle */}
             <div className="flex items-center gap-2 rounded-lg border border-border p-1">

@@ -59,7 +59,9 @@ export function PlanCards({
           <Card
             key={plan.name}
             className={cn(
-              "relative overflow-hidden transition-all",
+              // flex-col + h-full so every card fills its grid row and the CTA
+              // pins to the bottom regardless of how many features it lists.
+              "relative flex h-full flex-col overflow-hidden transition-all",
               isPopular && "border-primary shadow-lg",
               isCurrent && "ring-2 ring-primary"
             )}
@@ -98,7 +100,7 @@ export function PlanCards({
               <p className="text-sm text-muted-foreground">{plan.description}</p>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="flex flex-1 flex-col space-y-4">
               {/* Features */}
               <ul className="space-y-2">
                 {plan.features.map((feature) => (
@@ -109,7 +111,8 @@ export function PlanCards({
                 ))}
               </ul>
 
-              {/* CTA */}
+              {/* CTA — mt-auto pins it to the card bottom across varying heights */}
+              <div className="mt-auto pt-2">
               {isCurrent ? (
                 <Button className="w-full" variant="outline" disabled>
                   Current Plan
@@ -166,6 +169,7 @@ export function PlanCards({
                   Cancel via Manage Subscription
                 </p>
               )}
+              </div>
             </CardContent>
           </Card>
         );
