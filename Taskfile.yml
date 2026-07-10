@@ -3,7 +3,12 @@
 #   task backfill-usage    # dry-run (default)
 # Tasks here are operator glue (shell orchestration of fly/openssl/curl), run by the
 # fleet owner — not application code.
+#
+# Secrets load from the gitignored .env (see .env.example). The LemonSqueezy
+# cutover tasks (ls-*) read LEMON_SQUEEZY_API_KEY from there — NEVER hardcode it.
 version: '3'
+
+dotenv: ['.env']
 
 vars:
   TENANT: '{{.TENANT | default "decebal-dobrica-at-gmail-com"}}'
@@ -11,6 +16,11 @@ vars:
   EMAIL: '{{.EMAIL | default "decebal.dobrica@gmail.com"}}'
   QS_APP: '{{.QS_APP | default "allsource-query"}}'
   CP_URL: '{{.CP_URL | default "https://api.all-source.xyz"}}'
+  CP_APP: '{{.CP_APP | default "allsource-control-plane"}}'
+  LS_STORE: '{{.LS_STORE | default "282851"}}'
+  LS_API: '{{.LS_API | default "https://api.lemonsqueezy.com/v1"}}'
+  LS_WEBHOOK_URL: '{{.LS_WEBHOOK_URL | default "https://allsource-control-plane.fly.dev/api/v1/webhooks/lemonsqueezy"}}'
+  VARIANT_ID: '{{.VARIANT_ID | default "1755406"}}'
 
 tasks:
   backfill-usage:
@@ -353,3 +363,108 @@ tasks:
           echo ">> no real free tenants to comp."
         fi
         echo ">> done. Verify: curl '$CP/api/v1/admin/tenants?plan=free&status=active&per_page=100' | jq .total  (expect 0)"
+
+  # ── LemonSqueezy production cutover (runbook: docs/runbooks/PRICING_BILLING_CUTOVER.md) ──
+  # All read LEMON_SQUEEZY_API_KEY from .env. The live key is never printed or
+  # committed. Order for go-live: ls-variants (confirm IDs) → ls-webhook-register
+  # → ls-config-check (expect ok) → real checkout → revoke the test key in LS.
+
+  ls-variant:
+    desc: >-
+      Fetch ONE LemonSqueezy variant by id to prove the live key resolves it
+      (LS shares one catalog across test/live, so the test variant ids should be
+      identical live). Vars: VARIANT_ID (default 1755406 = indie:monthly).
+    silent: true
+    cmds:
+      - |
+        set -eu
+        : "${LEMON_SQUEEZY_API_KEY:?set LEMON_SQUEEZY_API_KEY in .env (your LIVE LS API key)}"
+        echo ">> GET {{.LS_API}}/variants/{{.VARIANT_ID}}"
+        curl -sS -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
+          -H 'Accept: application/vnd.api+json' \
+          "{{.LS_API}}/variants/{{.VARIANT_ID}}" \
+          | jq '.data | {id, name: .attributes.name, status: .attributes.status, price: .attributes.price} // .'
+
+  ls-variants:
+    desc: >-
+      List every variant in the LS store with id/name/status/price, so you can
+      confirm the six VARIANT_MAP ids (indie/studio/scale × monthly/annual)
+      resolve under the LIVE key. Vars: LS_STORE (default 282851).
+    silent: true
+    cmds:
+      - |
+        set -eu
+        : "${LEMON_SQUEEZY_API_KEY:?set LEMON_SQUEEZY_API_KEY in .env (your LIVE LS API key)}"
+        echo ">> GET {{.LS_API}}/variants?filter[store_id]={{.LS_STORE}}"
+        curl -sS -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
+          -H 'Accept: application/vnd.api+json' \
+          "{{.LS_API}}/variants?filter%5Bstore_id%5D={{.LS_STORE}}" \
+          | jq -r '.data[] | [.id, (.attributes.status), (.attributes.price|tostring), (.attributes.name)] | @tsv' \
+          | awk -F'\t' 'BEGIN{printf "%-10s %-10s %-8s %s\n","ID","STATUS","PRICE","NAME"; printf "%-10s %-10s %-8s %s\n","--","------","-----","----"} {printf "%-10s %-10s %-8s %s\n",$1,$2,$3,$4}'
+
+  ls-webhook-register:
+    desc: >-
+      Register the LIVE LemonSqueezy webhook (subscription_created/updated/
+      cancelled/expired/payment_failed → the Control Plane), generating a fresh
+      ≤40-char signing secret and setting LEMON_SQUEEZY_WEBHOOK_SECRET on the CP
+      to match (setting the secret rolls the machines). The secret is never
+      printed. Vars: LS_STORE, LS_WEBHOOK_URL, CP_APP.
+    silent: true
+    cmds:
+      - |
+        set -eu
+        : "${LEMON_SQUEEZY_API_KEY:?set LEMON_SQUEEZY_API_KEY in .env (your LIVE LS API key)}"
+        SECRET=$(openssl rand -hex 16)   # 32 chars, under LS's 40-char cap
+        BODY=$(mktemp); trap 'rm -f "$BODY"' EXIT
+        jq -nc \
+          --arg url "{{.LS_WEBHOOK_URL}}" \
+          --arg secret "$SECRET" \
+          --arg store "{{.LS_STORE}}" \
+          '{data:{type:"webhooks",attributes:{url:$url,events:["subscription_created","subscription_updated","subscription_cancelled","subscription_expired","subscription_payment_failed"],secret:$secret},relationships:{store:{data:{type:"stores",id:$store}}}}}' > "$BODY"
+        echo ">> POST {{.LS_API}}/webhooks  (url={{.LS_WEBHOOK_URL}})"
+        RESP=$(curl -sS -X POST "{{.LS_API}}/webhooks" \
+          -H "Authorization: Bearer $LEMON_SQUEEZY_API_KEY" \
+          -H 'Content-Type: application/vnd.api+json' \
+          -d @"$BODY")
+        WID=$(printf '%s' "$RESP" | jq -r '.data.id // empty')
+        if [ -z "$WID" ]; then
+          echo "!! webhook registration failed:"; printf '%s\n' "$RESP" | jq -r '.errors // .' ; exit 1
+        fi
+        # LS returns the secret write-only (absent from the response), so this is safe to print.
+        printf '%s' "$RESP" | jq '{id: .data.id, url: .data.attributes.url, events: .data.attributes.events}'
+        echo ">> webhook id=${WID} registered. setting matching secret on {{.CP_APP}} (rolls machines)..."
+        fly secrets set LEMON_SQUEEZY_WEBHOOK_SECRET="$SECRET" -a {{.CP_APP}}
+        echo ">> done. verify with: task ls-config-check"
+
+  ls-config-check:
+    desc: >-
+      Read the Control Plane's billing self-check (GET /admin/billing/config-check)
+      and print ok + any issues — confirms the variant map resolves, the webhook
+      secret is present + within the length cap, and the HMAC self-test passes.
+      Mints a 1h admin JWT from the fleet JWT_SECRET (same as the other admin
+      tasks). Vars: CP_URL, QS_APP, EMAIL.
+    silent: true
+    cmds:
+      - |
+        set -eu
+        echo ">> minting 1h admin token from {{.QS_APP}} JWT_SECRET..."
+        RAW=$(fly ssh console -a "{{.QS_APP}}" -C 'sh -c "printf __S__; printenv JWT_SECRET; printf __E__"' 2>/dev/null || true)
+        SECRET="${RAW##*__S__}"; SECRET="${SECRET%%__E__*}"
+        SECRET=$(printf '%s' "$SECRET" | tr -d '\r\n')
+        if [ -z "$SECRET" ] || [ "$SECRET" = "$RAW" ]; then
+          echo "!! could not read JWT_SECRET from {{.QS_APP}} (fly ssh failed). First lines of raw output:"
+          printf '%s\n' "$RAW" | head -3; exit 1
+        fi
+        now=$(date +%s); exp=$((now + 3600))
+        b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+        hdr=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64)
+        pl=$(printf '%s' "{\"sub\":\"owner-ls-config-check\",\"email\":\"{{.EMAIL}}\",\"role\":\"admin\",\"iss\":\"allsource\",\"iat\":${now},\"exp\":${exp}}" | b64)
+        sig=$(printf '%s' "${hdr}.${pl}" | openssl dgst -sha256 -hmac "$SECRET" -binary | b64)
+        TOKEN="${hdr}.${pl}.${sig}"
+        echo ">> GET {{.CP_URL}}/api/v1/admin/billing/config-check"
+        OUT=$(curl -sS "{{.CP_URL}}/api/v1/admin/billing/config-check" -H "Authorization: Bearer ${TOKEN}")
+        printf '%s' "$OUT" | jq '{ok, facts, issues, manual}'
+        if [ "$(printf '%s' "$OUT" | jq -r '.ok // false')" != "true" ]; then
+          echo ">> config-check NOT ok — fix the issues above before going live."; exit 1
+        fi
+        echo ">> config-check OK."
