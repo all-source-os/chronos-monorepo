@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,13 +55,32 @@ func NewGetCatalogUseCase(ls clients.LemonSqueezyClient) *GetCatalogUseCase {
 	return &GetCatalogUseCase{ls: ls}
 }
 
-// formatCents renders cents as a price string: whole dollars drop the decimals
-// ("$19"), otherwise two decimals ("$18.99").
-func formatCents(cents int) string {
-	if cents%100 == 0 {
-		return fmt.Sprintf("$%d", cents/100)
+// currencySymbol maps an ISO currency code to its display symbol; unknown codes
+// fall back to a "CODE " prefix (e.g. "SEK 189") so the amount is never silently
+// mislabeled as dollars.
+func currencySymbol(code string) string {
+	switch strings.ToUpper(code) {
+	case "USD", "AUD", "CAD", "NZD", "":
+		return "$"
+	case "GBP":
+		return "£"
+	case "EUR":
+		return "€"
+	case "JPY":
+		return "¥"
+	default:
+		return strings.ToUpper(code) + " "
 	}
-	return fmt.Sprintf("$%.2f", float64(cents)/100)
+}
+
+// formatCents renders cents as a price string in the given currency: whole units
+// drop the decimals ("£19"), otherwise two decimals ("£18.99").
+func formatCents(cents int, currency string) string {
+	sym := currencySymbol(currency)
+	if cents%100 == 0 {
+		return fmt.Sprintf("%s%d", sym, cents/100)
+	}
+	return fmt.Sprintf("%s%.2f", sym, float64(cents)/100)
 }
 
 // Execute returns the catalog, using the TTL cache when warm. `now` is injected
@@ -79,12 +99,19 @@ func (uc *GetCatalogUseCase) Execute(ctx context.Context, now time.Time) (*Catal
 		return cat, nil
 	}
 
+	// Prices are denominated in the store's currency; format with it (LS store is
+	// GBP → "£18.99", not "$18.99"). Best-effort: fall back to USD on lookup error
+	// so a transient store fetch doesn't blank the whole catalog.
+	if currency, err := uc.ls.GetStoreCurrency(ctx); err == nil && currency != "" {
+		cat.Currency = strings.ToUpper(currency)
+	}
+
 	for _, tier := range catalogTiers {
 		entry := CatalogTier{Tier: tier}
-		if p := uc.price(ctx, tier, defaultBillingPeriod, false); p != nil {
+		if p := uc.price(ctx, tier, defaultBillingPeriod, false, cat.Currency); p != nil {
 			entry.Monthly = p
 		}
-		if p := uc.price(ctx, tier, "annual", true); p != nil {
+		if p := uc.price(ctx, tier, "annual", true, cat.Currency); p != nil {
 			entry.Annual = p
 		}
 		// Only include a tier if at least one period resolved.
@@ -104,7 +131,7 @@ func (uc *GetCatalogUseCase) Execute(ctx context.Context, now time.Time) (*Catal
 // fatal) when the variant isn't configured or LS lookup fails, so one missing
 // price never blanks the whole catalog. For annual, also computes the per-month
 // equivalent from the annual total.
-func (uc *GetCatalogUseCase) price(ctx context.Context, tier, period string, annual bool) *CatalogPrice {
+func (uc *GetCatalogUseCase) price(ctx context.Context, tier, period string, annual bool, currency string) *CatalogPrice {
 	variantID, err := uc.ls.LookupVariantID(tier, period)
 	if err != nil || variantID == "" {
 		return nil
@@ -113,11 +140,11 @@ func (uc *GetCatalogUseCase) price(ctx context.Context, tier, period string, ann
 	if err != nil || v == nil || v.Price <= 0 {
 		return nil
 	}
-	p := &CatalogPrice{Cents: v.Price, Formatted: formatCents(v.Price)}
+	p := &CatalogPrice{Cents: v.Price, Formatted: formatCents(v.Price, currency)}
 	if annual {
-		// Round to nearest cent (half-up) rather than truncate: $181.99/12 is
-		// $15.166 → "$15.17", not "$15.16".
-		p.PerMonth = formatCents((v.Price + 6) / 12)
+		// Round to nearest cent (half-up) rather than truncate: 18199/12 is
+		// 1516.6 → "£15.17", not "£15.16".
+		p.PerMonth = formatCents((v.Price+6)/12, currency)
 	}
 	return p
 }

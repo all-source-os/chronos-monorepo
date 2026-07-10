@@ -68,6 +68,10 @@ func (m *mockLSClient) GetStoreID() string {
 	return "test-store"
 }
 
+func (m *mockLSClient) GetStoreCurrency(_ context.Context) (string, error) {
+	return "USD", nil
+}
+
 func TestReportUsage_NoOverage(t *testing.T) {
 	repo := persistence.NewMemoryTenantRepository()
 	auditRepo := persistence.NewMemoryAuditRepository()

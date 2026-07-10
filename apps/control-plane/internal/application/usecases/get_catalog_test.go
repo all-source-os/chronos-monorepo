@@ -14,6 +14,7 @@ import (
 type catalogMockLS struct {
 	variants map[string]*clients.VariantResponse // variantID → variant
 	getCalls int
+	currency string // store currency; "" → USD
 }
 
 func (m *catalogMockLS) LookupVariantID(tier, period string) (string, error) {
@@ -41,6 +42,12 @@ func (m *catalogMockLS) GetVariant(_ context.Context, variantID string) (*client
 
 func (m *catalogMockLS) VariantMap() clients.VariantMap { return nil }
 func (m *catalogMockLS) GetStoreID() string             { return "store" }
+func (m *catalogMockLS) GetStoreCurrency(_ context.Context) (string, error) {
+	if m.currency != "" {
+		return m.currency, nil
+	}
+	return "USD", nil
+}
 func (m *catalogMockLS) UpdateSubscription(_ context.Context, _ string, _ int) (*clients.SubscriptionResponse, error) {
 	return nil, fmt.Errorf("not implemented")
 }
@@ -67,16 +74,23 @@ func (m *catalogMockLS) RefundInvoice(_ context.Context, _ string, _ int) error 
 }
 
 func TestFormatCents(t *testing.T) {
-	cases := map[int]string{
-		1900:  "$19",
-		1899:  "$18.99",
-		18199: "$181.99",
-		29899: "$298.99",
-		0:     "$0",
+	cases := []struct {
+		cents    int
+		currency string
+		want     string
+	}{
+		{1900, "USD", "$19"},
+		{1899, "USD", "$18.99"},
+		{18199, "GBP", "£181.99"},
+		{29899, "GBP", "£298.99"},
+		{7899, "GBP", "£78.99"},
+		{1900, "EUR", "€19"},
+		{0, "GBP", "£0"},
+		{1899, "", "$18.99"}, // empty currency → dollars
 	}
-	for cents, want := range cases {
-		if got := formatCents(cents); got != want {
-			t.Errorf("formatCents(%d) = %q, want %q", cents, got, want)
+	for _, c := range cases {
+		if got := formatCents(c.cents, c.currency); got != c.want {
+			t.Errorf("formatCents(%d, %q) = %q, want %q", c.cents, c.currency, got, c.want)
 		}
 	}
 }

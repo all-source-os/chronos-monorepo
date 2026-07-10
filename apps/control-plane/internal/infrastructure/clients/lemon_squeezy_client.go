@@ -39,6 +39,10 @@ type LemonSqueezyClient interface {
 	// copy) so callers can enumerate the catalog.
 	VariantMap() VariantMap
 	GetStoreID() string
+	// GetStoreCurrency fetches the store's billing currency (ISO code, e.g. "USD",
+	// "GBP") so the catalog formats prices in what customers are actually charged
+	// rather than a hardcoded "$".
+	GetStoreCurrency(ctx context.Context) (string, error)
 }
 
 // VariantResponse is a LemonSqueezy variant's pricing detail.
@@ -453,6 +457,27 @@ func (c *lemonSqueezyClient) LookupVariantID(tier, period string) (string, error
 		return id, nil
 	}
 	return "", fmt.Errorf("no LemonSqueezy variant configured for tier %q period %q", tier, period)
+}
+
+// GetStoreCurrency fetches the store's billing currency ISO code (e.g. "USD",
+// "GBP") from LemonSqueezy. Variant prices are denominated in this currency, so
+// the catalog must format with it rather than a hardcoded "$".
+func (c *lemonSqueezyClient) GetStoreCurrency(ctx context.Context) (string, error) {
+	var env struct {
+		Data struct {
+			Attributes struct {
+				Currency string `json:"currency"`
+			} `json:"attributes"`
+		} `json:"data"`
+	}
+	resp, err := c.client.R().SetContext(ctx).SetResult(&env).Get("/v1/stores/" + c.storeID)
+	if err != nil {
+		return "", fmt.Errorf("get store currency request failed: %w", err)
+	}
+	if resp.StatusCode() >= 400 {
+		return "", fmt.Errorf("get store returned status %d: %s", resp.StatusCode(), resp.String())
+	}
+	return env.Data.Attributes.Currency, nil
 }
 
 // GetStoreID returns the configured LemonSqueezy store ID.
