@@ -66,7 +66,9 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Three paid card tiers (self-host removed) — a 3-col grid, centered and
+          width-capped so the cards don't left-align against an empty 4th column. */}
+      <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cardTiers.map((plan, index) => {
           // LemonSqueezy price (source of truth). Paid tiers with no live/
           // cached price render a dash, never a possibly-stale config number.
@@ -166,9 +168,9 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
         })}
       </div>
 
-      {/* Enterprise — quieter full-width dark strip below the cards. */}
+      {/* Enterprise — quieter strip below, width-matched to the cards above. */}
       {enterpriseTier && (
-        <div className="mt-6 flex flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-foreground px-8 py-6 text-background sm:flex-row sm:items-center">
+        <div className="mx-auto mt-6 flex max-w-5xl flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-foreground px-8 py-6 text-background sm:flex-row sm:items-center">
           <div>
             <p className="text-lg font-semibold">{enterpriseTier.name}</p>
             <p className="text-sm opacity-80">
