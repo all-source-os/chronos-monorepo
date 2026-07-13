@@ -37,7 +37,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       is_prerelease: ${{ steps.version.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Get version
         id: version
@@ -92,7 +92,7 @@ jobs:
             dockerfile: apps/prime-mcp/Dockerfile
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -164,7 +164,7 @@ jobs:
             artifact: allsource-core-macos-aarch64
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -247,7 +247,7 @@ jobs:
             artifact: allsource-prime-macos-aarch64
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -297,7 +297,7 @@ jobs:
     needs: [validate, build-prime-binaries]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download Prime tarballs
         uses: actions/download-artifact@v8
@@ -358,7 +358,7 @@ jobs:
             artifact: control-plane-macos-aarch64
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -400,7 +400,7 @@ jobs:
       REGISTRY_URL: https://registry.all-source.xyz
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # --- Build all SDK artifacts ---
       - name: Install Rust toolchain
@@ -504,7 +504,7 @@ jobs:
       - build-go-binaries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
