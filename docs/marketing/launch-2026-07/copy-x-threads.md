@@ -8,7 +8,7 @@ last_updated: 2026-07-17
 
 > Founder POV, first person. Each tweet <280 chars and stands alone. Post the
 > launch thread on Product Hunt morning to cross-amplify. Then run ONE hook
-> thread per week. Closer on outbound: `Self-host free. $19/mo. MIT. → all-source.xyz`
+> thread per week. Closer on outbound: `Self-host free. $19/mo. Apache-2.0. → all-source.xyz`
 
 ---
 
@@ -50,7 +50,7 @@ Because it's an event log, you get two things a vector DB can't give you:
 ⏪ time-travel — recall the agent's memory as-of any past moment.
 
 **6/**
-It drops into Claude Desktop via 43 MCP tools — the agent reads and writes memory directly. Embeddings run in-process, so no external embedding API.
+It drops into Claude Desktop via 73 MCP tools — the agent reads and writes memory directly. Embeddings run in-process, so no external embedding API.
 
 Vectors are still there when you want fuzzy search — as a projection, not the source of truth.
 
@@ -58,7 +58,7 @@ Vectors are still there when you want fuzzy search — as a projection, not the 
 Already on mem0 / Zep / Letta? I wrote honest side-by-sides:
 all-source.xyz/vs/mem0 · /vs/zep · /vs/letta
 
-Core is MIT. Self-host the whole thing free, forever, on your hardware.
+Core is Apache-2.0. Self-host the whole thing free, forever, on your hardware.
 
 **8/**
 Try it:
@@ -68,7 +68,7 @@ repo → github.com/all-source-os/all-source
 
 Your agents already forget. Stop letting them.
 
-Self-host free. $19/mo hosted. MIT. → all-source.xyz
+Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz
 
 ---
 
@@ -78,7 +78,7 @@ Self-host free. $19/mo hosted. MIT. → all-source.xyz
 >
 > AllSource is durable memory for agents: records every event, recalls it in ~12μs, survives restarts, and can tell you *why* it remembers something.
 >
-> 43 MCP tools → drops into Claude. Self-host free (MIT).
+> 73 MCP tools → drops into Claude. Self-host free (Apache-2.0).
 >
 > 60s demo 👇 [video]
 > → all-source.xyz
@@ -92,8 +92,8 @@ Self-host free. $19/mo hosted. MIT. → all-source.xyz
 **2/** Reason 1: its "memory" is a chat log. You stuff yesterday into the context window and pray. Window rolls over or the process restarts → gone. That's short-term recall with amnesia on a timer.
 **3/** Reason 2: the store isn't durable. Most agent-memory stacks keep state in RAM or a cache that evaporates on restart. AllSource is the opposite: every event hits a WAL (CRC32 + fsync) + Parquet. Restart → events still there.
 **4/** Reason 3: recall is too slow to use every turn. At 200-500ms you ration it. AllSource recalls in ~12μs (11.9μs p99) — query memory on *every* message and the user never feels it.
-**5/** Fix all three: record every event, durably, recall in microseconds. 469K events/sec. 43 MCP tools into Claude. Your agents already forget. Stop letting them.
-Self-host free. $19/mo. MIT. → all-source.xyz
+**5/** Fix all three: record every event, durably, recall in microseconds. 469K events/sec. 73 MCP tools into Claude. Your agents already forget. Stop letting them.
+Self-host free. $19/mo. Apache-2.0. → all-source.xyz
 
 ### Week 2 — BENCHMARK: "12μs recall. Here's the code."
 **1/** ~12μs agent-memory recall. Not milliseconds. Microseconds. Here's the lookup path and how you reproduce it yourself. 🧵
@@ -106,15 +106,15 @@ cargo install allsource-prime
 allsource-prime --data-dir ~/.prime/memory --mode http --port 3905
 curl -w "time_total: %{time_total}s\n" http://localhost:3905/api/v1/prime/stats
 ```
-**5/** Same engine: 469K events/sec ingest, ~129MB footprint, 43 MCP tools. 12μs recall — here's the code, the rest is on GitHub.
-Self-host free. $19/mo. MIT. → all-source.xyz
+**5/** Same engine: 469K events/sec ingest, ~129MB footprint, 73 MCP tools. 12μs recall — here's the code, the rest is on GitHub.
+Self-host free. $19/mo. Apache-2.0. → all-source.xyz
 
 ### Week 3 — CONTRARIAN: "stop putting agent memory in a vector DB"
 **1/** Hot take: a vector database is the wrong default for agent memory. The "just embed everything" reflex quietly costs you the two things memory needs most. 🧵
 **2/** It costs you *time*. Vector search is a similarity scan — great for fuzzy retrieval, terrible as the thing you hit every turn. Ration it and it's not memory.
 **3/** It costs you *truth*. An embedding tells you what's *similar*, not what *happened*, in order, at what time. Agents reason over sequences of events. That's a log, not nearest-neighbor.
 **4/** Reframe: store the events, project them. AllSource keeps an immutable durable log (WAL + Parquet) and serves O(1) recall in ~12μs. Vectors stay — as a projection, not the source of truth. Bonus: provenance + time-travel.
-**5/** Events as substrate, ~12μs exact recall on the hot path, vectors when you actually need similarity. 469K events/sec, 43 MCP tools, MIT.
+**5/** Events as substrate, ~12μs exact recall on the hot path, vectors when you actually need similarity. 469K events/sec, 73 MCP tools, Apache-2.0.
 Your agents already forget. Stop letting them. → all-source.xyz
 
 ---

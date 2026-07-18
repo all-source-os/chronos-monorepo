@@ -32,7 +32,7 @@ last_updated: 2026-07-17
 >
 > The reason it exists: agent memory stacks are usually a vector DB that's too slow to hit every turn. At ~12μs you can query memory on every message, and because it's an event log you get provenance and time-travel for free.
 >
-> It's open source (core is MIT). Repo, and happy to talk through the durability/WAL design or the lock-free read path: github.com/all-source-os/all-source
+> It's open source (core is Apache-2.0). Repo, and happy to talk through the durability/WAL design or the lock-free read path: github.com/all-source-os/all-source
 >
 > Honest question for this sub: where would you push back on the fsync/recovery design?
 
@@ -45,7 +45,7 @@ last_updated: 2026-07-17
 
 **Title options**
 - `I got tired of my agents forgetting everything on restart, so I built durable memory that recalls in ~12μs [self-hostable]`
-- `Event-sourced memory for local agents — survives restarts, ~12μs recall, MCP-native, MIT`
+- `Event-sourced memory for local agents — survives restarts, ~12μs recall, MCP-native, Apache-2.0`
 
 **Body**
 > Every local-agent setup I built hit the same wall: memory is a chat log stuffed into context, and it's gone the moment the process restarts. Vector DBs "solve" it but they're slow enough that you ration lookups, and they only tell you what's *similar*, not what actually *happened*.
@@ -54,8 +54,8 @@ last_updated: 2026-07-17
 > - **Durable:** every event the agent emits hits a write-ahead log + Parquet. Restart the process, memory's still there.
 > - **Fast:** ~12μs recall (11.9μs p99), so you can query memory on *every* turn instead of rationing it.
 > - **Ordered + provenanced:** it's a log, so you get "what happened, in what order, at what time" and can trace any memory back to its source event.
-> - **MCP-native:** 43 tools, drops into Claude Desktop / any MCP client. Agent reads and writes memory directly.
-> - **Self-hostable:** core is MIT, runs in ~129MB, embeddings in-process (no external embedding API).
+> - **MCP-native:** 73 tools, drops into Claude Desktop / any MCP client. Agent reads and writes memory directly.
+> - **Self-hostable:** core is Apache-2.0, runs in ~129MB, embeddings in-process (no external embedding API).
 >
 > 2-min demo (agent forgets → restart → recalls in 11.2μs → shows the provenance chain): [VIDEO/GIF]
 >
@@ -81,7 +81,7 @@ last_updated: 2026-07-17
 >
 > I switched to an event log as the substrate (built AllSource for this): store every event durably (WAL + Parquet), serve O(1) recall from in-memory projections in ~12μs, and keep vectors as a *projection* on top for when you actually want fuzzy search. Bonus: every memory has provenance, and you can time-travel the agent's memory to any past state for debugging.
 >
-> 43 MCP tools so it drops into Claude/any MCP client. Core's MIT, self-hostable.
+> 73 MCP tools so it drops into Claude/any MCP client. Core's Apache-2.0, self-hostable.
 >
 > Writeup + comparisons to mem0/Zep/Letta: all-source.xyz/event-sourcing-for-ai-agents · repo: github.com/all-source-os/all-source
 >

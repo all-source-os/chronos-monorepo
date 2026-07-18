@@ -40,12 +40,12 @@ ordered, and fast enough to query on every message.
 |---|---|---|
 | Ingest throughput | **469K events/sec** | `siteConfig.stats[0]` |
 | Recall latency | **11.9μs p99** (~12μs; demo stamps **11.2μs**) | `siteConfig.stats[1]`, `.recallLatency` |
-| MCP tools | **43** | `siteConfig.stats[2]` ⚠️ see P0 (README says 61) |
+| MCP tools | **73** | `siteConfig.stats[2]` — all tools (45 read-tier / 55 read+write) |
 | Footprint | **~129MB** | `siteConfig.stats[3]` |
 | Durability | WAL (CRC32 + fsync) + Parquet (Snappy) + DashMap | CLAUDE.md |
 | Pricing (USD) | Self-Host **Free** · Indie **$19** · Studio **$79** (Popular) · Scale **$299** · Enterprise custom | `siteConfig.pricing` |
 | x402 overage | **$0.0001/call** | `siteConfig.pricing[*].x402` |
-| License (public claim) | **MIT** (core) | `siteConfig` FAQ, `apps/core/LICENSE` ⚠️ see P0 |
+| License | **Apache-2.0** (community) · **BSL 1.1** (enterprise) | root `LICENSE`, README |
 | Repo | github.com/all-source-os/all-source | `siteConfig.links.github` |
 | Site | https://www.all-source.xyz | — |
 | X handle | **@ddonprogramming** | `siteConfig.twitterHandle` |
@@ -53,7 +53,7 @@ ordered, and fast enough to query on every message.
 | Comparison pages (LIVE — link these) | `/vs/mem0` `/vs/letta` `/vs/zep` `/vs/stoolap` `/event-sourcing-for-ai-agents` | `siteConfig.footer` |
 | Prime | `/prime` — persistent agent memory via MCP, install in 30s, no embedding API | `siteConfig.header` |
 
-**Mandatory outbound closer:** `Self-host free. $19/mo hosted. MIT. → all-source.xyz`
+**Mandatory outbound closer:** `Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz`
 
 ---
 
@@ -61,9 +61,9 @@ ordered, and fast enough to query on every message.
 
 These are consistency bugs that will get caught and cost credibility on HN/Reddit.
 
-### P0 (blocking)
-- [ ] **License story is inconsistent.** Repo root `LICENSE`=Apache-2.0, `apps/core/LICENSE`=MIT, `LICENSE-BSL`=BSL 1.1, site FAQ says "MIT". Pick ONE public sentence (recommend: *"Core is MIT; the full repo is Apache-2.0 with an enterprise BSL edition"*) and make site + README + copy agree. Copy currently says **MIT** — change everywhere if you pick differently.
-- [ ] **MCP tool count: 43 vs 61.** siteConfig/site say 43; README says "61 tools across 11 categories." Reconcile to one number. Copy uses **43**.
+### P0 (RESOLVED 2026-07-19)
+- [x] **License unified to Apache-2.0 (community) + BSL 1.1 (enterprise).** Site FAQ (`apps/web/src/lib/config.ts`) + all launch copy updated off "MIT"; README already matched. ⚠️ Remaining: `apps/core/LICENSE` is still MIT (a per-crate license inside the Apache-2.0 repo) — reconcile that file separately if you want the core crate under Apache-2.0.
+- [x] **MCP tool count set to 73** across site + README + copy (was 43/61, both stale). Real exposed counts from `list_tools()`: 45 read-tier, 55 read+write, 73 full (incl. control-plane/admin). Prime is separate (19 tools; README updated 13→19).
 
 ### P1 (should fix — hurts conversion)
 - [ ] **US audience sees GBP.** Config says `$19` but the LemonSqueezy store is GBP, so `/pricing` checkout renders **£18.99** (~$24). HN/PH/Reddit are USD-default. Decide: USD store/display for launch, or accept GBP and make copy say £. Copy currently says **$19**.

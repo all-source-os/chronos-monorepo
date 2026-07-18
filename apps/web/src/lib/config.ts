@@ -13,7 +13,7 @@ export const siteConfig = {
   stats: [
     { display: "469K", numeric: 469, suffix: "K", label: "events/sec" },
     { display: "11.9μs", numeric: 11.9, suffix: "μs", label: "p99 recall" },
-    { display: "43", numeric: 43, suffix: "", label: "MCP tools" },
+    { display: "73", numeric: 73, suffix: "", label: "MCP tools" },
     { display: "129MB", numeric: 129, suffix: "MB", label: "footprint" },
   ],
   // The single µs figure the homepage demo stamps on the recalled answer.
@@ -67,7 +67,7 @@ export const siteConfig = {
           {
             href: "/docs/mcp",
             title: "AI-Native Tools",
-            description: "43 MCP tools for Claude Desktop integration.",
+            description: "73 MCP tools for Claude Desktop integration.",
           },
           {
             href: "/prime",
@@ -166,7 +166,7 @@ export const siteConfig = {
       // ONLY so the authenticated dashboard can still render a tenant that's on
       // the legacy `self-host` tier (the web analog of admin's planLabel) and so
       // getPlanConfig's `pricing[0]` fallback resolves to a safe entry. The
-      // run-it-yourself MIT story lives in the "Why no free plan?" FAQ below.
+      // run-it-yourself Apache-2.0 story lives in the "Why no free plan?" FAQ below.
       name: "Self-Host",
       tier: "self-host" as const,
       href: "https://github.com/all-source-os/all-source",
@@ -181,7 +181,7 @@ export const siteConfig = {
         "Unlimited streams",
         "Full MCP (self-host)",
         "GitHub community support",
-        "MIT licensed",
+        "Apache-2.0 licensed",
       ],
       description: "Tinkerers, OSS, on-prem. Run it yourself.",
       buttonText: "Self-host on GitHub",
@@ -284,7 +284,7 @@ export const siteConfig = {
     {
       question: "Why no free plan?",
       answer:
-        "We're MIT-licensed. Free already exists — run it yourself. Hosted pricing reflects what it costs us to run it for you.",
+        "We're open source (Apache-2.0). Free already exists — run it yourself. Hosted pricing reflects what it costs us to run it for you.",
     },
     {
       question: "What is AllSource?",
@@ -299,7 +299,7 @@ export const siteConfig = {
     {
       question: "What is the MCP Server integration?",
       answer:
-        "AllSource includes a 43-tool MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. This allows AI agents to manage events, run analytics, detect anomalies, manage backups, monitor health, and perform complex operations autonomously - making it truly AI-native from the ground up.",
+        "AllSource includes a 73-tool MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. This allows AI agents to manage events, run analytics, detect anomalies, manage backups, monitor health, and perform complex operations autonomously - making it truly AI-native from the ground up.",
     },
     {
       question: "How secure is my data?",
@@ -309,7 +309,7 @@ export const siteConfig = {
     {
       question: "Can I self-host AllSource?",
       answer:
-        "Yes! AllSource is open-source (MIT licensed) with minimal footprint (~129 MB for all services). We provide Docker images, Helm charts, and Kubernetes manifests for easy deployment. The cloud offering handles infrastructure management for teams who prefer a managed solution.",
+        "Yes! AllSource is open-source (Apache-2.0; enterprise features under BSL 1.1) with minimal footprint (~129 MB for all services). We provide Docker images, Helm charts, and Kubernetes manifests for easy deployment. The cloud offering handles infrastructure management for teams who prefer a managed solution.",
     },
     {
       question: "What is Quant Intelligence?",

@@ -14,9 +14,9 @@ channel is in the `copy-*.md` files. Numbers: `00-LAUNCH-PLAN.md §2`.
 
 ## §0 — BLOCKERS (clear before ANY post)
 
-**P0 (blocking):**
-- [ ] **Reconcile the license story.** Repo root=Apache-2.0, `apps/core`=MIT, `LICENSE-BSL`=BSL, site says "MIT." Pick one public sentence, make site + README + all `copy-*.md` agree. (Copy currently says MIT.)
-- [ ] **Reconcile MCP tool count: 43 vs 61.** siteConfig says 43, README says 61. One number everywhere. (Copy uses 43.)
+**P0 (RESOLVED 2026-07-19):**
+- [x] **License** unified to Apache-2.0 (community) + BSL 1.1 (enterprise) across site (`config.ts`); README already matched; all `copy-*.md` updated off MIT. ⚠️ `apps/core/LICENSE` still MIT — reconcile that file separately if desired.
+- [x] **MCP tool count** set to **73** (was 43/61, both stale) across site + README + copy. Exposed range 45–73 by config; Prime separate (19).
 
 **P1 (fix before Product Hunt):**
 - [ ] **Currency:** decide USD vs GBP for launch. Config says `$19`; LemonSqueezy store renders `£18.99` at checkout. US audiences (HN/PH/Reddit) expect USD — either switch display or make copy say £. (Copy says $19.)

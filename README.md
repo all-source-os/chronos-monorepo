@@ -86,7 +86,7 @@ apps/
   prime-mcp/          # Prime MCP server          — agent memory (stdio + HTTP)
   control-plane/      # Go auth/billing/ops       — the gatekeeper
   query-service/      # Elixir API gateway        — the router
-  mcp-server-elixir/  # MCP server (61 tools)     — the AI interface
+  mcp-server-elixir/  # MCP server (73 tools)     — the AI interface
   web/                # Next.js dashboard          — the UI
 
 deploy/
@@ -160,7 +160,7 @@ Add to Claude Desktop (`~/.claude/claude_desktop_config.json`):
 }
 ```
 
-13 MCP tools for knowledge management, semantic search, cross-domain reasoning, and temporal queries. See the [Prime Guide](docs/guides/PRIME_AGENT_PROMPT.md) for usage patterns.
+19 MCP tools for knowledge management, semantic search, cross-domain reasoning, and temporal queries. See the [Prime Guide](docs/guides/PRIME_AGENT_PROMPT.md) for usage patterns.
 
 Embedding Prime directly in your own Rust / Tauri app (no MCP server, no HTTP)? See the [Embedded Prime Integration Guide](docs/guides/EMBEDDED_PRIME_INTEGRATION.md) — covers feature flags, `Prime::open()`, `RecallEngine`, HNSW vector search, local `fastembed` embeddings, and a full Tauri example.
 
@@ -233,11 +233,11 @@ Stateless API gateway. Routes to Core, delegates auth to Control Plane.
 - Tesla HTTP client with connection pooling, Broadway event processing
 - OpenAPI specification via `open_api_spex`
 
-### MCP Server (61 tools) — [docs](apps/mcp-server-elixir/)
+### MCP Server (73 tools) — [docs](apps/mcp-server-elixir/)
 
 AI-native interface for Claude Desktop or any MCP client.
 
-- 61 tools across 11 categories (discover, search, drill-down, context, mutate, ops, tenants, schema, analytics, dev)
+- 73 tools across 11 categories (discover, search, drill-down, context, mutate, ops, tenants, schema, analytics, dev)
 - TOON format responses (~50% fewer tokens than JSON)
 
 ### allsource-mcp (local debugging) — [guide](docs/guides/ALLSOURCE_MCP.md)
@@ -282,7 +282,7 @@ Everything you need to run a production event store:
 - **Analytics** — EventQL (DataFusion SQL engine), frequency/correlation/summary
 - **WebSocket streaming** — real-time event subscriptions
 - **Query Service** — API gateway with dev-mode auth
-- **MCP Server** — 61 AI-native tools for Claude Desktop
+- **MCP Server** — 73 AI-native tools for Claude Desktop
 - **SDKs** — Rust, Go, Python, TypeScript
 
 ### Enterprise Edition (BSL 1.1) — commercial license

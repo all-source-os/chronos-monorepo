@@ -15,14 +15,14 @@ last_updated: 2026-07-17
 ## Tagline (≤60 chars) — pick one
 1. **Durable memory for AI agents — recall in microseconds**  ← recommended
 2. Your AI agents forget. AllSource makes them remember.
-3. Event-sourced memory for agents. ~12μs recall. MIT.
+3. Event-sourced memory for agents. ~12μs recall. Apache-2.0.
 
 ## Topics
 AI Agents · Developer Tools · Open Source · Databases · Artificial Intelligence
 
 ## Description (the "what is it" blurb, ≤260 chars)
 
-> AllSource is durable memory for AI agents. It records every event your agent emits to a write-ahead log + Parquet (survives restarts), then serves recall from in-memory projections in ~12μs — fast enough to hit every turn. 469K events/sec, 43 MCP tools for Claude, self-host free (MIT).
+> AllSource is durable memory for AI agents. It records every event your agent emits to a write-ahead log + Parquet (survives restarts), then serves recall from in-memory projections in ~12μs — fast enough to hit every turn. 469K events/sec, 73 MCP tools for Claude, self-host free (Apache-2.0).
 
 ## Gallery (in order)
 1. **Hero video (2 min)** — the demo: JSON events stream in → Claude asks "what did the user do yesterday at 3pm?" → answer renders out of those events → **"returned in 11.2μs ✓"** stamped on it → then **click the answer to reveal its provenance chain** (the differentiator).
@@ -38,9 +38,9 @@ I kept hitting the same wall with AI agents: they forget. You stuff yesterday in
 
 So I built the thing I wanted: an event store as the agent's memory. Every event the agent emits is durable (WAL with CRC32 + fsync, then Parquet), and recall comes back in ~12μs from in-memory projections — invisible, so you can query on every single message. Because it's an event log, every memory has provenance (you can ask *why* the agent believes something) and you can time-travel its memory to any past moment.
 
-469K events/sec, 43 MCP tools so Claude reads and writes memory directly, and x402 so the agent pays per call instead of you renting capacity you don't use.
+469K events/sec, 73 MCP tools so Claude reads and writes memory directly, and x402 so the agent pays per call instead of you renting capacity you don't use.
 
-It's MIT-licensed — self-host the whole thing free, forever, on your own hardware. Hosted starts at $19/mo if you'd rather I run it. There are honest comparison pages up too (vs mem0, Zep, Letta) if you're already using one.
+It's Apache-2.0-licensed — self-host the whole thing free, forever, on your own hardware. Hosted starts at $19/mo if you'd rather I run it. There are honest comparison pages up too (vs mem0, Zep, Letta) if you're already using one.
 
 Would love your hardest questions — especially on durability and the microsecond recall numbers. AMA below. 🦫
 
@@ -50,9 +50,9 @@ Would love your hardest questions — especially on durability and the microseco
 - ⚡ **~12μs recall (11.9μs p99)** — query memory on every turn without the user feeling it.
 - 🔎 **Provenance built in** — every memory traces to its source event. Ask *why* the agent believes something.
 - ⏪ **Time-travel memory** — recall the agent's state as-of any past moment.
-- 🔌 **43 MCP tools** — drop into Claude Desktop; the agent reads and writes memory directly.
+- 🔌 **73 MCP tools** — drop into Claude Desktop; the agent reads and writes memory directly.
 - 🚀 **469K events/sec** — the memory layer is never the bottleneck.
-- 🆓 **Self-host free (MIT)** — unlimited events on your hardware. Hosted from $19/mo.
+- 🆓 **Self-host free (Apache-2.0)** — unlimited events on your hardware. Hosted from $19/mo.
 
 ## Canned replies (predictable questions)
 
@@ -60,11 +60,11 @@ Would love your hardest questions — especially on durability and the microseco
 - **"Why not a vector DB / Postgres?"** → A vector DB tells you what's *similar*, not what *happened*, in order, at what time. Agents reason over sequences of events — that's a log. Vectors are still there as a projection when you want fuzzy search. (Postgres is for operational metadata, not the event log.)
 - **"How is recall that fast?"** → O(1) concurrent hash-map (DashMap) lookup on in-memory projections — no SQL parse, no network, no disk on the hot path. ~12μs.
 - **"How does it compare to mem0 / Zep / Letta?"** → Short version: they're vector-memory; we're an event log with provenance + time-travel + durability. Long version, honestly laid out: all-source.xyz/vs/mem0 (also /vs/zep, /vs/letta).
-- **"Free tier?"** → Self-host is genuinely free and unlimited (MIT). Hosted starts at $19/mo.
+- **"Free tier?"** → Self-host is genuinely free and unlimited (Apache-2.0). Hosted starts at $19/mo.
 - **"Does it need an embedding API?"** → No. Prime ships embeddings in-process (fastembed + HNSW). Install in ~30s.
 
 ## Maker reply template
 > Thanks [name]! [one-sentence direct answer.] [the grounded number.] If you want to poke at it, it's open source and self-host is free — github.com/all-source-os/all-source. Happy to go deeper. 🦫
 
 ---
-**Closer for any linked post:** `Self-host free. $19/mo hosted. MIT. → all-source.xyz`
+**Closer for any linked post:** `Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz`
