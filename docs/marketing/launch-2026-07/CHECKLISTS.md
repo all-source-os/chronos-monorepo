@@ -19,7 +19,7 @@ channel is in the `copy-*.md` files. Numbers: `00-LAUNCH-PLAN.md §2`.
 - [x] **MCP tool count** set to **73** (was 43/61, both stale) across site + README + copy. Exposed range 45–73 by config; Prime separate (19).
 
 **P1 (fix before Product Hunt):**
-- [ ] **Currency:** decide USD vs GBP for launch. Config says `$19`; LemonSqueezy store renders `£18.99` at checkout. US audiences (HN/PH/Reddit) expect USD — either switch display or make copy say £. (Copy says $19.)
+- [x] **Currency = GBP (settled).** LemonSqueezy store is GBP; copy states £18.99. Site is catalog-driven (always matches checkout).
 - [ ] **Verify one-command install** on a clean machine: `docker compose -f docker-compose.community.yml up -d`.
 - [ ] **Verify the Claude Desktop MCP snippet** against `/install` (stdio command/args) — used in `copy-mcp-lists-discord.md §4`.
 

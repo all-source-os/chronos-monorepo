@@ -40,7 +40,7 @@ So I built the thing I wanted: an event store as the agent's memory. Every event
 
 469K events/sec, 73 MCP tools so Claude reads and writes memory directly, and x402 so the agent pays per call instead of you renting capacity you don't use.
 
-It's Apache-2.0-licensed — self-host the whole thing free, forever, on your own hardware. Hosted starts at $19/mo if you'd rather I run it. There are honest comparison pages up too (vs mem0, Zep, Letta) if you're already using one.
+It's Apache-2.0-licensed — self-host the whole thing free, forever, on your own hardware. Hosted starts at £18.99/mo if you'd rather I run it. There are honest comparison pages up too (vs mem0, Zep, Letta) if you're already using one.
 
 Would love your hardest questions — especially on durability and the microsecond recall numbers. AMA below. 🦫
 
@@ -52,7 +52,7 @@ Would love your hardest questions — especially on durability and the microseco
 - ⏪ **Time-travel memory** — recall the agent's state as-of any past moment.
 - 🔌 **73 MCP tools** — drop into Claude Desktop; the agent reads and writes memory directly.
 - 🚀 **469K events/sec** — the memory layer is never the bottleneck.
-- 🆓 **Self-host free (Apache-2.0)** — unlimited events on your hardware. Hosted from $19/mo.
+- 🆓 **Self-host free (Apache-2.0)** — unlimited events on your hardware. Hosted from £18.99/mo.
 
 ## Canned replies (predictable questions)
 
@@ -60,11 +60,11 @@ Would love your hardest questions — especially on durability and the microseco
 - **"Why not a vector DB / Postgres?"** → A vector DB tells you what's *similar*, not what *happened*, in order, at what time. Agents reason over sequences of events — that's a log. Vectors are still there as a projection when you want fuzzy search. (Postgres is for operational metadata, not the event log.)
 - **"How is recall that fast?"** → O(1) concurrent hash-map (DashMap) lookup on in-memory projections — no SQL parse, no network, no disk on the hot path. ~12μs.
 - **"How does it compare to mem0 / Zep / Letta?"** → Short version: they're vector-memory; we're an event log with provenance + time-travel + durability. Long version, honestly laid out: all-source.xyz/vs/mem0 (also /vs/zep, /vs/letta).
-- **"Free tier?"** → Self-host is genuinely free and unlimited (Apache-2.0). Hosted starts at $19/mo.
+- **"Free tier?"** → Self-host is genuinely free and unlimited (Apache-2.0). Hosted starts at £18.99/mo.
 - **"Does it need an embedding API?"** → No. Prime ships embeddings in-process (fastembed + HNSW). Install in ~30s.
 
 ## Maker reply template
 > Thanks [name]! [one-sentence direct answer.] [the grounded number.] If you want to poke at it, it's open source and self-host is free — github.com/all-source-os/all-source. Happy to go deeper. 🦫
 
 ---
-**Closer for any linked post:** `Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz`
+**Closer for any linked post:** `Self-host free. £18.99/mo hosted. Apache-2.0. → all-source.xyz`

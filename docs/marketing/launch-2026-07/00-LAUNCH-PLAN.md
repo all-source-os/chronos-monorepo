@@ -43,7 +43,7 @@ ordered, and fast enough to query on every message.
 | MCP tools | **73** | `siteConfig.stats[2]` — all tools (45 read-tier / 55 read+write) |
 | Footprint | **~129MB** | `siteConfig.stats[3]` |
 | Durability | WAL (CRC32 + fsync) + Parquet (Snappy) + DashMap | CLAUDE.md |
-| Pricing (USD) | Self-Host **Free** · Indie **$19** · Studio **$79** (Popular) · Scale **$299** · Enterprise custom | `siteConfig.pricing` |
+| Pricing (GBP) | Self-Host **Free** · Indie **£18.99** · Studio **£78.99** (Popular) · Scale **£298.99** · Enterprise custom | LemonSqueezy store (GBP) |
 | x402 overage | **$0.0001/call** | `siteConfig.pricing[*].x402` |
 | License | **Apache-2.0** (community) · **BSL 1.1** (enterprise) | root `LICENSE`, README |
 | Repo | github.com/all-source-os/all-source | `siteConfig.links.github` |
@@ -53,7 +53,7 @@ ordered, and fast enough to query on every message.
 | Comparison pages (LIVE — link these) | `/vs/mem0` `/vs/letta` `/vs/zep` `/vs/stoolap` `/event-sourcing-for-ai-agents` | `siteConfig.footer` |
 | Prime | `/prime` — persistent agent memory via MCP, install in 30s, no embedding API | `siteConfig.header` |
 
-**Mandatory outbound closer:** `Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz`
+**Mandatory outbound closer:** `Self-host free. £18.99/mo hosted. Apache-2.0. → all-source.xyz`
 
 ---
 
@@ -66,7 +66,7 @@ These are consistency bugs that will get caught and cost credibility on HN/Reddi
 - [x] **MCP tool count set to 73** across site + README + copy (was 43/61, both stale). Real exposed counts from `list_tools()`: 45 read-tier, 55 read+write, 73 full (incl. control-plane/admin). Prime is separate (19 tools; README updated 13→19).
 
 ### P1 (should fix — hurts conversion)
-- [ ] **US audience sees GBP.** Config says `$19` but the LemonSqueezy store is GBP, so `/pricing` checkout renders **£18.99** (~$24). HN/PH/Reddit are USD-default. Decide: USD store/display for launch, or accept GBP and make copy say £. Copy currently says **$19**.
+- [x] **Currency = GBP (settled).** LemonSqueezy store is GBP; the site is catalog-driven so every price surface renders the real £ charge (Indie £18.99). Launch copy now states £. US visitors see £ — accepted.
 - [ ] **Repo has 4 stars.** Social proof floor. Warm up before Product Hunt (see checklist).
 - [ ] **Verify the one-command install** on a clean machine and the exact Claude Desktop MCP snippet (from `/install`). Every channel links to it.
 

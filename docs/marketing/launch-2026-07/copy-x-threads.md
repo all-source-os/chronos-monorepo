@@ -8,7 +8,7 @@ last_updated: 2026-07-17
 
 > Founder POV, first person. Each tweet <280 chars and stands alone. Post the
 > launch thread on Product Hunt morning to cross-amplify. Then run ONE hook
-> thread per week. Closer on outbound: `Self-host free. $19/mo. Apache-2.0. → all-source.xyz`
+> thread per week. Closer on outbound: `Self-host free. £18.99/mo. Apache-2.0. → all-source.xyz`
 
 ---
 
@@ -68,7 +68,7 @@ repo → github.com/all-source-os/all-source
 
 Your agents already forget. Stop letting them.
 
-Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz
+Self-host free. £18.99/mo hosted. Apache-2.0. → all-source.xyz
 
 ---
 
@@ -93,7 +93,7 @@ Self-host free. $19/mo hosted. Apache-2.0. → all-source.xyz
 **3/** Reason 2: the store isn't durable. Most agent-memory stacks keep state in RAM or a cache that evaporates on restart. AllSource is the opposite: every event hits a WAL (CRC32 + fsync) + Parquet. Restart → events still there.
 **4/** Reason 3: recall is too slow to use every turn. At 200-500ms you ration it. AllSource recalls in ~12μs (11.9μs p99) — query memory on *every* message and the user never feels it.
 **5/** Fix all three: record every event, durably, recall in microseconds. 469K events/sec. 73 MCP tools into Claude. Your agents already forget. Stop letting them.
-Self-host free. $19/mo. Apache-2.0. → all-source.xyz
+Self-host free. £18.99/mo. Apache-2.0. → all-source.xyz
 
 ### Week 2 — BENCHMARK: "12μs recall. Here's the code."
 **1/** ~12μs agent-memory recall. Not milliseconds. Microseconds. Here's the lookup path and how you reproduce it yourself. 🧵
@@ -107,7 +107,7 @@ allsource-prime --data-dir ~/.prime/memory --mode http --port 3905
 curl -w "time_total: %{time_total}s\n" http://localhost:3905/api/v1/prime/stats
 ```
 **5/** Same engine: 469K events/sec ingest, ~129MB footprint, 73 MCP tools. 12μs recall — here's the code, the rest is on GitHub.
-Self-host free. $19/mo. Apache-2.0. → all-source.xyz
+Self-host free. £18.99/mo. Apache-2.0. → all-source.xyz
 
 ### Week 3 — CONTRARIAN: "stop putting agent memory in a vector DB"
 **1/** Hot take: a vector database is the wrong default for agent memory. The "just embed everything" reflex quietly costs you the two things memory needs most. 🧵
