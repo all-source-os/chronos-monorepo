@@ -197,7 +197,7 @@ const testimonials = [
     img: "https://randomuser.me/api/portraits/women/73.jpg",
     description: (
       <p>
-        The 43 MCP tools transformed how we work with event data.
+        The 73 MCP tools transformed how we work with event data.
         <Highlight>
           Claude can now query, analyze, and even manage our event streams directly.
         </Highlight>{" "}
@@ -239,7 +239,7 @@ const testimonials = [
     img: "https://randomuser.me/api/portraits/men/54.jpg",
     description: (
       <p>
-        Finally, an event store that&apos;s truly open source with MIT licensing.
+        Finally, an event store that&apos;s truly open source with Apache-2.0 licensing.
         <Highlight>The codebase is clean, well-documented, and easy to contribute to.</Highlight>{" "}
         Building in public done right.
       </p>

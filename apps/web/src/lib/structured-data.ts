@@ -29,7 +29,7 @@ export function organizationSchema() {
       url: `${siteConfig.url}/logo.png`,
     },
     description:
-      "AI-native event store for temporal data intelligence. 469K events/sec, 11.9us queries, 43 MCP tools.",
+      "AI-native event store for temporal data intelligence. 469K events/sec, 11.9us queries, 73 MCP tools.",
     sameAs,
     contactPoint: {
       "@type": "ContactPoint",

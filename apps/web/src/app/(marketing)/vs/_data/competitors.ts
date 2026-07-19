@@ -6,14 +6,14 @@
  *
  * Claim discipline (see CLAUDE.md + prompt 013):
  *   - AllSource cells are sourced from product facts: durable WAL+Parquet event
- *     store, 11.9μs recall, 469K events/sec, MIT/self-host, x402 per-call
- *     pricing, 43 MCP tools. These are defensible against our own docs.
+ *     store, 11.9μs recall, 469K events/sec, Apache-2.0/self-host, x402 per-call
+ *     pricing, 73 MCP tools. These are defensible against our own docs.
  *   - Competitor cells mirror the homepage matrix (`sections/social-proof.tsx`)
  *     where that matrix took a position, and otherwise read "unknown" / "varies"
  *     rather than inventing a number. NEVER fabricate competitor figures.
  *   - The homepage matrix asserted: temporal `as_of` — zep yes, mem0/letta no;
  *     full event provenance / compressed index / offline-embedded / sub-ms
- *     recall — AllSource only; MIT self-host — mem0 yes, letta/zep no.
+ *     recall — AllSource only; Apache-2.0 self-host — mem0 yes, letta/zep no.
  */
 
 /** A table cell. Booleans render as check/cross; strings render verbatim. */
@@ -52,8 +52,7 @@ export type Competitor = {
   category?: { heading: string; body: string };
   /**
    * OPTIONAL override for the "self-host" CTA button label. Defaults to the
-   * MIT wording used by the original three pages; stoolap overrides it because
-   * AllSource community is Apache 2.0 (enterprise BSL 1.1), not MIT.
+   * Apache-2.0 wording; AllSource community is Apache-2.0 (enterprise BSL 1.1).
    */
   selfHostLabel?: string;
   /**
@@ -111,7 +110,7 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
     },
     {
       feature: "MCP tools for AI agents",
-      allsource: "43 tools",
+      allsource: "73 tools",
       competitor: competitorCells.mcp ?? "unknown",
       note: "A Model Context Protocol server ships out of the box for Claude and other MCP clients.",
     },
@@ -123,7 +122,7 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
     },
     {
       feature: "License / self-host",
-      allsource: "MIT, self-host",
+      allsource: "Apache-2.0, self-host",
       competitor: competitorCells.license ?? "unknown",
       note: "Run the whole stack yourself for free, or use the hosted tiers.",
     },
@@ -141,11 +140,11 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     verdict:
       "mem0 is a memory layer that bolts onto your LLM app. AllSource is a durable event store underneath it — you keep full provenance and time-travel instead of a lossy summary.",
     metaDescription:
-      "AllSource vs mem0: a durable WAL+Parquet event store with 11.9μs recall, full event provenance, embedded mode, 43 MCP tools, and x402 per-call pricing vs a managed LLM memory layer. Honest, sourced comparison.",
+      "AllSource vs mem0: a durable WAL+Parquet event store with 11.9μs recall, full event provenance, embedded mode, 73 MCP tools, and x402 per-call pricing vs a managed LLM memory layer. Honest, sourced comparison.",
     pickAllsource: [
       "You need every memory write to be auditable and replayable, not summarized away",
       "You want microsecond recall over a durable log, not a network round-trip to a memory API",
-      "You want to embed the store in-process or self-host it for free under MIT",
+      "You want to embed the store in-process or self-host it for free under Apache-2.0",
       "Your agents pay per call (x402) instead of per seat",
     ],
     pickCompetitor: [
@@ -154,7 +153,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       "A higher-level 'remember this' API matters more to you than the underlying store",
     ],
     rows: baseRows({
-      // Homepage matrix: mem0 is MIT/self-host = yes; temporal/provenance = no.
+      // Homepage matrix: mem0 is Apache-2.0/self-host = yes; temporal/provenance = no.
       durable: "unknown",
       provenance: "no",
       temporal: "no",
@@ -163,7 +162,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       embedded: "no",
       mcp: "unknown",
       x402: "no",
-      license: "MIT, self-host",
+      license: "Apache-2.0, self-host",
     }),
     faqs: [
       {
@@ -174,7 +173,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Can I self-host both AllSource and mem0?",
         answer:
-          "Yes. AllSource is MIT licensed and self-hostable, and mem0's core is open source. AllSource additionally ships an embedded in-process mode and a 43-tool MCP server out of the box.",
+          "Yes. AllSource is Apache-2.0 licensed and self-hostable, and mem0's core is open source. AllSource additionally ships an embedded in-process mode and a 73-tool MCP server out of the box.",
       },
       {
         question: "Does AllSource keep full event history like mem0?",
@@ -190,11 +189,11 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     verdict:
       "Letta (formerly MemGPT) gives agents a stateful memory loop. AllSource gives that loop a durable, queryable foundation — full event history with 11.9μs recall instead of memory you have to manage in-context.",
     metaDescription:
-      "AllSource vs Letta (MemGPT): a durable WAL+Parquet event store with 11.9μs recall, full provenance, embedded mode, 43 MCP tools, and x402 pricing vs a stateful agent framework. Sourced, no fabricated numbers.",
+      "AllSource vs Letta (MemGPT): a durable WAL+Parquet event store with 11.9μs recall, full provenance, embedded mode, 73 MCP tools, and x402 pricing vs a stateful agent framework. Sourced, no fabricated numbers.",
     pickAllsource: [
       "You want a durable store of record under your agents, not just an in-context memory manager",
       "You need point-in-time queries and full replay for audit or debugging",
-      "You want microsecond recall and the option to embed or self-host under MIT",
+      "You want microsecond recall and the option to embed or self-host under Apache-2.0",
       "You want per-call (x402) economics for autonomous agents",
     ],
     pickCompetitor: [
@@ -203,7 +202,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       "You do not need a separate durable event store of record",
     ],
     rows: baseRows({
-      // Homepage matrix: letta temporal/provenance/MIT-self-host = no.
+      // Homepage matrix: letta temporal/provenance/Apache-2.0-self-host = no.
       durable: "unknown",
       provenance: "no",
       temporal: "no",
@@ -223,7 +222,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "What is the difference between Letta and AllSource?",
         answer:
-          "Letta orchestrates an agent and its working memory. AllSource is infrastructure: a Rust WAL + Parquet event store with full provenance, embedded mode, and a 43-tool MCP server. They operate at different layers and can be combined.",
+          "Letta orchestrates an agent and its working memory. AllSource is infrastructure: a Rust WAL + Parquet event store with full provenance, embedded mode, and a 73-tool MCP server. They operate at different layers and can be combined.",
       },
       {
         question: "Does AllSource replace Letta?",
@@ -239,11 +238,11 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     verdict:
       "Zep adds a temporal memory service for chat history. AllSource makes temporal a property of the whole store — every event is replayable, with 11.9μs recall and an embedded or self-hosted deployment.",
     metaDescription:
-      "AllSource vs Zep: a durable WAL+Parquet event store with 11.9μs recall, full provenance, embedded mode, 43 MCP tools, and x402 pricing vs a temporal memory service for LLM apps. Honest, sourced comparison.",
+      "AllSource vs Zep: a durable WAL+Parquet event store with 11.9μs recall, full provenance, embedded mode, 73 MCP tools, and x402 pricing vs a temporal memory service for LLM apps. Honest, sourced comparison.",
     pickAllsource: [
       "You want temporal queries across all your data, not only chat memory",
       "You need full event provenance and replay, plus microsecond recall",
-      "You want to embed in-process or self-host the whole stack under MIT",
+      "You want to embed in-process or self-host the whole stack under Apache-2.0",
       "You want per-call (x402) agent economics out of the box",
     ],
     pickCompetitor: [
@@ -253,7 +252,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     ],
     rows: baseRows({
       // Homepage matrix: zep temporal = yes; provenance/compressed-index/
-      // embedded/sub-ms/MIT-self-host = no.
+      // embedded/sub-ms/Apache-2.0-self-host = no.
       durable: "unknown",
       provenance: "no",
       temporal: "yes",
@@ -268,7 +267,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Is Zep better than AllSource?",
         answer:
-          "Zep is a temporal memory service focused on conversational history; AllSource is a general-purpose durable event store where temporal queries apply to all your data. Zep wins if you only need managed chat memory. AllSource wins if you want full event provenance, 11.9μs recall, embedded mode, and the option to self-host under MIT.",
+          "Zep is a temporal memory service focused on conversational history; AllSource is a general-purpose durable event store where temporal queries apply to all your data. Zep wins if you only need managed chat memory. AllSource wins if you want full event provenance, 11.9μs recall, embedded mode, and the option to self-host under Apache-2.0.",
       },
       {
         question: "Does Zep support temporal queries like AllSource?",
@@ -278,7 +277,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Can I self-host AllSource instead of using a hosted memory service?",
         answer:
-          "Yes. AllSource is MIT licensed, runs embedded in-process or as a server, and has hosted tiers if you prefer managed. You are never locked into a single hosted memory API.",
+          "Yes. AllSource is Apache-2.0 licensed, runs embedded in-process or as a server, and has hosted tiers if you prefer managed. You are never locked into a single hosted memory API.",
       },
     ],
   },
@@ -403,7 +402,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       },
       {
         feature: "MCP server for AI agents",
-        allsource: "43 event/memory tools",
+        allsource: "73 event/memory tools",
         competitor: "30 SQL tools",
         note: "Both ship a first-party MCP server. stoolap's 30 tools are a SQL surface (query, execute, transactions, schema, vacuum); AllSource's are event-store/agent-memory verbs (ingest, recall, projections, anomaly detection).",
       },

@@ -4,7 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata: Metadata = constructMetadata({
   title: "AllSource vs EventStoreDB — Feature Comparison",
   description:
-    "Side-by-side comparison of AllSource and EventStoreDB. Self-serve pricing, 43 MCP tools, x402 agent payments, and sub-microsecond queries vs cluster-priced infrastructure.",
+    "Side-by-side comparison of AllSource and EventStoreDB. Self-serve pricing, 73 MCP tools, x402 agent payments, and sub-microsecond queries vs cluster-priced infrastructure.",
   canonical: "/compare/eventstoredb",
 });
 

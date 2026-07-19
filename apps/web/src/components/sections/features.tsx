@@ -31,7 +31,7 @@ const data = [
     id: 4,
     title: "AI Integration",
     content:
-      "43 MCP tools for Claude and GPT. Your AI agents don't just store data—they understand your application's history.",
+      "73 MCP tools for Claude and GPT. Your AI agents don't just store data—they understand your application's history.",
     video: "/assets/gif-api-key.mp4",
     icon: <Bot className="h-6 w-6 text-primary" />,
   },

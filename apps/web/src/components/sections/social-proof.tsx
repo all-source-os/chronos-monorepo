@@ -26,7 +26,7 @@ const metrics = [
   {
     value: "$0",
     label: "Self-hosted cost",
-    description: "MIT licensed, run it yourself",
+    description: "Apache-2.0 licensed, run it yourself",
     highlight: false,
   },
 ];
@@ -37,7 +37,7 @@ const comparison = [
   { feature: "Auto compressed index", allsource: true, mem0: false, letta: false, zep: false },
   { feature: "Offline / embedded mode", allsource: true, mem0: false, letta: false, zep: false },
   { feature: "Sub-millisecond recall", allsource: true, mem0: false, letta: false, zep: false },
-  { feature: "MIT licensed / self-host", allsource: true, mem0: true, letta: false, zep: false },
+  { feature: "Apache-2.0 / self-host", allsource: true, mem0: true, letta: false, zep: false },
 ];
 
 type CompetitorKey = "mem0" | "letta" | "zep";

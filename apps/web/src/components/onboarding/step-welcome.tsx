@@ -27,7 +27,7 @@ const features = [
   },
   {
     icon: Sparkles,
-    title: "43 MCP tools",
+    title: "73 MCP tools",
     description: "Claude & GPT integration out of the box",
   },
 ];

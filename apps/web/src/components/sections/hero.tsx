@@ -121,7 +121,7 @@ function HeroCTA({ indiePrice }: { indiePrice: string }) {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8, duration: 0.8 }}
       >
-        Open source · MIT licensed · Self-host or cloud
+        Open source · Apache-2.0 · Self-host or cloud
       </motion.p>
     </>
   );

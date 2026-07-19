@@ -106,7 +106,7 @@ export default async function EventSourcingForAiAgentsPage() {
                 <em>as_of</em> a past moment, first-class.
               </li>
               <li>
-                <strong>AI-native access</strong> — 43 MCP tools, plus x402 per-call payments for
+                <strong>AI-native access</strong> — 73 MCP tools, plus x402 per-call payments for
                 autonomous agents.
               </li>
             </ul>
@@ -176,8 +176,8 @@ export default async function EventSourcingForAiAgentsPage() {
           <section className="mt-16 rounded-xl border bg-muted/20 p-8 text-center">
             <h2 className="text-2xl font-bold">Give your agents memory that survives</h2>
             <p className="mt-4 text-sm text-muted-foreground">
-              Start on the hosted Indie plan for $19/mo, or self-host the whole stack for free under
-              MIT.
+              Start on the hosted Indie plan, or self-host the whole stack for free under
+              Apache-2.0.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               <Link href="/pricing" className={cn(buttonVariants({ variant: "default" }))}>

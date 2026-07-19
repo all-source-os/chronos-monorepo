@@ -23,7 +23,7 @@ const data = [
     id: 3,
     title: "3. Query Any Point in Time",
     content:
-      "Reconstruct state at any timestamp. Replay sequences for debugging. Let AI agents analyze patterns across your entire history with 43 MCP tools.",
+      "Reconstruct state at any timestamp. Replay sequences for debugging. Let AI agents analyze patterns across your entire history with 73 MCP tools.",
     image: "/assets/hero-screenshot.png",
     icon: <Sparkles className="w-6 h-6 text-primary" />,
   },

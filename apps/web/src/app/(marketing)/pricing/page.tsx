@@ -10,7 +10,7 @@ export const revalidate = 3600;
 // Comparison matrix rows. Each row maps a label to a per-tier cell, keyed by the
 // stable public tier id from siteConfig.pricing. Self-Host is intentionally NOT
 // a column — the product has no free plan, so the matrix starts at Indie (the
-// run-it-yourself MIT path lives in the "Why no free plan?" FAQ instead).
+// run-it-yourself Apache-2.0 path lives in the "Why no free plan?" FAQ instead).
 const matrixRows: { label: string; cells: Record<string, string> }[] = [
   {
     label: "Events / mo",

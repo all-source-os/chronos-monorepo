@@ -35,7 +35,7 @@ const features = [
   {
     title: "AI-Native by Design",
     description:
-      "43-tool MCP Server for Claude Desktop. AI agents can manage events, run analytics, detect anomalies, and orchestrate complex workflows autonomously.",
+      "73-tool MCP Server for Claude Desktop. AI agents can manage events, run analytics, detect anomalies, and orchestrate complex workflows autonomously.",
     className: "md:row-span-2 hover:bg-orange-500/10 transition-all duration-500 ease-out",
     content: (
       <>

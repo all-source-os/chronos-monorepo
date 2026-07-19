@@ -41,10 +41,10 @@ export function VsPageBody({ competitor }: { competitor: Competitor }) {
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <Link href="/pricing" className={cn(buttonVariants({ variant: "default" }))}>
-                Start Indie — $19 <ChevronRight className="ml-1 h-4 w-4" />
+                Start Indie <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link href="/pricing" className={cn(buttonVariants({ variant: "outline" }))}>
-                {competitor.selfHostLabel ?? "Self-host (free, MIT)"}
+                {competitor.selfHostLabel ?? "Self-host (free, Apache-2.0)"}
               </Link>
             </div>
           </motion.div>
@@ -130,8 +130,8 @@ export function VsPageBody({ competitor }: { competitor: Competitor }) {
           <div className="mx-auto max-w-2xl rounded-xl border bg-muted/20 p-8 text-center">
             <h2 className="text-2xl font-bold">Build on a durable event store</h2>
             <p className="mt-4 text-sm text-muted-foreground">
-              Start on the hosted Indie plan for $19/mo, or self-host the whole stack for free under
-              MIT. Either way you keep full event provenance and microsecond recall.
+              Start on the hosted Indie plan, or self-host the whole stack for free under
+              Apache-2.0. Either way you keep full event provenance and microsecond recall.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               <Link href="/pricing" className={cn(buttonVariants({ variant: "default" }))}>

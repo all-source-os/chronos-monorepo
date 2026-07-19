@@ -197,7 +197,7 @@ export default function EventSourcingPage() {
           <h2 className="text-3xl font-bold">Start capturing events in 60 seconds</h2>
           <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
             Start with a 14-day trial on the hosted plans, or self-host the open-source core for free
-            under MIT.
+            under Apache-2.0.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/signup" className={cn(buttonVariants({ variant: "default", size: "lg" }))}>

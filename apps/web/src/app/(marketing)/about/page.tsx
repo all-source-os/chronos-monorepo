@@ -23,7 +23,7 @@ const principles = [
   {
     title: "Built for agents",
     icon: Zap,
-    body: "AI agents need persistent memory, not stateless context windows. The platform exposes 43 MCP tools so Claude, GPT, and custom agents can read and write durable history at 11.9μs query latency.",
+    body: "AI agents need persistent memory, not stateless context windows. The platform exposes 73 MCP tools so Claude, GPT, and custom agents can read and write durable history at 11.9μs query latency.",
   },
 ];
 

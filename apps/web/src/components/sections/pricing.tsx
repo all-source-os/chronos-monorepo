@@ -18,7 +18,7 @@ import {
 // Cards shown in the top row: the paid hosted tiers only. Enterprise renders as
 // a full-width strip below (PRICING_EXPOSURE_PLAN.md §3); Self-Host is no longer
 // shown as a $0 marketing card — the product has no free plan, so the entry tier
-// on /pricing is Indie. (The MIT self-host path still lives in the "Why no free
+// on /pricing is Indie. (The Apache-2.0 self-host path still lives in the "Why no free
 // plan?" FAQ.) The 14-day trial is how you start without paying immediately.
 const cardTiers = siteConfig.pricing.filter((p) => !p.isEnterprise && !p.isSelfHost);
 const enterpriseTier = siteConfig.pricing.find((p) => p.isEnterprise);

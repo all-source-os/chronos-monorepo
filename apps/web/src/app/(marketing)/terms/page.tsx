@@ -116,7 +116,7 @@ export default function TermsOfService() {
           <h2 className="text-xl font-semibold text-foreground mb-3">7. Intellectual Property</h2>
           <p className="text-muted-foreground leading-relaxed">
             The Service, including its source code, documentation, design, and branding, is owned by
-            AllSource and licensed under the MIT License where applicable. The AllSource name, logo,
+            AllSource and licensed under the Apache-2.0 License (enterprise components under BSL 1.1) where applicable. The AllSource name, logo,
             and branding are trademarks of AllSource and may not be used without permission.
           </p>
         </section>
