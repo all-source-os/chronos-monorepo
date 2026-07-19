@@ -123,7 +123,7 @@ export default function BillingPage() {
           return;
         }
         setUpgradingTier(null);
-        setPlanError(response.error || "Couldn't change your plan. Please try again.");
+        setPlanError(response.error?.message || "Couldn't change your plan. Please try again.");
       } catch (error) {
         setUpgradingTier(null);
         console.error("Failed to change plan:", error);
@@ -144,7 +144,7 @@ export default function BillingPage() {
         return; // navigating away; keep the spinner until the redirect happens
       }
       setUpgradingTier(null);
-      setPlanError(response.error || "Couldn't start checkout. Please try again.");
+      setPlanError(response.error?.message || "Couldn't start checkout. Please try again.");
     } catch (error) {
       setUpgradingTier(null);
       console.error("Failed to create checkout:", error);
