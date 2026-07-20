@@ -1,0 +1,20 @@
+# Standalone crate — kept out of the root Cargo workspace (repo convention for
+# tooling/, mirrors tenant-isolation-check/chronis/registry/prime-mcp).
+[workspace]
+
+[package]
+name = "crush-loop"
+version = "0.1.0"
+edition = "2021"
+description = "Ralph-style agent loop without the TUI: drives chronis beads through non-interactive `crush run` (any model crush is configured for, e.g. GLM via OpenRouter), verifies acceptance-criteria checkboxes, runs epic quality gates, files fix-up beads on gate failure."
+publish = false
+
+[[bin]]
+name = "crush-loop"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

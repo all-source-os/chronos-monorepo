@@ -115,3 +115,5 @@ tasks
 
 # npm auth tokens — never commit
 .npmrc
+.crush-loop/
+tooling/crush-loop/target/
