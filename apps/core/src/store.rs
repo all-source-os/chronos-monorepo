@@ -2236,6 +2236,119 @@ impl EventStore {
             .collect()
     }
 
+    /// Event-store statistics for ONE tenant.
+    ///
+    /// `stats()` above is global (`events.len()` + the global index), so it must
+    /// never be served to a tenant — it would leak whole-fleet totals. This is
+    /// the scoped equivalent the gateway exposes as `GET /api/v1/stats` with an
+    /// auth-derived `tenant_id` (#230).
+    ///
+    /// Returns the same four counters as `StoreStats`, plus the per-type census
+    /// and time range that callers otherwise reconstruct by paging events.
+    pub fn stats_for_tenant(&self, tenant_id: &str) -> TenantStoreStats {
+        let _ = self.ensure_tenant_loaded(tenant_id);
+        let events = self.events.read();
+
+        let mut entities: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut census: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        let mut total_events = 0usize;
+        let mut oldest: Option<chrono::DateTime<chrono::Utc>> = None;
+        let mut newest: Option<chrono::DateTime<chrono::Utc>> = None;
+
+        for ev in events.iter() {
+            if ev.tenant_id_str() != tenant_id {
+                continue;
+            }
+
+            total_events += 1;
+            entities.insert(ev.entity_id_str());
+            *census.entry(ev.event_type_str()).or_insert(0) += 1;
+
+            let ts = ev.timestamp;
+            if oldest.is_none_or(|o| ts < o) {
+                oldest = Some(ts);
+            }
+            if newest.is_none_or(|n| ts > n) {
+                newest = Some(ts);
+            }
+        }
+
+        TenantStoreStats {
+            total_events,
+            total_entities: entities.len(),
+            total_event_types: census.len(),
+            // Scoped equivalent of `total_ingested`: that counter is a global
+            // process-lifetime tally with no tenant dimension, so reporting it
+            // here would leak. The tenant's own total is the honest answer.
+            total_ingested: total_events as u64,
+            event_types: census
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+            oldest_event: oldest,
+            newest_event: newest,
+        }
+    }
+
+    /// Reconstruct entity state for ONE tenant.
+    ///
+    /// Deliberately does NOT use the snapshot fast path that
+    /// `reconstruct_state` takes: `Snapshot` carries no `tenant_id` and the
+    /// snapshot manager is keyed by `entity_id` alone, so seeding from a
+    /// snapshot could fold another tenant's state into this answer when two
+    /// tenants share an entity_id. Folding tenant-filtered events is slower and
+    /// fails closed (#230).
+    pub fn reconstruct_state_for_tenant(
+        &self,
+        entity_id: &str,
+        as_of: Option<DateTime<Utc>>,
+        tenant_id: &str,
+    ) -> Result<serde_json::Value> {
+        let events = self.query(&QueryEventsRequest {
+            entity_id: Some(entity_id.to_string()),
+            event_type: None,
+            tenant_id: Some(tenant_id.to_string()),
+            as_of,
+            since: None,
+            until: None,
+            limit: None,
+            event_type_prefix: None,
+            exclude_event_type_prefix: None,
+            payload_filter: None,
+        })?;
+
+        if events.is_empty() {
+            return Err(AllSourceError::EntityNotFound(entity_id.to_string()));
+        }
+
+        let mut merged_state = serde_json::json!({});
+        for event in &events {
+            if let serde_json::Value::Object(ref mut state_map) = merged_state
+                && let serde_json::Value::Object(ref payload_map) = event.payload
+            {
+                for (key, value) in payload_map {
+                    state_map.insert(key.clone(), value.clone());
+                }
+            }
+        }
+
+        Ok(serde_json::json!({
+            "entity_id": entity_id,
+            "last_updated": events.last().map(|e| e.timestamp),
+            "event_count": events.len(),
+            "as_of": as_of,
+            "current_state": merged_state,
+            "history": events.iter().map(|e| {
+                serde_json::json!({
+                    "event_id": e.id,
+                    "type": e.event_type,
+                    "timestamp": e.timestamp,
+                    "payload": e.payload
+                })
+            }).collect::<Vec<_>>()
+        }))
+    }
+
     /// Attach a broadcast sender to the WAL for replication.
     ///
     /// Thread-safe: can be called through `Arc<EventStore>` at runtime.
@@ -2508,6 +2621,23 @@ pub struct StoreStats {
     pub total_entities: usize,
     pub total_event_types: usize,
     pub total_ingested: u64,
+}
+
+/// Tenant-scoped event-store statistics (#230).
+///
+/// Mirrors `StoreStats`' counters so existing consumers keep working, and adds
+/// the per-type census and time range that clients previously derived by paging
+/// the whole event stream.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TenantStoreStats {
+    pub total_events: usize,
+    pub total_entities: usize,
+    pub total_event_types: usize,
+    pub total_ingested: u64,
+    /// event_type -> count, for this tenant only.
+    pub event_types: std::collections::HashMap<String, usize>,
+    pub oldest_event: Option<chrono::DateTime<chrono::Utc>>,
+    pub newest_event: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Information about a stream (entity_id)
@@ -5210,5 +5340,160 @@ mod tests {
             Some("not-a-number".to_string()),
         );
         assert_eq!(config.checkpoint_interval_secs, Some(60));
+    }
+
+    // ── Tenant-scoped stats + state reconstruction (#230) ──────────────────
+    //
+    // `stats()` and `reconstruct_state()` are global. The gateway exposes the
+    // scoped variants below to tenants, so cross-tenant isolation is the
+    // property that matters most here.
+
+    fn seed_two_tenants() -> EventStore {
+        let store = EventStore::new();
+
+        // alice: 3 events, 2 entities, 2 types
+        for (entity, etype, payload) in [
+            (
+                "a-1",
+                "created",
+                serde_json::json!({"colour": "red", "size": 1}),
+            ),
+            ("a-1", "updated", serde_json::json!({"colour": "blue"})),
+            ("a-2", "created", serde_json::json!({"colour": "green"})),
+        ] {
+            store
+                .ingest(
+                    &Event::from_strings(
+                        etype.to_string(),
+                        entity.to_string(),
+                        "alice".to_string(),
+                        payload,
+                        None,
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+        }
+
+        // bob: 1 event, and it deliberately reuses alice's entity_id "a-1"
+        store
+            .ingest(
+                &Event::from_strings(
+                    "created".to_string(),
+                    "a-1".to_string(),
+                    "bob".to_string(),
+                    serde_json::json!({"colour": "BOB_SECRET", "bob_only": true}),
+                    None,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        store
+    }
+
+    #[test]
+    fn test_stats_for_tenant_counts_only_that_tenant() {
+        let store = seed_two_tenants();
+
+        let alice = store.stats_for_tenant("alice");
+        assert_eq!(alice.total_events, 3);
+        assert_eq!(alice.total_entities, 2);
+        assert_eq!(alice.total_event_types, 2);
+        assert_eq!(alice.event_types.get("created"), Some(&2));
+        assert_eq!(alice.event_types.get("updated"), Some(&1));
+
+        let bob = store.stats_for_tenant("bob");
+        assert_eq!(bob.total_events, 1);
+        assert_eq!(bob.total_entities, 1);
+        assert_eq!(bob.total_event_types, 1);
+    }
+
+    #[test]
+    fn test_stats_for_tenant_never_reports_global_totals() {
+        let store = seed_two_tenants();
+
+        // The global view sees all 4; neither tenant may.
+        assert_eq!(store.stats().total_events, 4);
+        assert_eq!(store.stats_for_tenant("alice").total_events, 3);
+        assert_eq!(store.stats_for_tenant("bob").total_events, 1);
+
+        // total_ingested is a global process counter, so the scoped form must
+        // report the tenant's own total rather than leaking the fleet tally.
+        assert_eq!(store.stats_for_tenant("bob").total_ingested, 1);
+    }
+
+    #[test]
+    fn test_stats_for_tenant_unknown_tenant_is_empty_not_global() {
+        let store = seed_two_tenants();
+        let nobody = store.stats_for_tenant("does-not-exist");
+
+        assert_eq!(nobody.total_events, 0);
+        assert_eq!(nobody.total_entities, 0);
+        assert!(nobody.event_types.is_empty());
+        assert!(nobody.oldest_event.is_none());
+        assert!(nobody.newest_event.is_none());
+    }
+
+    #[test]
+    fn test_stats_for_tenant_reports_time_range() {
+        let store = seed_two_tenants();
+        let alice = store.stats_for_tenant("alice");
+
+        let oldest = alice.oldest_event.expect("oldest");
+        let newest = alice.newest_event.expect("newest");
+        assert!(oldest <= newest);
+    }
+
+    #[test]
+    fn test_reconstruct_state_for_tenant_isolates_shared_entity_id() {
+        let store = seed_two_tenants();
+
+        // Both tenants have an entity called "a-1". Each must see only its own.
+        let alice = store
+            .reconstruct_state_for_tenant("a-1", None, "alice")
+            .unwrap();
+        let alice_state = alice.get("current_state").unwrap();
+        assert_eq!(alice_state.get("colour").unwrap(), "blue"); // last write wins
+        assert_eq!(alice_state.get("size").unwrap(), 1);
+        assert!(
+            alice_state.get("bob_only").is_none(),
+            "alice must not see bob's payload keys: {alice_state:?}"
+        );
+        assert_eq!(alice.get("event_count").unwrap(), 2);
+
+        let bob = store
+            .reconstruct_state_for_tenant("a-1", None, "bob")
+            .unwrap();
+        let bob_state = bob.get("current_state").unwrap();
+        assert_eq!(bob_state.get("colour").unwrap(), "BOB_SECRET");
+        assert_eq!(bob.get("event_count").unwrap(), 1);
+    }
+
+    #[test]
+    fn test_reconstruct_state_for_tenant_rejects_another_tenants_entity() {
+        let store = seed_two_tenants();
+
+        // "a-2" belongs to alice only.
+        assert!(
+            store
+                .reconstruct_state_for_tenant("a-2", None, "alice")
+                .is_ok()
+        );
+        assert!(
+            store
+                .reconstruct_state_for_tenant("a-2", None, "bob")
+                .is_err(),
+            "bob must not be able to read alice's entity"
+        );
+    }
+
+    #[test]
+    fn test_global_reconstruct_state_still_spans_tenants() {
+        // The unscoped form is unchanged — it is the internal/admin path and the
+        // gateway never exposes it without a tenant_id.
+        let store = seed_two_tenants();
+        let all = store.reconstruct_state("a-1", None).unwrap();
+        assert_eq!(all.get("event_count").unwrap(), 3);
     }
 }

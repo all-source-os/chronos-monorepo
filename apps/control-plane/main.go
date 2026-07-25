@@ -552,6 +552,15 @@ func (cp *ControlPlane) setupRoutes() {
 	api.POST("/events/batch", MaxBodySize(1024*1024), RequirePermission(entities.PermissionWrite), cp.ProxyIngestBatch)
 	api.GET("/events/query", RequirePermission(entities.PermissionRead), cp.ProxyEventsQuery)
 
+	// Tenant-scoped analytics surface (#230). Each of these forces an
+	// auth-derived tenant_id before forwarding; Core's equivalents are global
+	// without it, so they must never be proxied bare. Adding them here is what
+	// lets the MCP connector's stats/state tools return exact numbers instead of
+	// deriving approximations from a full event scan (#229).
+	api.GET("/stats", RequirePermission(entities.PermissionRead), cp.ProxyStats)
+	api.GET("/entities/:entity_id/state", RequirePermission(entities.PermissionRead), cp.ProxyEntityState)
+	api.GET("/entities/:entity_id/snapshot", RequirePermission(entities.PermissionRead), cp.ProxyEntitySnapshot)
+
 	// Prime catch-all: all /api/v1/prime/* methods (GET graph queries, POST
 	// nodes/edges/vectors, recall, etc.) forward to the Prime service. Tenant
 	// is passed as a query param; Prime's own namespace logic consumes it.

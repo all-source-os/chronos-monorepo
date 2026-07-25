@@ -462,6 +462,63 @@ func (cp *ControlPlane) ProxyExtraction(c *gin.Context) {
 // the user-scoped JWT matches what we're asking for. Any client-supplied
 // tenant_id in the URL is overwritten — the authenticated caller's tenant
 // is authoritative.
+// ProxyStats serves GET /api/v1/stats tenant-scoped.
+//
+// Core's /api/v1/stats is global (store.stats()) unless a tenant_id is supplied,
+// so this MUST force the auth-derived tenant — proxying it bare would hand the
+// caller whole-fleet totals. Forcing it also means a caller-supplied tenant_id is
+// overwritten, not honoured (#230).
+func (cp *ControlPlane) ProxyStats(c *gin.Context) {
+	_, tenantID, _, ok := authIdentityFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
+		return
+	}
+	q := c.Request.URL.Query()
+	q.Set("tenant_id", tenantID)
+	bearer, ok := cp.mintBearer(c)
+	if !ok {
+		return
+	}
+	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.coreForTenant(tenantID), "/api/v1/stats", q, nil, bearer, nil)
+}
+
+// ProxyEntityState serves GET /api/v1/entities/:entity_id/state tenant-scoped.
+//
+// Core reconstructs from tenant-filtered events (and skips the untenanted
+// snapshot fast path) when tenant_id is present, so forcing it here is what
+// keeps one tenant from reading another's entity by id (#230).
+func (cp *ControlPlane) ProxyEntityState(c *gin.Context) {
+	cp.proxyEntity(c, "state")
+}
+
+// ProxyEntitySnapshot serves GET /api/v1/entities/:entity_id/snapshot
+// tenant-scoped. Same reasoning as ProxyEntityState.
+func (cp *ControlPlane) ProxyEntitySnapshot(c *gin.Context) {
+	cp.proxyEntity(c, "snapshot")
+}
+
+func (cp *ControlPlane) proxyEntity(c *gin.Context, suffix string) {
+	_, tenantID, _, ok := authIdentityFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized", "message": "no auth context"})
+		return
+	}
+	entityID := c.Param("entity_id")
+	if entityID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bad_request", "message": "entity_id is required"})
+		return
+	}
+	q := c.Request.URL.Query()
+	q.Set("tenant_id", tenantID)
+	bearer, ok := cp.mintBearer(c)
+	if !ok {
+		return
+	}
+	path := "/api/v1/entities/" + url.PathEscape(entityID) + "/" + suffix
+	cp.delegation.forwardRequest(c, http.MethodGet, cp.delegation.coreForTenant(tenantID), path, q, nil, bearer, nil)
+}
+
 func (cp *ControlPlane) ProxyEventsQuery(c *gin.Context) {
 	_, tenantID, _, ok := authIdentityFromContext(c)
 	if !ok {

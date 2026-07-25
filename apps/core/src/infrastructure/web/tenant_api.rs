@@ -756,10 +756,7 @@ mod tests {
         // A caller-supplied quotas value always wins (e.g. the demo flow sending
         // unlimited), regardless of the trial default.
         let custom = TenantQuotas::unlimited();
-        assert_eq!(
-            resolve_create_quotas(Some(custom.clone()), None),
-            custom
-        );
+        assert_eq!(resolve_create_quotas(Some(custom.clone()), None), custom);
     }
 
     #[test]

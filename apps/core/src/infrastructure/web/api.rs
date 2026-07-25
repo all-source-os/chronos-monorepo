@@ -837,6 +837,11 @@ pub async fn detect_duplicates(
 #[derive(Deserialize)]
 pub struct EntityStateParams {
     as_of: Option<chrono::DateTime<chrono::Utc>>,
+    /// Tenant to scope to (the gateway injects the authenticated tenant).
+    ///
+    /// When present, reconstruction folds only that tenant's events and skips
+    /// the snapshot fast path, which carries no tenant dimension (#230).
+    tenant_id: Option<String>,
 }
 
 pub async fn get_entity_state(
@@ -844,7 +849,12 @@ pub async fn get_entity_state(
     Path(entity_id): Path<String>,
     Query(params): Query<EntityStateParams>,
 ) -> Result<Json<serde_json::Value>> {
-    let state = store.reconstruct_state(&entity_id, params.as_of)?;
+    let state = match params.tenant_id.as_deref() {
+        Some(tenant_id) => {
+            store.reconstruct_state_for_tenant(&entity_id, params.as_of, tenant_id)?
+        }
+        None => store.reconstruct_state(&entity_id, params.as_of)?,
+    };
 
     tracing::info!("State reconstructed for entity: {}", entity_id);
 
@@ -854,17 +864,42 @@ pub async fn get_entity_state(
 pub async fn get_entity_snapshot(
     State(store): State<SharedStore>,
     Path(entity_id): Path<String>,
+    Query(params): Query<EntityStateParams>,
 ) -> Result<Json<serde_json::Value>> {
-    let snapshot = store.get_snapshot(&entity_id)?;
+    // Snapshots are keyed by entity_id with no tenant dimension, so a scoped
+    // caller cannot be served one safely — two tenants sharing an entity_id
+    // would see each other's state. Fold that tenant's events instead (#230).
+    let snapshot = match params.tenant_id.as_deref() {
+        Some(tenant_id) => store.reconstruct_state_for_tenant(&entity_id, None, tenant_id)?,
+        None => store.get_snapshot(&entity_id)?,
+    };
 
     tracing::debug!("Snapshot retrieved for entity: {}", entity_id);
 
     Ok(Json(snapshot))
 }
 
-pub async fn get_stats(State(store): State<SharedStore>) -> impl IntoResponse {
-    let stats = store.stats();
-    Json(stats)
+/// Query parameters for the stats endpoint.
+#[derive(Debug, Deserialize)]
+pub struct StatsParams {
+    /// Tenant to scope to (the gateway injects the authenticated tenant).
+    ///
+    /// Absent = global, whole-store totals. That form is internal/admin only and
+    /// must never be reachable by a tenant — the gateway routes its public
+    /// `GET /api/v1/stats` through here with this parameter forced (#230).
+    pub tenant_id: Option<String>,
+}
+
+pub async fn get_stats(
+    State(store): State<SharedStore>,
+    Query(params): Query<StatsParams>,
+) -> impl IntoResponse {
+    match params.tenant_id.as_deref() {
+        Some(tenant_id) => {
+            Json(serde_json::to_value(store.stats_for_tenant(tenant_id)).unwrap_or_default())
+        }
+        None => Json(serde_json::to_value(store.stats()).unwrap_or_default()),
+    }
 }
 
 // v0.10: List all streams (entity_ids) in the event store

@@ -196,4 +196,107 @@ defmodule McpServerElixir.Infrastructure.CoreClientDegradationTest do
       assert result["compaction"] == "unavailable"
     end
   end
+
+  describe "exact path: gateway serves tenant-scoped stats (#230)" do
+    # Once the gateway routes GET /api/v1/stats tenant-scoped, Core answers with
+    # TenantStoreStats. This pins the cross-language shape contract: the field
+    # names Rust serialises must be the ones the Elixir tools read. A mismatch
+    # here is what made `unique_entities` render 0 against a real response.
+    setup do
+      original = Application.get_env(:mcp_server_elixir, :core_url)
+      on_exit(fn -> Application.put_env(:mcp_server_elixir, :core_url, original) end)
+      :ok
+    end
+
+    @tenant_stats %{
+      "total_events" => 16_432,
+      "total_entities" => 87,
+      "total_event_types" => 12,
+      "total_ingested" => 16_432,
+      "event_types" => %{"created" => 9_001, "updated" => 7_431},
+      "oldest_event" => "2026-01-02T03:04:05Z",
+      "newest_event" => "2026-07-26T01:02:03Z"
+    }
+
+    test "returns Core's answer verbatim, with no fallback and no approximation" do
+      start_stats_gateway(@tenant_stats)
+
+      assert {:ok, stats} = CoreClient.get_stats()
+
+      assert stats["total_events"] == 16_432
+      assert stats["total_entities"] == 87
+      assert stats["event_types"] == %{"created" => 9_001, "updated" => 7_431}
+
+      # The derived-fallback markers must be absent — this is the exact path.
+      refute Map.has_key?(stats, "source")
+      refute Map.has_key?(stats, "approximate")
+    end
+
+    test "quick_stats renders the exact entity count from total_entities" do
+      start_stats_gateway(@tenant_stats)
+
+      state = %{
+        backend: CoreClient,
+        read_only: false,
+        control_plane_enabled: false,
+        system_admin: false
+      }
+
+      assert {:ok, %{content: [%{text: text} | _]}} =
+               McpServerElixir.Protocol.McpTools.call_tool("quick_stats", %{}, state)
+
+      assert text =~ "16432" or text =~ "16,432"
+      # 87 entities must appear rather than the 0 the old key mismatch produced.
+      assert text =~ "87"
+    end
+  end
+
+  # Serves the given stats payload at /api/v1/stats (the routed, tenant-scoped
+  # case) and events at /events/query.
+  defp start_stats_gateway(stats) do
+    {:ok, listen} =
+      :gen_tcp.listen(0, [
+        :binary,
+        packet: :raw,
+        active: false,
+        reuseaddr: true,
+        ip: {127, 0, 0, 1}
+      ])
+
+    {:ok, port} = :inet.port(listen)
+    body = Jason.encode!(stats)
+
+    spawn_link(fn -> stats_accept_loop(listen, body) end)
+    Application.put_env(:mcp_server_elixir, :core_url, "http://127.0.0.1:#{port}")
+    port
+  end
+
+  defp stats_accept_loop(listen, body) do
+    case :gen_tcp.accept(listen) do
+      {:ok, sock} ->
+        spawn(fn ->
+          with {:ok, data} <- :gen_tcp.recv(sock, 0, 5_000) do
+            [line | _] = String.split(data, "\r\n")
+            [_m, path | _] = String.split(line, " ")
+
+            payload =
+              if String.starts_with?(path, "/api/v1/stats"),
+                do: body,
+                else: Jason.encode!(%{"events" => [], "count" => 0})
+
+            :gen_tcp.send(sock, [
+              "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: #{byte_size(payload)}\r\n\r\n",
+              payload
+            ])
+          end
+
+          :gen_tcp.close(sock)
+        end)
+
+        stats_accept_loop(listen, body)
+
+      _ ->
+        :ok
+    end
+  end
 end
