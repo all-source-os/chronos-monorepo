@@ -18,6 +18,14 @@ if core_ws_url = System.get_env("CORE_WS_URL") || System.get_env("ALLSOURCE_CORE
   config :mcp_server_elixir, core_ws_url: core_ws_url
 end
 
+if control_url = System.get_env("CONTROL_URL") || System.get_env("ALLSOURCE_CONTROL_URL") do
+  config :mcp_server_elixir, control_url: control_url
+end
+
+if read_only = System.get_env("ALLSOURCE_READ_ONLY") do
+  config :mcp_server_elixir, read_only: read_only == "true"
+end
+
 core_mode = System.get_env("CORE_MODE", "remote")
 
 case core_mode do

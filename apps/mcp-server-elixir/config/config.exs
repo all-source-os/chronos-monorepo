@@ -1,17 +1,20 @@
 import Config
 
-# Core API URL (Rust)
+# Compile-time DEFAULTS only. Every env-var-driven value (core_url, control_url,
+# read_only, core_ws_url, core_api_key) is read in `config/runtime.exs` so a
+# `mix release` picks it up at BOOT instead of freezing the build machine's
+# environment into the release (#228).
 config :mcp_server_elixir,
-  core_url: System.get_env("ALLSOURCE_CORE_URL", "http://localhost:3900"),
-  control_url: System.get_env("ALLSOURCE_CONTROL_URL", "http://localhost:3901"),
-  read_only: System.get_env("ALLSOURCE_READ_ONLY", "false") == "true",
+  core_url: "http://localhost:3900",
+  control_url: "http://localhost:3901",
+  read_only: false,
   # WebSocket client configuration
-  core_ws_url: System.get_env("ALLSOURCE_CORE_WS_URL", "ws://localhost:3900/api/v1/events/stream"),
+  core_ws_url: "ws://localhost:3900/api/v1/events/stream",
   core_ws_enabled: true,
   core_ws_max_reconnect_attempts: 10,
   core_ws_initial_backoff_ms: 1_000,
   core_ws_max_backoff_ms: 30_000,
-  core_api_key: System.get_env("ALLSOURCE_CORE_API_KEY")
+  core_api_key: nil
 
 # Logger configuration
 config :logger, level: :info

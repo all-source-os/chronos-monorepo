@@ -143,13 +143,18 @@ defmodule McpServerElixir.Infrastructure.CoreWebSocketClient do
     end
   end
 
-  defp build_auth_headers do
+  @doc false
+  # A hosted Core rejects the raw key — the header must carry the `Bearer`
+  # scheme (#228). Tolerate a key that already includes it.
+  # Public (undocumented) so tests can assert the header without a live socket.
+  def build_auth_headers do
     api_key = Application.get_env(:mcp_server_elixir, :core_api_key)
 
     case api_key do
       nil -> []
       "" -> []
-      key -> [{"Authorization", key}]
+      "Bearer " <> _ = key -> [{"Authorization", key}]
+      key -> [{"Authorization", "Bearer " <> key}]
     end
   end
 

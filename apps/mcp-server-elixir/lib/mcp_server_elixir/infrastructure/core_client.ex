@@ -4,6 +4,18 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
 
   Implements `CoreBackend` behaviour for the remote (HTTP) backend.
   The Tesla client is configured at the module level — no instance state needed.
+
+  ## Authentication (#228)
+
+  A hosted Core / gateway (e.g. `https://api.all-source.xyz`) requires
+  `Authorization: Bearer <key>`. Without it every request 401s, which the MCP
+  layer surfaces as JSON-RPC `-32603 Internal error`. The raw key *without* the
+  `Bearer` scheme 401s just the same, so the scheme is mandatory.
+
+  Note that Tesla evaluates module-level `plug` arguments on every request (they
+  are compiled into `__middleware__/0`, not frozen into a module attribute), so
+  both the base URL and `auth_headers/0` below pick up whatever
+  `config/runtime.exs` resolved at release boot.
   """
 
   @behaviour McpServerElixir.Infrastructure.CoreBackend
@@ -23,6 +35,10 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     Application.get_env(:mcp_server_elixir, :core_url, @default_base_url)
   )
 
+  # Authenticate against a hosted Core. Resolves per request; an empty list is
+  # a no-op, so an unconfigured key sends no header rather than a bare "Bearer ".
+  plug(Tesla.Middleware.Headers, auth_headers())
+
   plug(Tesla.Middleware.JSON)
   plug(Tesla.Middleware.Timeout, timeout: @default_timeout)
 
@@ -36,6 +52,18 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
       {:error, _} -> true
     end
   )
+
+  @doc false
+  # The Authorization header sent with every request, or [] when no key is
+  # configured. Public (undocumented) so tests can assert it without a socket.
+  def auth_headers do
+    case Application.get_env(:mcp_server_elixir, :core_api_key) do
+      nil -> []
+      "" -> []
+      "Bearer " <> _ = key -> [{"authorization", key}]
+      key -> [{"authorization", "Bearer " <> key}]
+    end
+  end
 
   @doc "Query events with flexible filters"
   @impl true
