@@ -3032,7 +3032,10 @@ defmodule McpServerElixir.Protocol.McpTools do
         # Use pre-computed stats
         %{
           event_count: Map.get(data, "total_events", Map.get(data, "event_count", 0)),
-          unique_entities: Map.get(data, "unique_entities", 0),
+          # Core's StoreStats calls this total_entities; only the derived
+          # fallback emits unique_entities. Accept either, else this read 0
+          # against a real /api/v1/stats response.
+          unique_entities: Map.get(data, "unique_entities") || Map.get(data, "total_entities") || 0,
           event_types: Map.get(data, "event_types", %{}),
           time_range: %{
             earliest: Map.get(data, "oldest_event"),
@@ -6718,7 +6721,8 @@ defmodule McpServerElixir.Protocol.McpTools do
           "tenant_id" => %{type: "string", description: "ID of the tenant to re-provision"},
           "dry_run" => %{
             type: "boolean",
-            description: "preview only; default true. Pass false (with confirm_tenant_id) to mutate."
+            description:
+              "preview only; default true. Pass false (with confirm_tenant_id) to mutate."
           },
           "confirm_tenant_id" => %{
             type: "string",
@@ -6769,7 +6773,8 @@ defmodule McpServerElixir.Protocol.McpTools do
           },
           "dry_run" => %{
             type: "boolean",
-            description: "preview only; default true. Pass false (with confirm_tenant_id) to mutate."
+            description:
+              "preview only; default true. Pass false (with confirm_tenant_id) to mutate."
           },
           "confirm_tenant_id" => %{
             type: "string",
@@ -6834,7 +6839,8 @@ defmodule McpServerElixir.Protocol.McpTools do
           },
           "confirm_token" => %{
             type: "string",
-            description: "echo the token from the dry-run (it encodes the exact tenant count) to execute"
+            description:
+              "echo the token from the dry-run (it encodes the exact tenant count) to execute"
           },
           "reason" => %{type: "string", description: "Reason (recorded in the Core audit event)"}
         },
@@ -6992,7 +6998,10 @@ defmodule McpServerElixir.Protocol.McpTools do
                 type: "string",
                 description: "Cohort: billing tier (e.g. indie/studio/scale)"
               },
-              "plan" => %{type: "string", description: "Cohort: alias for tier (admin filter vocabulary)"},
+              "plan" => %{
+                type: "string",
+                description: "Cohort: alias for tier (admin filter vocabulary)"
+              },
               "health_tier" => %{
                 type: "string",
                 enum: ["critical", "at_risk", "degraded", "healthy"],
@@ -7366,7 +7375,7 @@ defmodule McpServerElixir.Protocol.McpTools do
           cond do
             dry_run? ->
               "🧪 DRY-RUN — no notice was sent. Review the `would` recipients below, then re-run with dry_run: false" <>
-                (if cohort?, do: " + the confirm_token to apply.", else: " to apply.")
+                if cohort?, do: " + the confirm_token to apply.", else: " to apply."
 
             true ->
               "✅ SENT — the Control Plane created the notice (and wrote a Core audit event)."
@@ -7374,7 +7383,8 @@ defmodule McpServerElixir.Protocol.McpTools do
 
         token_line =
           if confirm_token,
-            do: "\n🔑 confirm_token: #{confirm_token}\n   Echo this token back (with dry_run: false) to apply the cohort send.",
+            do:
+              "\n🔑 confirm_token: #{confirm_token}\n   Echo this token back (with dry_run: false) to apply the cohort send.",
             else: ""
 
         text = """

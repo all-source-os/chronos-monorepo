@@ -53,6 +53,132 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     end
   )
 
+  # ============================================================================
+  # Graceful degradation for endpoints the gateway does not route (#229)
+  # ============================================================================
+
+  # How many events to read when deriving an aggregate locally. Bounded so a
+  # large store cannot turn one stats call into an unbounded transfer.
+  @derive_limit 10_000
+
+  # Only 404/405 mean "this deployment does not expose that route", which is the
+  # gateway case worth degrading around. 401/403 are credential and permission
+  # problems and must surface verbatim — masking them behind an approximate
+  # answer is exactly what made #229 hard to diagnose.
+  defp route_absent?(status), do: status in [404, 405]
+
+  # Rebuild Core's StoreStats shape (total_events / total_entities /
+  # total_event_types / total_ingested) from the tenant's own events, plus the
+  # census and time range the MCP stats tools present.
+  defp derive_stats_from_events(status) do
+    case query_events(%{"limit" => @derive_limit}) do
+      {:ok, data} ->
+        events = Map.get(data, "events", [])
+        reported = Map.get(data, "count", length(events))
+        truncated = length(events) >= @derive_limit
+
+        types = events |> Enum.map(&Map.get(&1, "event_type")) |> Enum.reject(&is_nil/1)
+        entities = events |> Enum.map(&Map.get(&1, "entity_id")) |> Enum.reject(&is_nil/1)
+        timestamps = events |> Enum.map(&Map.get(&1, "timestamp")) |> Enum.reject(&is_nil/1)
+        census = Enum.frequencies(types)
+
+        {:ok,
+         %{
+           "total_events" => max(reported, length(events)),
+           "total_entities" => entities |> Enum.uniq() |> length(),
+           "total_event_types" => census |> Map.keys() |> length(),
+           "total_ingested" => max(reported, length(events)),
+           # Keys the MCP stats tools read directly.
+           "unique_entities" => entities |> Enum.uniq() |> length(),
+           "event_types" => census,
+           "oldest_event" => Enum.min(timestamps, fn -> nil end),
+           "newest_event" => Enum.max(timestamps, fn -> nil end),
+           # Provenance, so a caller can tell this apart from Core's own numbers.
+           "approximate" => true,
+           "source" => "derived_from_events",
+           "truncated" => truncated,
+           "note" =>
+             "Derived from up to #{@derive_limit} events because GET /api/v1/stats " <>
+               "returned HTTP #{status} (the gateway does not expose the global " <>
+               "stats endpoint to tenants)." <>
+               if(truncated,
+                 do: " Counts are a lower bound — the event limit was reached.",
+                 else: ""
+               )
+         }}
+
+      {:error, reason} ->
+        {:error,
+         "GET /api/v1/stats returned HTTP #{status} and deriving stats from events " <>
+           "also failed: #{inspect(reason)}"}
+    end
+  end
+
+  # Fold an entity's events into current state, matching the shape Core's
+  # /entities/{id}/state returns: a shallow last-write-wins merge of payloads in
+  # order, wrapped with entity_id / last_updated / event_count / as_of / history.
+  #
+  # Core seeds the merge from the latest snapshot; this replays raw events
+  # instead. Same result unless events behind a snapshot have been archived away,
+  # in which case those keys are missing here — flagged via "source".
+  defp fold_entity_state(entity_id, as_of, status) do
+    params = %{"entity_id" => entity_id, "limit" => @derive_limit}
+    params = if as_of, do: Map.put(params, "as_of", as_of), else: params
+
+    case query_events(params) do
+      {:ok, data} ->
+        # Re-apply the entity filter locally. Folding is only correct over ONE
+        # entity's events, so don't rely on the server having honoured the filter
+        # — a backend that ignores it would otherwise merge unrelated payloads
+        # into this entity's state and report it as fact.
+        events =
+          data
+          |> Map.get("events", [])
+          |> Enum.filter(&(Map.get(&1, "entity_id") in [nil, entity_id]))
+
+        case events do
+          [] ->
+            {:error, "Entity not found: #{entity_id}"}
+
+          events ->
+            merged =
+              Enum.reduce(events, %{}, fn event, acc ->
+                case Map.get(event, "payload") do
+                  payload when is_map(payload) -> Map.merge(acc, payload)
+                  _ -> acc
+                end
+              end)
+
+            {:ok,
+             %{
+               "entity_id" => entity_id,
+               "last_updated" => events |> List.last() |> Map.get("timestamp"),
+               "event_count" => length(events),
+               "as_of" => as_of,
+               "current_state" => merged,
+               "history" =>
+                 Enum.map(events, fn e ->
+                   %{
+                     "event_id" => Map.get(e, "event_id") || Map.get(e, "id"),
+                     "type" => Map.get(e, "event_type"),
+                     "timestamp" => Map.get(e, "timestamp"),
+                     "payload" => Map.get(e, "payload")
+                   }
+                 end),
+               "source" => "folded_from_events",
+               "note" =>
+                 "Folded locally from the entity's events because " <>
+                   "GET /api/v1/entities/#{entity_id}/state returned HTTP #{status}."
+             }}
+        end
+
+      {:error, reason} ->
+        {:error,
+         "GET /api/v1/entities/#{entity_id}/state returned HTTP #{status} and " <>
+           "folding the entity's events also failed: #{inspect(reason)}"}
+    end
+  end
+
   @doc false
   # The Authorization header sent with every request, or [] when no key is
   # configured. Public (undocumented) so tests can assert it without a socket.
@@ -86,7 +212,12 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     end
   end
 
-  @doc "Reconstruct entity state at a point in time"
+  @doc """
+  Reconstruct entity state at a point in time.
+
+  Falls back to folding the entity's events locally when the endpoint is absent
+  (see `route_absent?/1` — #229).
+  """
   @impl true
   def reconstruct_state(entity_id, as_of \\ nil) do
     path = "/api/v1/entities/#{entity_id}/state"
@@ -97,7 +228,11 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
         {:ok, body}
 
       {:ok, %Tesla.Env{status: status, body: body}} ->
-        {:error, "HTTP #{status}: #{inspect(body)}"}
+        if route_absent?(status) do
+          fold_entity_state(entity_id, as_of, status)
+        else
+          {:error, "HTTP #{status}: #{inspect(body)}"}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -134,7 +269,18 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
     end
   end
 
-  @doc "Get event store statistics"
+  @doc """
+  Get event store statistics.
+
+  `GET /api/v1/stats` is a **global, whole-store** endpoint on Core
+  (`store.stats()`), which the hosted gateway deliberately does not route — a
+  tenant must not see cross-tenant totals. Against a gateway it therefore 404s,
+  which used to fail every stats tool with a bare `-32603` (#229).
+
+  When the route is absent we derive the same shape from the tenant's own event
+  stream via `query_events/1` (which the gateway does route, tenant-scoped), and
+  label the result as approximate.
+  """
   @impl true
   def get_stats do
     case get("/api/v1/stats") do
@@ -142,7 +288,11 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
         {:ok, body}
 
       {:ok, %Tesla.Env{status: status, body: body}} ->
-        {:error, "HTTP #{status}: #{inspect(body)}"}
+        if route_absent?(status) do
+          derive_stats_from_events(status)
+        else
+          {:error, "HTTP #{status}: #{inspect(body)}"}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -237,23 +387,17 @@ defmodule McpServerElixir.Infrastructure.CoreClient do
   @impl true
   def storage_stats(_params \\ %{}) do
     # Core doesn't have a dedicated storage stats endpoint.
-    # Combine /api/v1/stats and /api/v1/compaction/stats for a useful picture.
-    stats_result = get("/api/v1/stats")
-    compaction_result = get("/api/v1/compaction/stats")
+    # Combine event-store stats with compaction stats for a useful picture.
+    # get_stats/0 carries the gateway fallback, so this degrades with it (#229).
+    compaction =
+      case get("/api/v1/compaction/stats") do
+        {:ok, %Tesla.Env{status: 200, body: body}} -> body
+        _ -> "unavailable"
+      end
 
-    case {stats_result, compaction_result} do
-      {{:ok, %Tesla.Env{status: 200, body: stats}},
-       {:ok, %Tesla.Env{status: 200, body: compaction}}} ->
-        {:ok, %{"event_store" => stats, "compaction" => compaction}}
-
-      {{:ok, %Tesla.Env{status: 200, body: stats}}, _} ->
-        {:ok, %{"event_store" => stats, "compaction" => "unavailable"}}
-
-      {{:error, reason}, _} ->
-        {:error, reason}
-
-      {{:ok, %Tesla.Env{status: status, body: body}}, _} ->
-        {:error, "HTTP #{status}: #{inspect(body)}"}
+    case get_stats() do
+      {:ok, stats} -> {:ok, %{"event_store" => stats, "compaction" => compaction}}
+      {:error, reason} -> {:error, reason}
     end
   end
 

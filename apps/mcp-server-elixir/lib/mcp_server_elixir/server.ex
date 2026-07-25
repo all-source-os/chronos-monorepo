@@ -188,7 +188,11 @@ defmodule McpServerElixir.Server do
         send_response(response)
 
       {:error, reason} ->
-        send_error(id, -32_603, "Internal error", reason)
+        # Put the reason in `message`, not only in `data`. Clients surface
+        # `message` and routinely drop `data`, so a bare "Internal error" told
+        # the caller nothing about whether the tool was broken, the server was
+        # down, or the store was wrong (#229).
+        send_error(id, -32_603, error_message(tool_name, reason), reason)
     end
 
     {:noreply, state}
@@ -211,6 +215,40 @@ defmodule McpServerElixir.Server do
     {:noreply, state}
   end
 
+  @doc false
+  # Coerce an error reason into something Jason can encode. A raw reason is often
+  # a struct (%Mint.TransportError{}, %Tesla.Env{}) or a tuple, and Jason raises
+  # on those — inside this GenServer, which killed the server and dropped the
+  # client's stdio connection instead of reporting the error (#229).
+  def encodable(data) when is_binary(data), do: data
+  def encodable(data) when is_number(data) or is_boolean(data) or is_nil(data), do: data
+  def encodable(data) when is_atom(data), do: Atom.to_string(data)
+
+  def encodable(data) when is_map(data) and not is_struct(data) do
+    Map.new(data, fn {k, v} -> {encodable_key(k), encodable(v)} end)
+  end
+
+  def encodable(data) when is_list(data), do: Enum.map(data, &encodable/1)
+  def encodable(data), do: inspect(data)
+
+  defp encodable_key(k) when is_binary(k) or is_atom(k), do: k
+  defp encodable_key(k), do: inspect(k)
+
+  # Build a message that names the tool and carries the underlying reason, and
+  # that stays a plain string so it always survives JSON encoding.
+  @error_message_limit 500
+
+  @doc false
+  def error_message(tool_name, reason) do
+    detail =
+      case reason do
+        r when is_binary(r) -> r
+        r -> inspect(r)
+      end
+
+    "#{tool_name} failed: #{String.slice(detail, 0, @error_message_limit)}"
+  end
+
   defp send_response(response) do
     json = Jason.encode!(response)
     # Write to stdout without newline (MCP protocol expects JSON lines)
@@ -223,7 +261,7 @@ defmodule McpServerElixir.Server do
       message: message
     }
 
-    error = if data, do: Map.put(error, :data, data), else: error
+    error = if data, do: Map.put(error, :data, encodable(data)), else: error
 
     response = %{
       jsonrpc: "2.0",

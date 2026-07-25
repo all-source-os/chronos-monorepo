@@ -133,6 +133,7 @@ defmodule McpServerElixir.Protocol.McpToolsFleetTest do
         # diagnose_edition is read-only; the rest mutate and must carry SAFETY + dry-run note
         unless name == "recovery_diagnose_edition" do
           assert tool.description =~ "SAFETY WARNING", "#{name} missing SAFETY WARNING block"
+
           assert tool.description =~ "dry-run" or tool.description =~ "Dry-run",
                  "#{name} missing dry-run note"
         end
@@ -234,7 +235,8 @@ defmodule McpServerElixir.Protocol.McpToolsFleetTest do
         McpTools.list_tools(%{control_plane_enabled: true})
         |> Enum.map(& &1.name)
 
-      refute "tenant_notice" in names, "tenant_notice must be hidden unless ALLSOURCE_SYSTEM_ADMIN is set"
+      refute "tenant_notice" in names,
+             "tenant_notice must be hidden unless ALLSOURCE_SYSTEM_ADMIN is set"
     end
   end
 
