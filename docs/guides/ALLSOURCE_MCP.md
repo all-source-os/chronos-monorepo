@@ -27,6 +27,23 @@ cargo install --path .
 
 Requires **Rust 1.92+**.
 
+### Versioning — this binary lags the platform
+
+`allsource-mcp` versions independently of the AllSource platform, and is currently behind it:
+as of 2026-07-25 crates.io has **0.14.8** (published 2026-03-13), which embeds
+`allsource-core` **0.20.1**, while the platform is on **0.22.x**.
+
+```bash
+allsource-mcp --version                  # what you have
+cargo search allsource-mcp               # what is published
+cargo install allsource-mcp --force      # upgrade in place
+```
+
+If you need a Core feature newer than 0.20.1, build from source against the monorepo
+(`cargo install --path .` above) or use the Docker connector
+(`ghcr.io/all-source-os/allsource-mcp-server`), which tracks platform releases. See
+[/docs/mcp](https://www.all-source.xyz/docs/mcp) for how the four MCP servers differ.
+
 ## How It Works
 
 ```

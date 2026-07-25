@@ -13,7 +13,7 @@ export const siteConfig = {
   stats: [
     { display: "469K", numeric: 469, suffix: "K", label: "events/sec" },
     { display: "11.9μs", numeric: 11.9, suffix: "μs", label: "p99 recall" },
-    { display: "73", numeric: 73, suffix: "", label: "MCP tools" },
+    { display: "55+", numeric: 55, suffix: "+", label: "MCP tools" },
     { display: "129MB", numeric: 129, suffix: "MB", label: "footprint" },
   ],
   // The single µs figure the homepage demo stamps on the recalled answer.
@@ -67,7 +67,7 @@ export const siteConfig = {
           {
             href: "/docs/mcp",
             title: "AI-Native Tools",
-            description: "73 MCP tools for Claude Desktop integration.",
+            description: "55+ MCP tools for Claude Desktop integration (73 for fleet operators).",
           },
           {
             href: "/prime",
@@ -299,7 +299,7 @@ export const siteConfig = {
     {
       question: "What is the MCP Server integration?",
       answer:
-        "AllSource includes a 73-tool MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. This allows AI agents to manage events, run analytics, detect anomalies, manage backups, monitor health, and perform complex operations autonomously - making it truly AI-native from the ground up.",
+        "AllSource includes an MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. A tenant connector exposes 55+ tools by default, rising to 73 for fleet operators who enable the control-plane and system-admin tiers. This allows AI agents to manage events, run analytics, detect anomalies, manage backups, monitor health, and perform complex operations autonomously - making it truly AI-native from the ground up.",
     },
     {
       question: "How secure is my data?",

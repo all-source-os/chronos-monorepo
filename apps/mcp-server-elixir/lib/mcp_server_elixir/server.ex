@@ -12,9 +12,13 @@ defmodule McpServerElixir.Server do
   alias McpServerElixir.Infrastructure.ControlPlaneClient
   alias McpServerElixir.Protocol.{JsonRpc, McpTools}
 
+  # Reported to every client in the `initialize` handshake — the only version
+  # signal an MCP client gets. Read from the project version at compile time so
+  # it cannot drift (it was hardcoded "0.1.0" while the app shipped 0.22.x, so
+  # clients had no way to tell which build they were talking to).
   @server_info %{
     name: "allsource-mcp-elixir",
-    version: "0.1.0"
+    version: Mix.Project.config()[:version]
   }
 
   def start_link(_opts) do
@@ -42,7 +46,13 @@ defmodule McpServerElixir.Server do
     {:ok, _pid} = Task.start_link(fn -> stdin_reader_loop() end)
 
     read_only = Application.get_env(:mcp_server_elixir, :read_only, false)
-    control_plane_enabled = System.get_env("ALLSOURCE_CONTROL_URL") != nil
+
+    # Accept both spellings, matching the CONTROL_URL || ALLSOURCE_CONTROL_URL
+    # pair in config/runtime.exs. Reading only the ALLSOURCE_ form here meant
+    # setting CONTROL_URL configured the client but left the tenant tools hidden.
+    control_plane_enabled =
+      System.get_env("ALLSOURCE_CONTROL_URL") != nil or System.get_env("CONTROL_URL") != nil
+
     # System-admin mode gates the mutating fleet recovery tools. OFF by default:
     # a connected MCP client can READ fleet health but cannot run a Destructive
     # recovery unless the operator explicitly enables it on this server instance.

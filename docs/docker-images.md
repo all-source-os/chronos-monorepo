@@ -1,7 +1,7 @@
 ---
 title: "AllSource Docker Images"
 status: CURRENT
-last_updated: 2026-03-01
+last_updated: 2026-07-25
 category: operations
 ---
 
@@ -28,24 +28,31 @@ gh auth token | docker login ghcr.io -u $(gh api user -q .login) --password-stdi
 
 ## Available Images
 
-All images are published to GitHub Container Registry (GHCR):
+All images are published to GitHub Container Registry (GHCR). Images **without** a
+`-community` suffix are Enterprise (BSL 1.1) and require `docker login ghcr.io` (see
+[Authentication](#authentication) above); `*-community` images are Apache 2.0 and public:
 
 | Image | Description | Port |
 |-------|-------------|------|
-| `ghcr.io/all-source-os/chronos-core` | High-performance Rust event store | 3900 |
-| `ghcr.io/all-source-os/chronos-query-service` | Elixir API gateway (stateless, no database) | 3902 |
-| `ghcr.io/all-source-os/chronos-control-plane` | Go auth, billing, operations | 3901 |
-| `ghcr.io/all-source-os/chronos-web` | Next.js web dashboard | 3000 |
-| `ghcr.io/all-source-os/chronos-mcp-server` | Elixir MCP server for AI integration | 4000 |
+| `ghcr.io/all-source-os/allsource-core` | High-performance Rust event store | 3900 |
+| `ghcr.io/all-source-os/allsource-query-service` | Elixir API gateway (stateless, no database) | 3902 |
+| `ghcr.io/all-source-os/allsource-control-plane` | Go auth, billing, operations | 3901 |
+| `ghcr.io/all-source-os/allsource-web` | Next.js web dashboard | 3000 |
+| `ghcr.io/all-source-os/allsource-mcp-server` | Elixir MCP server for AI integration (stdio) | n/a |
+| `ghcr.io/all-source-os/allsource-mcp-server-embedded` | Same, with Core in-process via Rustler NIF (stdio) | n/a |
 
 ## Image Tags
 
 Images are tagged with multiple identifiers:
 
-- `latest` - Latest build from main branch
-- `v0.10.7` - Specific version (semver)
-- `0.10` - Major.minor version
+- `latest` - Latest build from main branch (moving)
+- `main` - Latest build from main branch (moving)
+- `0.22.0` - Specific version, **unprefixed** semver (a `v0.22.0` tag does not exist)
+- `0.22` - Major.minor version
+- `0` - Major version
 - `sha-abc1234` - Git commit SHA
+
+Pin a specific version in production; `latest` moves under you.
 
 ## Quick Start
 
@@ -56,7 +63,7 @@ Create a `docker-compose.yml`:
 ```yaml
 services:
   allsource-core:
-    image: ghcr.io/all-source-os/chronos-core:latest
+    image: ghcr.io/all-source-os/allsource-core:latest
     ports:
       - "3900:3900"
     volumes:
@@ -70,7 +77,7 @@ services:
       retries: 3
 
   allsource-control-plane:
-    image: ghcr.io/all-source-os/chronos-control-plane:latest
+    image: ghcr.io/all-source-os/allsource-control-plane:latest
     ports:
       - "3901:3901"
     environment:
@@ -80,7 +87,7 @@ services:
       - allsource-core
 
   allsource-query:
-    image: ghcr.io/all-source-os/chronos-query-service:latest
+    image: ghcr.io/all-source-os/allsource-query-service:latest
     ports:
       - "3902:3902"
     environment:
@@ -92,7 +99,7 @@ services:
       - allsource-control-plane
 
   allsource-web:
-    image: ghcr.io/all-source-os/chronos-web:latest
+    image: ghcr.io/all-source-os/allsource-web:latest
     ports:
       - "3000:3000"
     environment:
@@ -119,7 +126,7 @@ docker run -d \
   --name allsource-core \
   -p 3900:3900 \
   -v allsource-data:/data \
-  ghcr.io/all-source-os/chronos-core:latest
+  ghcr.io/all-source-os/allsource-core:latest
 ```
 
 ## Environment Variables
@@ -159,13 +166,19 @@ docker run -d \
 | `PORT` | HTTP server port | `3000` |
 | `NEXT_PUBLIC_API_URL` | Public API URL | Required |
 
-### chronos-mcp-server
+### allsource-mcp-server
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CORE_URL` | URL of chronos-core | Required |
+| `CORE_URL` | Gateway URL (or Core, if internal) | Required |
+| `CORE_API_KEY` | Bearer token for an authenticated Core/gateway | Required for hosted |
 | `MIX_ENV` | Elixir environment | `prod` |
-| `PORT` | HTTP server port | `4000` |
+| `ALLSOURCE_READ_ONLY` | Hide the 10 mutation tools | `false` |
+| `ALLSOURCE_CONTROL_URL` | Enables the 9 tenant/fleet tools | Unset |
+| `ALLSOURCE_SYSTEM_ADMIN` | Enables the 8 recovery tools + tenant_notice | `false` |
+
+> The MCP server speaks **stdio**, not HTTP — it is launched as a subprocess by the MCP
+> client (`docker run -i`). There is no port to publish and no SSE endpoint.
 
 ## Multi-Architecture Support
 
@@ -191,49 +204,46 @@ docker inspect --format='{{.State.Health.Status}}' allsource-core
 
 ## License
 
-AllSource is licensed under the **MIT License**.
+AllSource ships under a **dual licence**, and which one applies depends on the image:
 
-```
-MIT License
+| Edition | Images | Licence | Registry access |
+|---------|--------|---------|-----------------|
+| Community | `*-community` (e.g. `allsource-core-community`) | [Apache 2.0](../LICENSE) | Public — no login |
+| Enterprise | all others (e.g. `allsource-mcp-server`) | [BSL 1.1](../LICENSE-BSL) | Login required |
 
-Copyright (c) 2024-2026 AllSource Team
+The BSL 1.1 licence converts to Apache 2.0 on **2029-03-01**. Its Additional Use Grant
+permits production use but not offering the Licensed Work to third parties as a
+commercially hosted or managed service — see `LICENSE-BSL` for the binding text.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+> **Note**: `allsource-core/LICENSE` is MIT, a deliberate per-component exception.
+> `LICENSE` and `LICENSE-BSL` at the repository root are authoritative for everything else.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
+### Attribution requirements
 
-### Attribution Requirements
+Under Apache 2.0 (community images and source):
 
-When using AllSource in your projects:
+1. **Source redistribution**: include the `LICENSE` file and retain copyright, patent,
+   trademark, and attribution notices
+2. **Binary distribution**: include the licence notice in your documentation
+3. **Modified files**: state that you changed them
+4. **NOTICE**: if a `NOTICE` file is present, carry its attributions forward
+5. **SaaS/hosted**: no attribution required in your UI, but welcome
 
-1. **Source code**: Include the LICENSE file if redistributing source
-2. **Binary distribution**: Include license notice in documentation
-3. **SaaS/hosted**: No attribution required in UI, but welcome
+### Commercial use
 
-### Commercial Use
+Apache 2.0 (community) permits commercial use without royalties, modification, private
+use, distribution, sublicensing, and carries an express patent grant. It places no
+restriction on proprietary derivatives, closed-source modifications, or charging for
+services built on AllSource.
 
-MIT license permits:
-- Commercial use without royalties
-- Modification and private use
-- Distribution and sublicensing
-- Patent use (implicit grant)
-
-No restrictions on:
-- Proprietary derivatives
-- Closed-source modifications
-- Charging for services built on AllSource
+Enterprise (BSL 1.1) images carry the hosted-service restriction above until the
+2029-03-01 change date. If you intend to offer AllSource itself as a managed service
+before then, use the community edition or obtain a commercial licence.
 
 ## Support
 
-- GitHub Issues: https://github.com/all-source-os/allsource-monorepo/issues
-- Documentation: https://github.com/all-source-os/allsource-monorepo/tree/main/docs
+- GitHub Issues: https://github.com/all-source-os/all-source/issues
+- Documentation: https://github.com/all-source-os/all-source/tree/main/docs
 
 ## Changelog
 
