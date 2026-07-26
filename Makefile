@@ -717,6 +717,8 @@ endif
 	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*\(\.[0-9]*\)\{0,1\}"/allsource-core = { version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
 	@echo "Updating recall-bench (Cargo.toml)..."
 	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*\(\.[0-9]*\)\{0,1\}"/allsource-core = { version = "$(VERSION)"/' tooling/recall-bench/Cargo.toml
+	@echo "Updating chronis allsource-core dep (Cargo.toml)..."
+	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*\(\.[0-9]*\)\{0,1\}"/allsource-core = { version = "$(VERSION)"/' apps/chronis/Cargo.toml
 	@echo ""
 	@echo "=== Version $(VERSION) set across all services ==="
 	@echo ""
@@ -731,6 +733,7 @@ endif
 	@echo "  - README.md"
 	@echo "  - apps/prime-mcp/Cargo.toml"
 	@echo "  - tooling/recall-bench/Cargo.toml"
+	@echo "  - apps/chronis/Cargo.toml"
 	@echo ""
 	@echo "Run 'make check-versions' to verify consistency"
 
