@@ -128,13 +128,13 @@ func TestSeam_ChangePlan_TenantScopingOverride(t *testing.T) {
 		t.Errorf("response tier = %q, want studio", res.Tier)
 	}
 	// tenant-Y upgraded...
-	ty, _ := repo.FindByID("tenant-Y")
-	if got := ty.Metadata["subscription"].(*entities.SubscriptionMetadata).Tier; got != "studio" {
+	ty, _ := repo.FindByID("tenant-Y")                                                             //nolint:errcheck // test assertion reads state seeded above
+	if got := ty.Metadata["subscription"].(*entities.SubscriptionMetadata).Tier; got != "studio" { //nolint:forcetypeassert,errcheck // a wrong type must fail this test loudly
 		t.Errorf("tenant-Y tier = %q, want studio", got)
 	}
 	// ...tenant-X untouched.
-	tx, _ := repo.FindByID("tenant-X")
-	if got := tx.Metadata["subscription"].(*entities.SubscriptionMetadata).Tier; got != "indie" {
+	tx, _ := repo.FindByID("tenant-X")                                                            //nolint:errcheck // test assertion reads state seeded above
+	if got := tx.Metadata["subscription"].(*entities.SubscriptionMetadata).Tier; got != "indie" { //nolint:forcetypeassert,errcheck // a wrong type must fail this test loudly
 		t.Errorf("tenant-X tier = %q, want indie (untouched)", got)
 	}
 }
@@ -278,8 +278,8 @@ func TestSeam_Webhook_SignatureToTierPersisted(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
-	tn, _ := repo.FindByID("tenant-123")
-	got := tn.Metadata["subscription"].(*entities.SubscriptionMetadata)
+	tn, _ := repo.FindByID("tenant-123")                                //nolint:errcheck // test assertion reads state seeded above
+	got := tn.Metadata["subscription"].(*entities.SubscriptionMetadata) //nolint:forcetypeassert,errcheck // a wrong type must fail this test loudly
 	if got.Tier != "studio" || got.SubscriptionID != "sub-777" {
 		t.Errorf("persisted sub = %+v, want studio/sub-777", got)
 	}

@@ -250,7 +250,7 @@ func TestViewAs_StartStopAuditPairs(t *testing.T) {
 	if started[0]["entity"] != stopped[0]["entity"] {
 		t.Fatalf("start/stop entities differ: %v vs %v", started[0]["entity"], stopped[0]["entity"])
 	}
-	if got, _ := stopped[0]["payload"].(map[string]any)["reason"].(string); got != usecases.ViewAsStopReasonExit {
+	if got, _ := stopped[0]["payload"].(map[string]any)["reason"].(string); got != usecases.ViewAsStopReasonExit { //nolint:forcetypeassert,errcheck // a wrong shape fails the assertion
 		t.Fatalf("expected stop reason %q, got %q", usecases.ViewAsStopReasonExit, got)
 	}
 }

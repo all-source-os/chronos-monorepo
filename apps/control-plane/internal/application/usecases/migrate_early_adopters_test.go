@@ -42,12 +42,12 @@ func TestMigrateEarlyAdopters_AppliesVoucherAndOwner(t *testing.T) {
 	if rep.Migrated != 2 || rep.Skipped != 1 || rep.Failed != 0 {
 		t.Fatalf("counts = %+v, want migrated=2 skipped=1 failed=0", rep)
 	}
-	owner, _ := repo.FindByID("owner")
-	if got := owner.Metadata["subscription"].(*entities.SubscriptionMetadata); got.Tier != tierEnterprise {
+	owner, _ := repo.FindByID("owner")                                                                      //nolint:errcheck // test assertion reads state seeded above
+	if got := owner.Metadata["subscription"].(*entities.SubscriptionMetadata); got.Tier != tierEnterprise { //nolint:forcetypeassert,errcheck // a wrong type must fail this test loudly
 		t.Errorf("owner tier = %q, want enterprise", got.Tier)
 	}
-	free, _ := repo.FindByID("free-1")
-	fs := free.Metadata["subscription"].(*entities.SubscriptionMetadata)
+	free, _ := repo.FindByID("free-1")                                   //nolint:errcheck // test assertion reads state seeded above
+	fs := free.Metadata["subscription"].(*entities.SubscriptionMetadata) //nolint:forcetypeassert,errcheck // a wrong type must fail this test loudly
 	if fs.Tier != "studio" || fs.GrandfatherUntil == nil {
 		t.Errorf("free-1 should be studio with a voucher, got %+v", fs)
 	}
@@ -62,7 +62,7 @@ func TestMigrateEarlyAdopters_DryRunWritesNothing(t *testing.T) {
 		t.Fatalf("dry-run report = %+v", rep)
 	}
 	// Tenant must still be free — nothing persisted.
-	tn, _ := repo.FindByID("free-1")
+	tn, _ := repo.FindByID("free-1") //nolint:errcheck // test assertion reads state seeded above
 	if sub, ok := tn.Metadata["subscription"]; ok && sub != nil {
 		if s, ok := sub.(*entities.SubscriptionMetadata); ok && s.Tier != "" {
 			t.Errorf("dry-run wrote a tier: %q", s.Tier)
@@ -93,8 +93,8 @@ func TestMigrateEarlyAdopters_DefaultsApplied(t *testing.T) {
 	if rep.Migrated != 1 {
 		t.Fatalf("migrated=%d", rep.Migrated)
 	}
-	tn, _ := repo.FindByID("free-1")
-	if got := tn.Metadata["subscription"].(*entities.SubscriptionMetadata).Tier; got != defaultVoucherTier {
+	tn, _ := repo.FindByID("free-1")                                                                         //nolint:errcheck // test assertion reads state seeded above
+	if got := tn.Metadata["subscription"].(*entities.SubscriptionMetadata).Tier; got != defaultVoucherTier { //nolint:forcetypeassert,errcheck // a wrong type must fail this test loudly
 		t.Errorf("default tier = %q, want %q", got, defaultVoucherTier)
 	}
 }

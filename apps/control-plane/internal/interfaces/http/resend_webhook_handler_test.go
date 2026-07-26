@@ -42,7 +42,7 @@ func serveResend(h *ResendWebhookHandler, body []byte) *httptest.ResponseRecorde
 // GetConfig returns it and resolveTenant can open it.
 func sealedAddr(t *testing.T, tenant, addr string) string {
 	t.Helper()
-	rec, _ := json.Marshal(grantRecord{TenantID: tenant, GrantID: addr, Email: addr, Provider: "resend"})
+	rec, _ := json.Marshal(grantRecord{TenantID: tenant, GrantID: addr, Email: addr, Provider: "resend"}) //nolint:errcheck // test fixture
 	token, err := newSealer(t).Seal(rec)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
@@ -51,7 +51,7 @@ func sealedAddr(t *testing.T, tenant, addr string) string {
 }
 
 func resendBody(emailID string, to ...string) []byte {
-	b, _ := json.Marshal(map[string]any{
+	b, _ := json.Marshal(map[string]any{ //nolint:errcheck // test fixture
 		"type": "email.received",
 		"data": map[string]any{"email_id": emailID, "to": to},
 	})
@@ -62,9 +62,9 @@ func TestResend_InboundIngests(t *testing.T) {
 	sealer := newSealer(t)
 	// Re-seal with the SAME sealer the handler uses (newSealer is deterministic per
 	// the test key), so resolveTenant can open it.
-	rec, _ := json.Marshal(grantRecord{TenantID: "t1", GrantID: "sales@x.com", Email: "sales@x.com", Provider: "resend"})
-	token, _ := sealer.Seal(rec)
-	core := &fakeCore{tenant: token} // GetConfig returns the sealed record for any key
+	rec, _ := json.Marshal(grantRecord{TenantID: "t1", GrantID: "sales@x.com", Email: "sales@x.com", Provider: "resend"}) //nolint:errcheck // test fixture
+	token, _ := sealer.Seal(rec)                                                                                          //nolint:errcheck // test fixture
+	core := &fakeCore{tenant: token}                                                                                      // GetConfig returns the sealed record for any key
 	provider := &fakeResendProvider{verify: true, msg: sampleMessage()}
 	h := NewResendWebhookHandler(provider, core, sealer)
 
@@ -104,7 +104,7 @@ func TestResend_InboundUnknownRecipient(t *testing.T) {
 
 func TestResend_InboundIgnoresNonReceived(t *testing.T) {
 	h := NewResendWebhookHandler(&fakeResendProvider{verify: true}, &fakeCore{tenant: sealedAddr(t, "t1", "sales@x.com")}, newSealer(t))
-	body, _ := json.Marshal(map[string]any{"type": "email.delivered", "data": map[string]any{}})
+	body, _ := json.Marshal(map[string]any{"type": "email.delivered", "data": map[string]any{}}) //nolint:errcheck // test fixture
 	w := serveResend(h, body)
 	if w.Code != http.StatusOK || !bytes.Contains(w.Body.Bytes(), []byte("ignored")) {
 		t.Fatalf("want 200 ignored for non-received type, got %d: %s", w.Code, w.Body.String())
@@ -148,7 +148,7 @@ func engagementBody(eventType, emailID, link string) []byte {
 	if link != "" {
 		data["click"] = map[string]any{"link": link}
 	}
-	b, _ := json.Marshal(map[string]any{"type": eventType, "created_at": "2026-06-01T00:00:00Z", "data": data})
+	b, _ := json.Marshal(map[string]any{"type": eventType, "created_at": "2026-06-01T00:00:00Z", "data": data}) //nolint:errcheck // test fixture
 	return b
 }
 

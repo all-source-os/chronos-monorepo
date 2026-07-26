@@ -223,7 +223,7 @@ func TestAnalyze_EmptyTenant(t *testing.T) {
 	// A brand-new empty tenant (inside the grace window) must NOT be flagged empty.
 	seedAnalyzeTenant(t, repo, "fresh", time.Now().Add(-1*time.Hour), subMeta("free", ""))
 	core.statsByTenant["fresh"] = 0
-	rep2, _ := uc.Execute(context.Background(), AnalyzeRequest{})
+	rep2, _ := uc.Execute(context.Background(), AnalyzeRequest{}) //nolint:errcheck // test asserts on the report below
 	if _, ok := hasFinding(findTenant(t, rep2, "fresh"), CodeEmptyTenant); ok {
 		t.Errorf("fresh tenant inside grace window wrongly flagged empty_tenant")
 	}

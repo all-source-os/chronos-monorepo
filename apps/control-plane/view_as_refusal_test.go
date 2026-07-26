@@ -120,10 +120,10 @@ func TestViewAsWriteRefusal_RejectsAndAlarmsWrites(t *testing.T) {
 			if alarm.EntityID != "viewas:t-77" {
 				t.Fatalf("alarm entity: expected viewas:t-77, got %q", alarm.EntityID)
 			}
-			if got, _ := alarm.Payload["act_as"].(string); got != "admin-7" {
+			if got, _ := alarm.Payload["act_as"].(string); got != "admin-7" { //nolint:errcheck // test plumbing
 				t.Fatalf("alarm act_as: expected admin-7, got %q", got)
 			}
-			if got, _ := alarm.Payload["method"].(string); got != tc.method {
+			if got, _ := alarm.Payload["method"].(string); got != tc.method { //nolint:errcheck // test plumbing
 				t.Fatalf("alarm method: expected %q, got %q", tc.method, got)
 			}
 		})

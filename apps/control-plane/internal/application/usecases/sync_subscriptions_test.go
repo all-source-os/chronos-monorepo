@@ -62,7 +62,7 @@ func TestSyncSubscriptions_PlanDrift(t *testing.T) {
 	}
 
 	// Persisted subscriptions map must now carry studio.
-	tenant, _ := repo.FindByID("tenant-1")
+	tenant, _ := repo.FindByID("tenant-1") //nolint:errcheck // test assertion reads state seeded above
 	got := extractSubscriptionsMap(tenant.Metadata)
 	if got["sub-100"].Tier != "studio" {
 		t.Errorf("expected stored tier studio, got %q", got["sub-100"].Tier)
@@ -113,7 +113,7 @@ func TestSyncSubscriptions_StatusCanceled(t *testing.T) {
 	if !res.Changed {
 		t.Fatalf("expected change on cancel, got %+v", res)
 	}
-	tenant, _ := repo.FindByID("tenant-3")
+	tenant, _ := repo.FindByID("tenant-3") //nolint:errcheck // test assertion reads state seeded above
 	//nolint:misspell // the handler stores LemonSqueezy's "cancelled" spelling
 	if got := extractSubscriptionsMap(tenant.Metadata)["sub-300"].Status; got != "cancelled" {
 		t.Errorf("expected stored status cancelled, got %q", got) //nolint:misspell // ditto
@@ -149,7 +149,7 @@ func TestUpsertSubscription_ConcurrentNoLostUpdate(t *testing.T) {
 	}
 	wg.Wait()
 
-	tenant, _ := repo.FindByID("tenant-c")
+	tenant, _ := repo.FindByID("tenant-c") //nolint:errcheck // test assertion reads state seeded above
 	got := extractSubscriptionsMap(tenant.Metadata)
 	if len(got) != n {
 		t.Fatalf("expected %d subscriptions after concurrent upserts, got %d (lost updates)", n, len(got))

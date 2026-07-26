@@ -70,7 +70,7 @@ func newFakeQS(t *testing.T) *fakeQS {
 	mux.HandleFunc("/api/cluster/members", func(w http.ResponseWriter, r *http.Request) {
 		f.gotPaths = append(f.gotPaths, r.URL.Path)
 		// The real QS member shape ({node, self, connected}) wrapped in {data:…}.
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test response
 			"data": map[string]any{
 				"members": []map[string]any{
 					{"node": "core-leader@host", "self": true, "connected": true},

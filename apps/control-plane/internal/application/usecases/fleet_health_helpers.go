@@ -145,7 +145,9 @@ func extractOverageEnabled(metadata map[string]interface{}) bool {
 	case entities.OverageMetadata:
 		return v.Enabled
 	case map[string]interface{}:
-		b, _ := v["enabled"].(bool)
+		// Decoding untyped metadata: a missing or non-bool "enabled" means
+		// overage is not enabled, which is the correct conservative default.
+		b, _ := v["enabled"].(bool) //nolint:forcetypeassert,errcheck // zero value is the intended default
 		return b
 	}
 	return false

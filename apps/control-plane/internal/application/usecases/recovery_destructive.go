@@ -148,7 +148,9 @@ func (uc *RecoveryUseCase) Restore(ctx context.Context, tenantID string, req Rec
 		return nil, err
 	}
 
-	snapshotID, _ := req.Extra["snapshot_id"].(string)
+	// snapshot_id is optional in Extra; absent or non-string means "no snapshot
+	// pinned", which downstream handles.
+	snapshotID, _ := req.Extra["snapshot_id"].(string) //nolint:forcetypeassert,errcheck // optional field, zero value is meaningful
 	var asOf *time.Time
 	if v, ok := req.Extra["as_of"].(string); ok && v != "" {
 		if parsed, perr := time.Parse(time.RFC3339, v); perr == nil {

@@ -116,8 +116,8 @@ func TestInbox_NotConfigured(t *testing.T) {
 
 func TestInbox_ListConnectionsDecrypts(t *testing.T) {
 	sealer := newSealer(t)
-	rec, _ := json.Marshal(grantRecord{TenantID: "t1", GrantID: "g1", Email: "sales@x.com", Provider: "nylas"})
-	token, _ := sealer.Seal(rec)
+	rec, _ := json.Marshal(grantRecord{TenantID: "t1", GrantID: "g1", Email: "sales@x.com", Provider: "nylas"}) //nolint:errcheck // test fixture
+	token, _ := sealer.Seal(rec)                                                                                //nolint:errcheck // test fixture
 	core := &fakeInboxCore{configs: []clients.ConfigEntryResponse{
 		{Key: "connector:email:grant:g1", Value: token},
 		{Key: "unrelated:config", Value: "plain"},
@@ -131,7 +131,7 @@ func TestInbox_ListConnectionsDecrypts(t *testing.T) {
 		Connections []grantRecord `json:"connections"`
 		Count       int           `json:"count"`
 	}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp) //nolint:errcheck // test decode
 	if resp.Count != 1 || resp.Connections[0].Email != "sales@x.com" || resp.Connections[0].TenantID != "t1" {
 		t.Errorf("bad connections: %+v", resp)
 	}
@@ -189,7 +189,7 @@ func TestInbox_Draft(t *testing.T) {
 	var resp struct {
 		DraftID string `json:"draft_id"`
 	}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp) //nolint:errcheck // test decode
 	if !strings.HasPrefix(resp.DraftID, "draft_") {
 		t.Errorf("bad draft_id: %q", resp.DraftID)
 	}
@@ -200,8 +200,8 @@ func TestInbox_Draft(t *testing.T) {
 
 func TestInbox_SendConfirmGatedAndRecords(t *testing.T) {
 	sealer := newSealer(t)
-	rec, _ := json.Marshal(grantRecord{TenantID: "t1", GrantID: "g1", Email: "sales@x.com", Provider: "nylas"})
-	token, _ := sealer.Seal(rec)
+	rec, _ := json.Marshal(grantRecord{TenantID: "t1", GrantID: "g1", Email: "sales@x.com", Provider: "nylas"}) //nolint:errcheck // test fixture
+	token, _ := sealer.Seal(rec)                                                                                //nolint:errcheck // test fixture
 	core := &fakeInboxCore{configs: []clients.ConfigEntryResponse{{Key: "connector:email:grant:g1", Value: token}}}
 	sender := &fakeSender{result: &emailprovider.SendResult{MessageID: "ms1", ThreadID: "th1", SentAt: time.Now()}}
 	h := NewInboxAdminHandler(core, sealer, sender)
@@ -252,13 +252,13 @@ func TestInbox_AddAddress(t *testing.T) {
 	if core.setReq.Key != "connector:email:grant:sales@all-source.xyz" {
 		t.Errorf("bad config key: %q", core.setReq.Key)
 	}
-	s, _ := core.setReq.Value.(string)
+	s, _ := core.setReq.Value.(string) //nolint:errcheck // a non-string fails the assertion below
 	plain, err := newSealer(t).Open(s)
 	if err != nil {
 		t.Fatalf("open sealed: %v", err)
 	}
 	var rec grantRecord
-	_ = json.Unmarshal(plain, &rec)
+	_ = json.Unmarshal(plain, &rec) //nolint:errcheck // test decode
 	if rec.TenantID != "t1" || rec.GrantID != "sales@all-source.xyz" || rec.Email != "sales@all-source.xyz" {
 		t.Errorf("bad sealed record: %+v", rec)
 	}
@@ -326,7 +326,7 @@ func TestInbox_GenerateDraftGrounds(t *testing.T) {
 			PriorThreads   int `json:"prior_threads"`
 		} `json:"grounded_on"`
 	}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp) //nolint:errcheck // test decode
 	if resp.Body != drafter.reply {
 		t.Errorf("want body %q, got %q", drafter.reply, resp.Body)
 	}

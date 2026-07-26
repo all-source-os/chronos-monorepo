@@ -102,14 +102,14 @@ func TestExpireTrials_SuspendsExpiredUnpaidTrial(t *testing.T) {
 	}
 
 	// The expired, unpaid trial is now suspended.
-	got, _ := repo.FindByID(expired.ID)
+	got, _ := repo.FindByID(expired.ID) //nolint:errcheck // test assertion reads state seeded above
 	if got.Status != entities.TenantStatusSuspended {
 		t.Errorf("expired trial status = %s, want suspended", got.Status)
 	}
 
 	// Everyone else stays active.
 	for _, id := range []string{active.ID, paid.ID, other.ID} {
-		g, _ := repo.FindByID(id)
+		g, _ := repo.FindByID(id) //nolint:errcheck // test assertion reads state seeded above
 		if g.Status != entities.TenantStatusActive {
 			t.Errorf("tenant %s status = %s, want active (must not be suspended)", id, g.Status)
 		}
@@ -143,7 +143,7 @@ func TestExpireTrials_ReactivatedSuspendIsReversible(t *testing.T) {
 	uc := NewExpireTrialsUseCase(repo, auditRepo, nil).WithClock(fixedClock(now))
 	uc.ExecuteAll(context.Background())
 
-	got, _ := repo.FindByID(tenant.ID)
+	got, _ := repo.FindByID(tenant.ID) //nolint:errcheck // test assertion reads state seeded above
 	if got.Status != entities.TenantStatusSuspended {
 		t.Fatalf("expected suspended after sweep, got %s", got.Status)
 	}
@@ -152,8 +152,8 @@ func TestExpireTrials_ReactivatedSuspendIsReversible(t *testing.T) {
 	// tenants, so a suspended one is never re-processed; reactivating restores
 	// access and the tenant is no longer in scope until a fresh trial window.
 	got.Activate()
-	_ = repo.Update(got) //nolint:errcheck // test setup
-	if g, _ := repo.FindByID(tenant.ID); g.Status != entities.TenantStatusActive {
+	_ = repo.Update(got)                                                           //nolint:errcheck // test setup
+	if g, _ := repo.FindByID(tenant.ID); g.Status != entities.TenantStatusActive { //nolint:errcheck // test assertion reads state seeded above
 		t.Fatalf("reactivation failed, status = %s", g.Status)
 	}
 }

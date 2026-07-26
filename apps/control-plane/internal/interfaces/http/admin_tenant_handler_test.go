@@ -545,9 +545,9 @@ func TestAdminListTenants_RealCountsFromCore(t *testing.T) {
 		t.Fatalf("unmarshal error: %v", err)
 	}
 	byID := map[string]map[string]interface{}{}
-	for _, raw := range resp["tenants"].([]interface{}) { //nolint:forcetypeassert
-		tn := raw.(map[string]interface{}) //nolint:forcetypeassert
-		byID[tn["id"].(string)] = tn       //nolint:forcetypeassert
+	for _, raw := range resp["tenants"].([]interface{}) { //nolint:forcetypeassert,errcheck // decoded test payload
+		tn := raw.(map[string]interface{}) //nolint:forcetypeassert,errcheck // decoded test payload
+		byID[tn["id"].(string)] = tn       //nolint:forcetypeassert,errcheck // decoded test payload
 	}
 
 	live := byID["t-live"]
@@ -594,7 +594,7 @@ func TestAdminListTenants_FallsBackToMetadataOnCoreError(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal error: %v", err)
 	}
-	tn := resp["tenants"].([]interface{})[0].(map[string]interface{}) //nolint:forcetypeassert
+	tn := resp["tenants"].([]interface{})[0].(map[string]interface{}) //nolint:forcetypeassert,errcheck // decoded test payload
 	if tn["event_count"] != float64(500) {
 		t.Errorf("event_count fallback: want 500 from metadata, got %v", tn["event_count"])
 	}

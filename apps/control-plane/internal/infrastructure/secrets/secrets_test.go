@@ -55,8 +55,8 @@ func TestSealIsNondeterministic(t *testing.T) {
 }
 
 func TestOpenRejectsLegacyPlaintext(t *testing.T) {
-	s, _ := NewSealer(key32())
-	_, err := s.Open("tnt1") // a legacy plaintext tenant id, not sealed
+	s, _ := NewSealer(key32()) //nolint:errcheck // test plumbing
+	_, err := s.Open("tnt1")   // a legacy plaintext tenant id, not sealed
 	if !errors.Is(err, ErrNotSealed) {
 		t.Errorf("want ErrNotSealed, got %v", err)
 	}
@@ -74,7 +74,7 @@ func TestOpenFailsWithWrongKey(t *testing.T) {
 
 	other := key32()
 	other[0] ^= 0xFF
-	s2, _ := NewSealer(other)
+	s2, _ := NewSealer(other) //nolint:errcheck // test plumbing
 	if _, err := s2.Open(token); err == nil {
 		t.Error("opened with wrong key — auth tag not enforced")
 	}

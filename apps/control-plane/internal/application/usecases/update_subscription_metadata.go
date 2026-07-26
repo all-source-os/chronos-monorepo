@@ -22,7 +22,7 @@ type keyedMutex struct {
 
 func (k *keyedMutex) lock(key string) func() {
 	mu, _ := k.m.LoadOrStore(key, &sync.Mutex{})
-	mtx := mu.(*sync.Mutex)
+	mtx := mu.(*sync.Mutex) //nolint:forcetypeassert,errcheck // LoadOrStore above only ever stores *sync.Mutex
 	mtx.Lock()
 	return mtx.Unlock
 }
