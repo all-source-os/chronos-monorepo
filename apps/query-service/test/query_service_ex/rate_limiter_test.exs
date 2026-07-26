@@ -80,16 +80,25 @@ defmodule QueryServiceEx.RateLimiterTest do
       assert burst == 20
     end
 
-    test "returns correct limits for pro tier" do
-      {rate, burst} = RateLimiter.get_tier_limits(:pro)
-      assert rate == 200
-      assert burst == 400
+    test "returns correct limits for the canonical studio tier" do
+      {rate, burst} = RateLimiter.get_tier_limits(:studio)
+      assert rate == 300
+      assert burst == 600
     end
 
-    test "returns correct limits for growth tier" do
-      {rate, burst} = RateLimiter.get_tier_limits(:growth)
-      assert rate == 500
-      assert burst == 1000
+    test "retired tier ids fall back to their canonical successor's limits" do
+      # free -> indie -> studio -> scale -> enterprise are the canonical 011
+      # tiers. pro/growth/team were retired and are normalized upstream; they
+      # keep a sensible bucket that mirrors studio rather than their old values.
+      studio = RateLimiter.get_tier_limits(:studio)
+
+      assert RateLimiter.get_tier_limits(:pro) == studio
+      assert RateLimiter.get_tier_limits(:growth) == studio
+      assert RateLimiter.get_tier_limits(:team) == studio
+
+      indie = RateLimiter.get_tier_limits(:indie)
+      assert RateLimiter.get_tier_limits(:starter) == indie
+      assert RateLimiter.get_tier_limits(:developer) == indie
     end
 
     test "returns correct limits for enterprise tier" do
@@ -152,23 +161,24 @@ defmodule QueryServiceEx.RateLimiterTest do
 
   describe "tier-based rate limiting" do
     test "higher tiers have more capacity" do
-      free = RateLimiter.get_tier_limits(:free)
-      pro = RateLimiter.get_tier_limits(:pro)
-      growth = RateLimiter.get_tier_limits(:growth)
-      enterprise = RateLimiter.get_tier_limits(:enterprise)
+      {free_rate, free_burst} = RateLimiter.get_tier_limits(:free)
+      {indie_rate, indie_burst} = RateLimiter.get_tier_limits(:indie)
+      {studio_rate, studio_burst} = RateLimiter.get_tier_limits(:studio)
+      {scale_rate, scale_burst} = RateLimiter.get_tier_limits(:scale)
 
-      {free_rate, free_burst} = free
-      {pro_rate, pro_burst} = pro
-      {growth_rate, growth_burst} = growth
-      {enterprise_rate, enterprise_burst} = enterprise
+      # Strictly increasing along the canonical ladder.
+      assert indie_rate > free_rate
+      assert studio_rate > indie_rate
+      assert scale_rate > studio_rate
 
-      assert pro_rate > free_rate
-      assert growth_rate > pro_rate
-      assert enterprise_rate > growth_rate
+      assert indie_burst > free_burst
+      assert studio_burst > indie_burst
+      assert scale_burst > studio_burst
 
-      assert pro_burst > free_burst
-      assert growth_burst > pro_burst
-      assert enterprise_burst > growth_burst
+      # enterprise is the top of the ladder — at least scale, never below it.
+      {ent_rate, ent_burst} = RateLimiter.get_tier_limits(:enterprise)
+      assert ent_rate >= scale_rate
+      assert ent_burst >= scale_burst
     end
   end
 

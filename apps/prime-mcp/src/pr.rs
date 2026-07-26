@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use allsource_core::prime::types::{FullGraph, GraphNode};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// One changed symbol and the code that depends on it.
 pub struct ChangedSymbol {
@@ -109,7 +109,10 @@ pub fn pr_impact(graph: &FullGraph, changed_files: &[String], depth: usize) -> P
     let mut incoming: HashMap<&str, Vec<&str>> = HashMap::new();
     for e in &graph.edges {
         if e.relation == "calls" {
-            incoming.entry(e.target.as_str()).or_default().push(e.source.as_str());
+            incoming
+                .entry(e.target.as_str())
+                .or_default()
+                .push(e.source.as_str());
         }
     }
 
@@ -142,7 +145,11 @@ pub fn pr_impact(graph: &FullGraph, changed_files: &[String], depth: usize) -> P
                 transitive_callers(&incoming, &label, n.id.as_str(), depth, &mut affected);
             symbols.push(ChangedSymbol {
                 file: cf.clone(),
-                symbol: label.get(n.id.as_str()).copied().unwrap_or(&n.id).to_string(),
+                symbol: label
+                    .get(n.id.as_str())
+                    .copied()
+                    .unwrap_or(&n.id)
+                    .to_string(),
                 id: n.id.clone(),
                 kind: n.node_type.clone(),
                 impact,
@@ -207,7 +214,10 @@ pub fn impact_of(graph: &FullGraph, target: &str, depth: usize) -> Value {
     let mut incoming: HashMap<&str, Vec<&str>> = HashMap::new();
     for e in &graph.edges {
         if e.relation == "calls" {
-            incoming.entry(e.target.as_str()).or_default().push(e.source.as_str());
+            incoming
+                .entry(e.target.as_str())
+                .or_default()
+                .push(e.source.as_str());
         }
     }
 
@@ -326,7 +336,12 @@ mod tests {
             call("node:function:z", "node:function:auth"),
             call("node:function:auth", "node:function:help"),
         ];
-        FullGraph { nodes, edges, stats: GraphStats::default(), has_more: false }
+        FullGraph {
+            nodes,
+            edges,
+            stats: GraphStats::default(),
+            has_more: false,
+        }
     }
 
     #[test]
@@ -339,7 +354,11 @@ mod tests {
         assert_eq!(r.symbols[0].symbol, "helper");
         assert_eq!(r.symbols[0].impact, 4);
         // authenticate is called directly by x/y/z = 3.
-        let auth = r.symbols.iter().find(|s| s.symbol == "authenticate").unwrap();
+        let auth = r
+            .symbols
+            .iter()
+            .find(|s| s.symbol == "authenticate")
+            .unwrap();
         assert_eq!(auth.impact, 3);
         // PR-wide unique affected functions: x, y, z, and authenticate = 4.
         assert_eq!(r.total_impacted, 4);

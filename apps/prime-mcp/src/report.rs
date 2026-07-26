@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use allsource_core::prime::types::FullGraph;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// One central symbol in the report.
 pub struct GodNode {
@@ -98,9 +98,17 @@ pub fn compute(graph: &FullGraph, top: usize) -> ReportData {
             cross_community_edges += 1;
             if cross_links.len() < top {
                 cross_links.push(CrossLink {
-                    from: label_of.get(e.source.as_str()).copied().unwrap_or("?").to_string(),
+                    from: label_of
+                        .get(e.source.as_str())
+                        .copied()
+                        .unwrap_or("?")
+                        .to_string(),
                     relation: e.relation.clone(),
-                    to: label_of.get(e.target.as_str()).copied().unwrap_or("?").to_string(),
+                    to: label_of
+                        .get(e.target.as_str())
+                        .copied()
+                        .unwrap_or("?")
+                        .to_string(),
                 });
             }
         }
@@ -214,7 +222,10 @@ impl ReportData {
         }
 
         let _ = writeln!(m, "\n## Confidence\n");
-        let _ = writeln!(m, "How certain each relationship is — `EXTRACTED` is AST-certain, the rest are inferred.\n");
+        let _ = writeln!(
+            m,
+            "How certain each relationship is — `EXTRACTED` is AST-certain, the rest are inferred.\n"
+        );
         let _ = writeln!(m, "| tier | edges |\n|---|---|");
         for (tier, c) in &self.confidence {
             let _ = writeln!(m, "| {tier} | {c} |");
@@ -307,7 +318,10 @@ mod tests {
     }
 
     fn sample() -> FullGraph {
-        let nodes = vec![gnode("node:function:a", "alpha"), gnode("node:function:b", "beta")];
+        let nodes = vec![
+            gnode("node:function:a", "alpha"),
+            gnode("node:function:b", "beta"),
+        ];
         let edges = vec![gedge("node:function:a", "node:function:b", "calls", 0.6)];
         FullGraph {
             nodes,

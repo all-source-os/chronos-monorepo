@@ -2,8 +2,7 @@
 //! parity: Cypher (`Neo4j`/`FalkorDB`), `GraphML` (Gephi/`yEd`), Mermaid (docs), and an
 //! Obsidian / wiki markdown vault. All pure functions over a [`FullGraph`].
 
-use std::collections::HashMap;
-use std::fmt::Write as _;
+use std::{collections::HashMap, fmt::Write as _};
 
 use allsource_core::prime::types::FullGraph;
 use serde_json::Value;
@@ -22,7 +21,13 @@ fn label_of(props: &Value, id: &str) -> String {
 fn slug(s: &str) -> String {
     let mut out: String = s
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect();
     while out.contains("--") {
         out = out.replace("--", "-");
@@ -82,12 +87,19 @@ pub fn to_cypher(g: &FullGraph) -> String {
     for n in &g.nodes {
         let mut props = format!("id: \"{}\"", cypher_escape(&n.id));
         for (k, v) in scalar_props(&n.properties) {
-            let _ = write!(props, ", {}: \"{}\"", slug(&k).replace('-', "_"), cypher_escape(&v));
+            let _ = write!(
+                props,
+                ", {}: \"{}\"",
+                slug(&k).replace('-', "_"),
+                cypher_escape(&v)
+            );
         }
         let _ = writeln!(s, "CREATE (:`{}` {{{props}}});", n.node_type);
     }
     for e in &g.edges {
-        let w = e.weight.map_or(String::new(), |w| format!(" {{weight: {w}}}"));
+        let w = e
+            .weight
+            .map_or(String::new(), |w| format!(" {{weight: {w}}}"));
         let _ = writeln!(
             s,
             "MATCH (a {{id: \"{}\"}}), (b {{id: \"{}\"}}) CREATE (a)-[:`{}`{w}]->(b);",
@@ -107,7 +119,9 @@ pub fn to_graphml(g: &FullGraph) -> String {
     s.push_str("<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">\n");
     s.push_str("  <key id=\"label\" for=\"node\" attr.name=\"label\" attr.type=\"string\"/>\n");
     s.push_str("  <key id=\"type\" for=\"node\" attr.name=\"type\" attr.type=\"string\"/>\n");
-    s.push_str("  <key id=\"relation\" for=\"edge\" attr.name=\"relation\" attr.type=\"string\"/>\n");
+    s.push_str(
+        "  <key id=\"relation\" for=\"edge\" attr.name=\"relation\" attr.type=\"string\"/>\n",
+    );
     s.push_str("  <graph edgedefault=\"directed\">\n");
     for n in &g.nodes {
         let label = xml_escape(&label_of(&n.properties, &n.id));
@@ -138,11 +152,23 @@ pub fn to_mermaid(g: &FullGraph, max_nodes: usize) -> String {
     let deg = degrees(g);
     let mut ids: Vec<&str> = g.nodes.iter().map(|n| n.id.as_str()).collect();
     ids.sort_by(|a, b| {
-        deg.get(b).copied().unwrap_or(0).cmp(&deg.get(a).copied().unwrap_or(0)).then(a.cmp(b))
+        deg.get(b)
+            .copied()
+            .unwrap_or(0)
+            .cmp(&deg.get(a).copied().unwrap_or(0))
+            .then(a.cmp(b))
     });
-    let kept: HashMap<&str, usize> = ids.iter().take(max_nodes).enumerate().map(|(i, id)| (*id, i)).collect();
-    let label: HashMap<&str, String> =
-        g.nodes.iter().map(|n| (n.id.as_str(), label_of(&n.properties, &n.id))).collect();
+    let kept: HashMap<&str, usize> = ids
+        .iter()
+        .take(max_nodes)
+        .enumerate()
+        .map(|(i, id)| (*id, i))
+        .collect();
+    let label: HashMap<&str, String> = g
+        .nodes
+        .iter()
+        .map(|n| (n.id.as_str(), label_of(&n.properties, &n.id)))
+        .collect();
 
     let mut s = String::from("graph TD\n");
     for (id, i) in &kept {
@@ -155,7 +181,11 @@ pub fn to_mermaid(g: &FullGraph, max_nodes: usize) -> String {
         }
     }
     if g.nodes.len() > max_nodes {
-        let _ = writeln!(s, "  %% showing the {max_nodes} busiest of {} nodes", g.nodes.len());
+        let _ = writeln!(
+            s,
+            "  %% showing the {max_nodes} busiest of {} nodes",
+            g.nodes.len()
+        );
     }
     s
 }
@@ -164,8 +194,11 @@ pub fn to_mermaid(g: &FullGraph, max_nodes: usize) -> String {
 /// `[[wikilinks]]`. Returns `(relative path, contents)` pairs.
 #[must_use]
 pub fn to_obsidian(g: &FullGraph) -> Vec<(String, String)> {
-    let label: HashMap<&str, String> =
-        g.nodes.iter().map(|n| (n.id.as_str(), label_of(&n.properties, &n.id))).collect();
+    let label: HashMap<&str, String> = g
+        .nodes
+        .iter()
+        .map(|n| (n.id.as_str(), label_of(&n.properties, &n.id)))
+        .collect();
     // Unique note slug per node id (disambiguate same-label nodes by a suffix).
     let mut note: HashMap<&str, String> = HashMap::new();
     let mut used: HashMap<String, usize> = HashMap::new();
@@ -173,7 +206,11 @@ pub fn to_obsidian(g: &FullGraph) -> Vec<(String, String)> {
         let base = slug(label.get(n.id.as_str()).map_or("node", |l| l.as_str()));
         let base = if base.is_empty() { slug(&n.id) } else { base };
         let count = used.entry(base.clone()).or_default();
-        let name = if *count == 0 { base.clone() } else { format!("{base}-{count}") };
+        let name = if *count == 0 {
+            base.clone()
+        } else {
+            format!("{base}-{count}")
+        };
         *count += 1;
         note.insert(n.id.as_str(), name);
     }
@@ -189,9 +226,13 @@ pub fn to_obsidian(g: &FullGraph) -> Vec<(String, String)> {
         // Outgoing then incoming neighbours.
         let mut links = String::new();
         for e in &g.edges {
-            if e.source == *id && let Some(t) = note.get(e.target.as_str()) {
+            if e.source == *id
+                && let Some(t) = note.get(e.target.as_str())
+            {
                 let _ = writeln!(links, "- {} → [[{t}]]", e.relation);
-            } else if e.target == *id && let Some(s2) = note.get(e.source.as_str()) {
+            } else if e.target == *id
+                && let Some(s2) = note.get(e.source.as_str())
+            {
                 let _ = writeln!(links, "- [[{s2}]] → {} (this)", e.relation);
             }
         }
@@ -208,19 +249,26 @@ pub fn to_obsidian(g: &FullGraph) -> Vec<(String, String)> {
 #[must_use]
 pub fn to_wiki(g: &FullGraph) -> Vec<(String, String)> {
     let pages = to_obsidian(g); // reuse the per-node pages, place them under pages/
-    let label: HashMap<&str, String> =
-        g.nodes.iter().map(|n| (n.id.as_str(), label_of(&n.properties, &n.id))).collect();
+    let label: HashMap<&str, String> = g
+        .nodes
+        .iter()
+        .map(|n| (n.id.as_str(), label_of(&n.properties, &n.id)))
+        .collect();
     // Map node → its page file (same order/slugging as to_obsidian).
     let mut by_type: std::collections::BTreeMap<&str, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
     for (n, (page, _)) in g.nodes.iter().zip(pages.iter()) {
-        by_type
-            .entry(n.node_type.as_str())
-            .or_default()
-            .push((label.get(n.id.as_str()).cloned().unwrap_or_default(), page.clone()));
+        by_type.entry(n.node_type.as_str()).or_default().push((
+            label.get(n.id.as_str()).cloned().unwrap_or_default(),
+            page.clone(),
+        ));
     }
 
-    let mut index = format!("# Code graph wiki\n\n{} nodes, {} edges.\n", g.nodes.len(), g.edges.len());
+    let mut index = format!(
+        "# Code graph wiki\n\n{} nodes, {} edges.\n",
+        g.nodes.len(),
+        g.edges.len()
+    );
     for (ty, mut items) in by_type {
         items.sort();
         let _ = write!(index, "\n## {ty} ({})\n\n", items.len());

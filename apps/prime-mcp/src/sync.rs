@@ -258,8 +258,10 @@ mod tests {
 
     #[tokio::test]
     async fn flush_all_pushes_every_event_then_is_idempotent() {
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
 
         let server = MockServer::start().await;
         Mock::given(method("POST"))

@@ -5,7 +5,7 @@
 //! Plane wrote and project each into the graph so the inbox is visible via
 //! recall/neighbors next to the people it involves.
 //!
-//! See docs/proposals/AI_INBOX_ON_ALLSOURCE.md §4.4 and docs/contracts/email-events.
+//! See `docs/proposals/AI_INBOX_ON_ALLSOURCE.md` §4.4 and docs/contracts/email-events.
 
 use std::{
     path::{Path, PathBuf},
@@ -96,7 +96,7 @@ async fn upsert_person(
     Ok(node_eid("person", id.as_str()))
 }
 
-/// Find an existing `thread` node by conversation_id, or create one.
+/// Find an existing `thread` node by `conversation_id`, or create one.
 async fn upsert_thread(
     prime: &Prime,
     conversation_id: &str,

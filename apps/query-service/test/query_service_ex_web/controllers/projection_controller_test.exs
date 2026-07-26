@@ -16,6 +16,7 @@ defmodule QueryServiceExWeb.ProjectionControllerTest do
   import Plug.Test
   import Plug.Conn
 
+  alias QueryServiceEx.Projections.Enablement
   alias QueryServiceEx.Projections.TenantProjections
   alias QueryServiceExWeb.ProjectionController
 
@@ -250,7 +251,7 @@ defmodule QueryServiceExWeb.ProjectionControllerTest do
   end
 
   defp enable!(tenant, template) do
-    {:ok, _} = QueryServiceEx.Projections.Enablement.enable(tenant, template)
+    {:ok, _} = Enablement.enable(tenant, template)
     :ok
   end
 end

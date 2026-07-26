@@ -108,8 +108,7 @@ pub fn communities(graph: &FullGraph, max_iterations: usize) -> HashMap<String, 
     order.sort_unstable();
 
     // Each node starts in its own community.
-    let mut label: HashMap<&str, String> =
-        order.iter().map(|&id| (id, id.to_string())).collect();
+    let mut label: HashMap<&str, String> = order.iter().map(|&id| (id, id.to_string())).collect();
 
     for _ in 0..max_iterations {
         let mut changed = false;

@@ -257,8 +257,11 @@ fn compute() -> i32 { 42 }
     #[test]
     fn extracts_symbols() {
         let fg = extract_rust_source(SAMPLE, "sample.rs");
-        let syms: Vec<(SymbolKind, &str)> =
-            fg.symbols.iter().map(|s| (s.kind, s.name.as_str())).collect();
+        let syms: Vec<(SymbolKind, &str)> = fg
+            .symbols
+            .iter()
+            .map(|s| (s.kind, s.name.as_str()))
+            .collect();
         assert!(syms.contains(&(SymbolKind::Function, "foo")));
         assert!(syms.contains(&(SymbolKind::Function, "bar")));
         assert!(syms.contains(&(SymbolKind::Function, "main")));
@@ -273,11 +276,19 @@ fn compute() -> i32 { 42 }
         let fg = extract_rust_source(SAMPLE, "sample.rs");
 
         // bar() is called from inside foo()
-        let bar = fg.references.iter().find(|r| r.name == "bar").expect("bar call");
+        let bar = fg
+            .references
+            .iter()
+            .find(|r| r.name == "bar")
+            .expect("bar call");
         assert_eq!(bar.from_fn.as_deref(), Some("foo"));
 
         // a::foo() resolves to callee "foo", called from main()
-        let foo = fg.references.iter().find(|r| r.name == "foo").expect("foo call");
+        let foo = fg
+            .references
+            .iter()
+            .find(|r| r.name == "foo")
+            .expect("foo call");
         assert_eq!(foo.from_fn.as_deref(), Some("main"));
 
         // compute() called from main()

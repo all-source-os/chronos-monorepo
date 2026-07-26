@@ -64,9 +64,15 @@ defmodule QueryServiceExWeb.ChannelCase do
         :ok
 
       tenant ->
-        Phoenix.PubSub.broadcast(QueryServiceEx.PubSub, "events:#{tenant}:all", {:new_event, event})
+        Phoenix.PubSub.broadcast(
+          QueryServiceEx.PubSub,
+          "events:#{tenant}:all",
+          {:new_event, event}
+        )
 
-        if entity_id = event["entity_id"] || event[:entity_id] do
+        entity_id = event["entity_id"] || event[:entity_id]
+
+        if entity_id do
           Phoenix.PubSub.broadcast(
             QueryServiceEx.PubSub,
             "events:#{tenant}:#{entity_id}",
@@ -74,7 +80,9 @@ defmodule QueryServiceExWeb.ChannelCase do
           )
         end
 
-        if event_type = event["event_type"] || event[:event_type] do
+        event_type = event["event_type"] || event[:event_type]
+
+        if event_type do
           Phoenix.PubSub.broadcast(
             QueryServiceEx.PubSub,
             "events:#{tenant}:type:#{event_type}",

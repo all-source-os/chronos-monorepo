@@ -9,6 +9,7 @@ defmodule QueryServiceEx.Application do
   alias QueryServiceEx.Cluster.Topology
   alias QueryServiceEx.Integrations.Kafka
   alias QueryServiceEx.Integrations.RabbitMQ
+  alias QueryServiceEx.Projections.TenantProjections
 
   @impl true
   def start(_type, _args) do
@@ -22,7 +23,7 @@ defmodule QueryServiceEx.Application do
     ProjectionSync.init_cache()
 
     # Initialize ETS tables for the per-tenant (QS-owned) projections feature
-    QueryServiceEx.Projections.TenantProjections.init_tables()
+    TenantProjections.init_tables()
 
     # Get cluster topology child_spec (nil if clustering disabled)
     cluster_children = cluster_children()

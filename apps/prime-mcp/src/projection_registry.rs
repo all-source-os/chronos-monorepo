@@ -1,4 +1,4 @@
-//! **In-memory cache** of declarative `ProjectionDef`s keyed by entity_type.
+//! **In-memory cache** of declarative `ProjectionDef`s keyed by `entity_type`.
 //!
 //! The source of truth is the Core event log — every successful
 //! [`crate::tools::call_define_projection`] writes a
@@ -9,7 +9,7 @@
 //! always called *after* the persistence write succeeds).
 //!
 //! Why this design:
-//! - Definitions survive process restarts — that's the AllSource pitch
+//! - Definitions survive process restarts — that's the `AllSource` pitch
 //! - Definitions are queryable, replayable, time-travellable like any
 //!   other event in Core
 //! - The cache layer keeps tool-call latency low (no per-call query)
@@ -21,9 +21,9 @@
 //!
 //! Single-tenant for now — matches the current prime-mcp architecture
 //! where each process is one tenant. When hosted multi-tenant Prime ships,
-//! either (a) one cache per tenant keyed by tenant_id, or (b) the cache
+//! either (a) one cache per tenant keyed by `tenant_id`, or (b) the cache
 //! is folded into a per-tenant Prime instance. Either works because the
-//! durable side is already tenant-scoped via Core's per-event tenant_id.
+//! durable side is already tenant-scoped via Core's per-event `tenant_id`.
 
 use std::{
     collections::HashMap,
@@ -44,7 +44,7 @@ fn registry() -> &'static RwLock<HashMap<String, ProjectionDef>> {
 /// surface logs at WARN when a replacement happens (see `call_define_projection`).
 ///
 /// Returns `true` if a previous definition was replaced, `false` if this is
-/// the first definition for the entity_type.
+/// the first definition for the `entity_type`.
 pub fn upsert(def: ProjectionDef) -> bool {
     let mut guard = registry().write().expect("projection registry poisoned");
     guard.insert(def.entity_type.clone(), def).is_some()

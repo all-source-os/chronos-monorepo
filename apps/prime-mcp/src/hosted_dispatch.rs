@@ -341,7 +341,10 @@ async fn call_history(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value
 
 async fn call_hound_report_hosted(hosted: &HostedPrime, tenant: &str, args: &Value) -> Value {
     let top = args.get("top").and_then(Value::as_u64).unwrap_or(10) as usize;
-    let markdown = args.get("markdown").and_then(Value::as_bool).unwrap_or(false);
+    let markdown = args
+        .get("markdown")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     match hosted.full_graph(tenant, None, None).await {
         Ok(g) => {
             let data = crate::report::compute(&g, top);
@@ -538,11 +541,19 @@ mod tests {
             .await
             .unwrap();
         let a = hosted
-            .add_node(t, "function", json!({ "name": "alpha", "file": "a.rs", "domain": "code" }))
+            .add_node(
+                t,
+                "function",
+                json!({ "name": "alpha", "file": "a.rs", "domain": "code" }),
+            )
             .await
             .unwrap();
         let b = hosted
-            .add_node(t, "function", json!({ "name": "beta", "file": "a.rs", "domain": "code" }))
+            .add_node(
+                t,
+                "function",
+                json!({ "name": "beta", "file": "a.rs", "domain": "code" }),
+            )
             .await
             .unwrap();
         hosted
@@ -565,7 +576,10 @@ mod tests {
         // hound_impact of beta: alpha transitively calls it.
         let imp = call_hound_impact_hosted(&hosted, t, &json!({ "target": "beta" })).await;
         let text = imp["content"][0]["text"].as_str().unwrap();
-        assert!(text.contains("alpha"), "impact should surface caller alpha: {text}");
+        assert!(
+            text.contains("alpha"),
+            "impact should surface caller alpha: {text}"
+        );
 
         // hound_pr_impact for a.rs returns a review queue.
         let pri = call_hound_pr_impact_hosted(&hosted, t, &json!({ "files": ["a.rs"] })).await;

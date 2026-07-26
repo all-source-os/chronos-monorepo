@@ -17,23 +17,23 @@ use clap::Parser;
 use std::path::{Path, PathBuf};
 use tracing_subscriber::EnvFilter;
 
+mod analytics;
 mod core_writer;
 mod dispatch;
-mod email_ingester;
-mod analytics;
 mod doc_extract;
+mod email_ingester;
 mod export;
 mod hosted_dispatch;
+#[cfg(test)]
+mod hosted_test_core;
 mod hound;
 mod http;
 mod install;
 mod pr;
-mod report;
-#[cfg(test)]
-mod hosted_test_core;
 mod profiling;
 mod projection_registry;
 mod protocol;
+mod report;
 mod sync;
 mod templates;
 mod tools;
@@ -78,6 +78,10 @@ enum Format {
     about = "AllSource Prime — unified agent memory engine. Supports MCP (stdio) and HTTP modes.",
     version
 )]
+// A CLI flags struct legitimately has many booleans — one per --flag. Restructuring
+// clap args to satisfy struct_excessive_bools would make the interface worse, not
+// better.
+#[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Path to Prime data directory (WAL, Parquet, projection checkpoints).
     /// Defaults to the standard `~/.prime/memory`; not needed for `--mode install`.
@@ -128,12 +132,12 @@ struct Cli {
     path: Option<PathBuf>,
 
     /// In `--mode hound`, also embed each file/symbol (in-process, no LLM) so the
-    /// code graph is searchable by meaning via prime_recall. Opt-in: runs the
+    /// code graph is searchable by meaning via `prime_recall`. Opt-in: runs the
     /// embedder once per node.
     #[arg(long, env = "PRIME_HOUND_EMBED")]
     embed: bool,
 
-    /// In `--mode hound`, write a human-readable GRAPH_REPORT.md to this path
+    /// In `--mode hound`, write a human-readable `GRAPH_REPORT.md` to this path
     /// after ingest (Graphify-style). Omit to skip.
     #[arg(long, value_name = "PATH")]
     report: Option<PathBuf>,
@@ -155,7 +159,7 @@ struct Cli {
     export_out: Option<PathBuf>,
 
     /// In `--mode hound`, also extract a knowledge graph from docs (markdown/
-    /// text) under this path via the configured LLM (PRIME_LLM_ENDPOINT). Prose
+    /// text) under this path via the configured LLM (`PRIME_LLM_ENDPOINT`). Prose
     /// only; code still comes from the positional PATH.
     #[arg(long, value_name = "PATH")]
     docs: Option<PathBuf>,
@@ -240,7 +244,11 @@ async fn main() -> Result<()> {
                 Ok(o) if o.status.success() => {
                     let rel = String::from_utf8_lossy(&o.stdout).trim().to_string();
                     let p = PathBuf::from(&rel);
-                    if p.is_absolute() { p } else { repo_root.join(p) }
+                    if p.is_absolute() {
+                        p
+                    } else {
+                        repo_root.join(p)
+                    }
                 }
                 _ => anyhow::bail!(
                     "not a git repository (git rev-parse failed) — run from the repo root"
@@ -266,9 +274,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         let root = if cli.global {
-            PathBuf::from(
-                std::env::var("HOME").map_err(|_| anyhow::anyhow!("HOME is not set"))?,
-            )
+            PathBuf::from(std::env::var("HOME").map_err(|_| anyhow::anyhow!("HOME is not set"))?)
         } else {
             std::env::current_dir()?
         };
@@ -425,7 +431,10 @@ async fn main() -> Result<()> {
         // Opt-in: LLM extraction of prose docs under --docs, into the same graph.
         if let Some(docs_raw) = cli.docs.as_ref() {
             let docs_path = expand_home_path(docs_raw);
-            tracing::info!("Hound: extracting docs from {:?} via the configured LLM", docs_path);
+            tracing::info!(
+                "Hound: extracting docs from {:?} via the configured LLM",
+                docs_path
+            );
             let d = doc_extract::extract_docs(&prime, &docs_path, cli.embed).await?;
             tracing::info!(
                 files = d.files,

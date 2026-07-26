@@ -186,9 +186,6 @@ defmodule QueryServiceExWeb.AdminMetricsController do
     ingested = PrometheusParser.get_metric(parsed, "allsource_events_ingested_total")
     denom = ingested + errors
 
-    cond do
-      denom > 0 -> Float.round(errors / denom * 100, 2)
-      true -> 0.0
-    end
+    if denom > 0, do: Float.round(errors / denom * 100, 2), else: 0.0
   end
 end

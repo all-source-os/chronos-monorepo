@@ -5,8 +5,8 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/allsource/control-plane/internal/infrastructure/clients"
 	"github.com/allsource/control-plane/internal/domain/repositories"
+	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
 // SubSyncResult records the outcome of reconciling one tenant's subscriptions.
