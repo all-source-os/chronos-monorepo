@@ -79,7 +79,8 @@ help:
 	@echo ""
 	@echo "Version Management:"
 	@echo "  make bump-version      - Interactive version bump"
-	@echo "  make set-version VERSION=X.Y.Z - Set version across all services"
+	@echo "  make set-version VERSION=X.Y.Z - Set version across all apps (not SDKs)"
+	@echo "  make set-sdk-version SDK=<lang> VERSION=X.Y.Z - Set ONE SDK version"
 	@echo "  make check-versions    - Check version consistency"
 	@echo "  make publish-sdks      - Dry-run SDK publishing (validate before CI)"
 	@echo ""
@@ -661,6 +662,30 @@ images-check:
 # =============================================================================
 
 # Set version across all services
+# Set the version of ONE SDK. SDKs release independently of the apps and of each
+# other — CLAUDE.md: "SDK-only releases use sdk-<lang>-v<VERSION> ... so per-SDK
+# versions don't collide with Core/QS versions". `set-version` therefore leaves
+# them alone; rewriting them in lockstep would push a published SDK's version
+# backwards (e.g. @allsourcedev/client is on npm at 0.23.1, apps at 0.22.0).
+# Usage: make set-sdk-version SDK=typescript VERSION=0.23.2
+set-sdk-version:
+ifndef SDK
+	@echo "ERROR: SDK is required. One of: rust, go, typescript, python"
+	@exit 1
+endif
+ifndef VERSION
+	@echo "ERROR: VERSION is required. Usage: make set-sdk-version SDK=typescript VERSION=0.23.2"
+	@exit 1
+endif
+	@case "$(SDK)" in \
+	  rust) sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/rust/Cargo.toml ;; \
+	  go) sed -i '' 's/Version = "[0-9]*\.[0-9]*\.[0-9]*"/Version = "$(VERSION)"/' sdks/go/version.go ;; \
+	  typescript|ts) sed -i '' 's/"version": "[0-9]*\.[0-9]*\.[0-9]*"/"version": "$(VERSION)"/' sdks/typescript/package.json ;; \
+	  python|py) sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/python-client/pyproject.toml ;; \
+	  *) echo "ERROR: unknown SDK '$(SDK)' (want rust, go, typescript, python)"; exit 1 ;; \
+	esac
+	@echo "$(SDK) SDK set to $(VERSION). Tag it as sdk-$(SDK)-v$(VERSION)."
+
 # Usage: make set-version VERSION=0.9.0
 set-version:
 ifndef VERSION
@@ -686,14 +711,7 @@ endif
 	@echo "Updating README.md version..."
 	@sed -i '' 's/version: "[0-9]*\.[0-9]*\.[0-9]*"/version: "$(VERSION)"/' README.md
 	@sed -i '' 's/\*\*Monorepo Version\*\*: v[0-9]*\.[0-9]*\.[0-9]*/\*\*Monorepo Version\*\*: v$(VERSION)/' README.md
-	@echo "Updating Rust SDK (Cargo.toml)..."
-	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/rust/Cargo.toml
-	@echo "Updating Go SDK (version.go)..."
-	@sed -i '' 's/Version = "[0-9]*\.[0-9]*\.[0-9]*"/Version = "$(VERSION)"/' sdks/go/version.go
-	@echo "Updating TypeScript SDK (package.json)..."
-	@sed -i '' 's/"version": "[0-9]*\.[0-9]*\.[0-9]*"/"version": "$(VERSION)"/' sdks/typescript/package.json
-	@echo "Updating Python SDK (pyproject.toml)..."
-	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' sdks/python-client/pyproject.toml
+	@echo "Skipping SDKs — they version independently (see set-sdk-version)."
 	@echo "Updating Prime MCP Server (Cargo.toml)..."
 	@sed -i '' 's/^version = "[0-9]*\.[0-9]*\.[0-9]*"/version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
 	@sed -i '' 's/allsource-core = { version = "[0-9]*\.[0-9]*\(\.[0-9]*\)\{0,1\}"/allsource-core = { version = "$(VERSION)"/' apps/prime-mcp/Cargo.toml
@@ -711,10 +729,6 @@ endif
 	@echo "  - deploy/k8s/core.yaml"
 	@echo "  - deploy/k8s/query-service.yaml"
 	@echo "  - README.md"
-	@echo "  - sdks/rust/Cargo.toml"
-	@echo "  - sdks/go/version.go"
-	@echo "  - sdks/typescript/package.json"
-	@echo "  - sdks/python-client/pyproject.toml"
 	@echo "  - apps/prime-mcp/Cargo.toml"
 	@echo "  - tooling/recall-bench/Cargo.toml"
 	@echo ""

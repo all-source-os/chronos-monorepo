@@ -422,27 +422,44 @@ get_sdk_versions() {
         fi
     fi
 
-    # Check SDK versions match each other
+    # SDKs version INDEPENDENTLY of each other and of the apps.
+    #
+    # Per CLAUDE.md: "SDK-only releases use sdk-<lang>-v<VERSION> (e.g.
+    # sdk-rust-v0.19.0) so per-SDK versions don't collide with Core/QS versions."
+    # An SDK that ships a fix on its own is SUPPOSED to move ahead — e.g.
+    # @allsourcedev/client is published on npm at 0.23.1 while the apps are on
+    # 0.22.0. Requiring equality here made a correct repo fail CI, and the
+    # remedy it suggested ('make set-version') would have rewritten a published
+    # SDK's version *backwards*.
+    #
+    # So: report the versions, and only fail on one that is missing or malformed.
     local unique_sdk=($(printf '%s\n' "${sdk_versions[@]}" | sort -u))
-    if [ ${#unique_sdk[@]} -gt 1 ]; then
-        log_error "SDK version mismatch detected!"
-        log_error "  Found versions: ${unique_sdk[*]}"
-        log_error "  Run 'make set-version VERSION=X.Y.Z' to fix"
-        for sdk in "${!sdk_versions[@]}"; do
-            add_json_result "$sdk" "sdk-version" "${unique_sdk[0]}" "${sdk_versions[$sdk]}" "error" ""
-        done
-    elif [ ${#unique_sdk[@]} -eq 1 ]; then
-        log_success "All SDK versions consistent: ${unique_sdk[0]}"
-        add_json_result "all-sdks" "sdk-version" "${unique_sdk[0]}" "${unique_sdk[0]}" "ok" ""
-    fi
 
-    # Check SDK versions match app version (Core as reference)
-    if [ ${#unique_sdk[@]} -eq 1 ] && [ -f "apps/core/Cargo.toml" ]; then
-        local core_version=$(grep -E '^version\s*=' apps/core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/' || echo "")
-        if [ -n "$core_version" ] && [ "${unique_sdk[0]}" != "$core_version" ]; then
-            log_error "SDK version (${unique_sdk[0]}) does not match Core version ($core_version)"
-            add_json_result "sdks-vs-core" "version-sync" "$core_version" "${unique_sdk[0]}" "error" ""
+    # A manifest that EXISTS but yields no parseable version is a real problem:
+    # the extractors above return empty on a malformed value, which would
+    # otherwise drop that SDK from this report silently rather than failing.
+    local sdk_entry sdk_name sdk_manifest
+    for sdk_entry in \
+        "rust-sdk:sdks/rust/Cargo.toml" \
+        "go-sdk:sdks/go/version.go" \
+        "ts-sdk:sdks/typescript/package.json" \
+        "python-sdk:sdks/python-client/pyproject.toml"; do
+        sdk_name="${sdk_entry%%:*}"
+        sdk_manifest="${sdk_entry#*:}"
+        if [ -f "$sdk_manifest" ] && [ -z "${sdk_versions[$sdk_name]:-}" ]; then
+            log_error "$sdk_name: no parseable version in $sdk_manifest (want X.Y.Z)"
+            add_json_result "$sdk_name" "sdk-version" "X.Y.Z" "unparseable" "error" ""
         fi
+    done
+
+    for sdk in "${!sdk_versions[@]}"; do
+        add_json_result "$sdk" "sdk-version" "${sdk_versions[$sdk]}" "${sdk_versions[$sdk]}" "ok" ""
+    done
+
+    if [ ${#unique_sdk[@]} -gt 1 ]; then
+        log_success "SDK versions (independent by design): ${unique_sdk[*]}"
+    elif [ ${#unique_sdk[@]} -eq 1 ]; then
+        log_success "All SDK versions currently aligned at ${unique_sdk[0]}"
     fi
     log ""
 }
