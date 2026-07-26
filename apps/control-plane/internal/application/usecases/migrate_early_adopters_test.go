@@ -32,7 +32,7 @@ func saveTenantTier(t *testing.T, repo *persistence.MemoryTenantRepository, id, 
 
 func TestMigrateEarlyAdopters_AppliesVoucherAndOwner(t *testing.T) {
 	uc, repo := migrateSetup(t)
-	saveTenantTier(t, repo, "owner", "")       // free → owner comp
+	saveTenantTier(t, repo, "owner", "")        // free → owner comp
 	saveTenantTier(t, repo, "free-1", "")       // free → voucher
 	saveTenantTier(t, repo, "paid-1", "studio") // already paid → skip
 

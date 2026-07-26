@@ -16,11 +16,10 @@
 //! AMBIGUOUS (edges to each); matching none is counted `unresolved` (external /
 //! std / macro) and dropped.
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use allsource_core::prime::Prime;
-use hound_extract::{extract, RefKind, SymbolKind};
+use hound_extract::{RefKind, SymbolKind, extract};
 use serde_json::json;
 
 #[derive(Debug, Default)]
@@ -105,9 +104,9 @@ pub async fn ingest(
     // can't load — rather than ingesting a half-embedded graph. Mirrors the
     // actionable error `--mode warm` surfaces.
     if embed {
-        prime
-            .embed_text("warm")
-            .map_err(|e| anyhow::anyhow!("embedding requested but the embedder is unavailable: {e}"))?;
+        prime.embed_text("warm").map_err(|e| {
+            anyhow::anyhow!("embedding requested but the embedder is unavailable: {e}")
+        })?;
     }
 
     // function name → wire ids (cross-file call-target resolution)
@@ -171,7 +170,10 @@ pub async fn ingest(
             }
 
             if sym.kind == SymbolKind::Function {
-                fn_by_name.entry(sym.name.clone()).or_default().push(wire.clone());
+                fn_by_name
+                    .entry(sym.name.clone())
+                    .or_default()
+                    .push(wire.clone());
                 fn_in_file.insert((fg.path.clone(), sym.name.clone()), wire);
             }
         }

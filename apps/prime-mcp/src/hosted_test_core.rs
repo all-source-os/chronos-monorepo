@@ -10,9 +10,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use serde_json::{json, Value};
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
+use serde_json::{Value, json};
+use wiremock::{
+    Mock, MockServer, Request, Respond, ResponseTemplate,
+    matchers::{method, path},
+};
 
 #[derive(Clone, Default)]
 struct CoreEvents {

@@ -63,7 +63,7 @@ fn sync_status() -> SyncStatus {
 
 /// Build the `sync` object embedded in `prime_stats` output. Mirrors the
 /// startup log so an agent can read back whether its writes will appear in the
-/// AllSource dashboard. Also reused by the HTTP `/api/v1/prime/stats` handler.
+/// `AllSource` dashboard. Also reused by the HTTP `/api/v1/prime/stats` handler.
 pub fn sync_status_json() -> Value {
     let status = sync_status();
     if status.enabled {
@@ -543,7 +543,7 @@ fn call_list_projections() -> Value {
     tool_result(json!({ "projections": payload }))
 }
 
-/// Parse a node entity_id of the form `node:{type}:{id}` and return the
+/// Parse a node `entity_id` of the form `node:{type}:{id}` and return the
 /// type segment. The format is documented in every node-related tool's
 /// description; this is the inverse used by the projection lookup path.
 fn entity_type_from_node_id(node_id: &str) -> Option<&str> {
@@ -673,7 +673,7 @@ fn node_eid(node_type: &str, id: &str) -> String {
     allsource_core::prime::EntityId::node(node_type, id).to_string()
 }
 
-/// inbox_recall_thread: a thread's interaction nodes + each one's neighbors.
+/// `inbox_recall_thread`: a thread's interaction nodes + each one's neighbors.
 fn call_inbox_recall_thread(prime: &Prime, args: &Value) -> Value {
     let Some(conversation_id) = args.get("conversation_id").and_then(Value::as_str) else {
         return tool_error("missing 'conversation_id'");
@@ -725,8 +725,8 @@ fn call_inbox_recall_thread(prime: &Prime, args: &Value) -> Value {
     }))
 }
 
-/// Build an `email.drafted` (entity_id = draft_id, payload, metadata) from tool
-/// args. Pure + testable; the remote write is separate. Requires thread_id,
+/// Build an `email.drafted` (`entity_id` = `draft_id`, payload, metadata) from tool
+/// args. Pure + testable; the remote write is separate. Requires `thread_id`,
 /// body, intent (see docs/contracts/email-events/schema/email.drafted.schema.json).
 fn build_drafted_event(args: &Value) -> Result<(String, Value, Value), String> {
     let thread_id = args
@@ -763,7 +763,7 @@ fn build_drafted_event(args: &Value) -> Result<(String, Value, Value), String> {
     Ok((draft_id, payload, metadata))
 }
 
-/// inbox_draft: persist a reviewed reply as a durable email.drafted Core event.
+/// `inbox_draft`: persist a reviewed reply as a durable email.drafted Core event.
 async fn call_inbox_draft(args: &Value) -> Value {
     let (draft_id, payload, metadata) = match build_drafted_event(args) {
         Ok(t) => t,
@@ -954,7 +954,10 @@ async fn call_hound_ingest(prime: &Prime, args: &Value) -> Value {
         return tool_error("missing 'path' — the directory (or file) to extract");
     };
     let embed = args.get("embed").and_then(Value::as_bool).unwrap_or(false);
-    let rebuild = args.get("rebuild").and_then(Value::as_bool).unwrap_or(false);
+    let rebuild = args
+        .get("rebuild")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     match crate::hound::ingest(prime, std::path::Path::new(path), embed, rebuild).await {
         Ok(s) => tool_result(json!({
             "files": s.files,
@@ -1080,7 +1083,10 @@ fn call_hound_impact(prime: &Prime, args: &Value) -> Value {
 /// rendered `GRAPH_REPORT.md` instead of the JSON payload.
 fn call_hound_report(prime: &Prime, args: &Value) -> Value {
     let top = args.get("top").and_then(Value::as_u64).unwrap_or(10) as usize;
-    let markdown = args.get("markdown").and_then(Value::as_bool).unwrap_or(false);
+    let markdown = args
+        .get("markdown")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let g = prime.full_graph(None, None, None);
     let data = crate::report::compute(&g, top);
     if markdown {
@@ -1414,8 +1420,7 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
 
         // 1. Ingest: 1 file + 3 fns = 4 nodes; defines 3; calls run→helper, other→run = 2.
-        let ing =
-            call_hound_ingest(&prime, &json!({ "path": dir.path().to_str().unwrap() })).await;
+        let ing = call_hound_ingest(&prime, &json!({ "path": dir.path().to_str().unwrap() })).await;
         assert_ne!(ing.get("isError"), Some(&json!(true)));
         let t = ing["content"][0]["text"].as_str().unwrap();
         assert!(t.contains("\"nodes\": 4"), "got: {t}");
@@ -1459,11 +1464,18 @@ mod tests {
 
         // Re-ingest with rebuild → replaces, does not duplicate.
         call_hound_ingest(&prime, &path).await;
-        assert_eq!(live(&prime), (n1, e1), "rebuild must not duplicate the live graph");
+        assert_eq!(
+            live(&prime),
+            (n1, e1),
+            "rebuild must not duplicate the live graph"
+        );
 
         // Without rebuild, a re-ingest DOES append (the bug rebuild exists to fix).
         call_hound_ingest(&prime, &json!({ "path": dir.path().to_str().unwrap() })).await;
-        assert!(live(&prime).0 > n1, "append (no rebuild) should add duplicate nodes");
+        assert!(
+            live(&prime).0 > n1,
+            "append (no rebuild) should add duplicate nodes"
+        );
     }
 
     #[tokio::test]
@@ -1579,9 +1591,9 @@ mod tests {
         );
     }
 
-    /// End-to-end via the public dispatch surface: list_templates lists every
-    /// bundled template; load_template("contact") returns the shape an agent
-    /// would use to call prime_add_node with the right properties + relations.
+    /// End-to-end via the public dispatch surface: `list_templates` lists every
+    /// bundled template; `load_template("contact`") returns the shape an agent
+    /// would use to call `prime_add_node` with the right properties + relations.
     #[test]
     fn template_dispatch_round_trip() {
         let listed = call_list_templates();

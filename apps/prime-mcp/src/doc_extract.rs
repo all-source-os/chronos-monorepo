@@ -13,8 +13,10 @@
 //! Extractions are tagged INFERRED (weight 0.6) — they are a model's reading of
 //! the text, not AST-certain like code.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use allsource_core::prime::Prime;
 use anyhow::{Context, Result};
@@ -43,10 +45,14 @@ pub struct LlmConfig {
 impl LlmConfig {
     /// Read config from the environment, or `None` if `PRIME_LLM_ENDPOINT` is unset.
     pub fn from_env() -> Option<Self> {
-        let endpoint = std::env::var("PRIME_LLM_ENDPOINT").ok().filter(|s| !s.is_empty())?;
+        let endpoint = std::env::var("PRIME_LLM_ENDPOINT")
+            .ok()
+            .filter(|s| !s.is_empty())?;
         Some(Self {
             endpoint,
-            api_key: std::env::var("PRIME_LLM_API_KEY").ok().filter(|s| !s.is_empty()),
+            api_key: std::env::var("PRIME_LLM_API_KEY")
+                .ok()
+                .filter(|s| !s.is_empty()),
             model: std::env::var("PRIME_LLM_MODEL")
                 .ok()
                 .filter(|s| !s.is_empty())
@@ -114,7 +120,11 @@ fn safe_token(s: &str, fallback: &str) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let t = t.trim_matches('_').to_string();
-    if t.is_empty() { fallback.to_string() } else { t }
+    if t.is_empty() {
+        fallback.to_string()
+    } else {
+        t
+    }
 }
 
 /// Pull the JSON object out of an LLM response (handles fenced and bare JSON
@@ -155,7 +165,9 @@ fn find_docs(root: &Path, out: &mut Vec<PathBuf>) {
         out.push(root.to_path_buf());
         return;
     }
-    let Ok(rd) = std::fs::read_dir(root) else { return };
+    let Ok(rd) = std::fs::read_dir(root) else {
+        return;
+    };
     for entry in rd.flatten() {
         let p = entry.path();
         if p.is_dir() {
@@ -354,7 +366,13 @@ async fn fold(
         if let (Some(from), Some(to)) = (by_name.get(&r.from), by_name.get(&r.to)) {
             let rel = safe_token(&r.relation, "related_to");
             prime
-                .add_edge_weighted(from, to, &rel, 0.6, Some(json!({ "confidence": "INFERRED" })))
+                .add_edge_weighted(
+                    from,
+                    to,
+                    &rel,
+                    0.6,
+                    Some(json!({ "confidence": "INFERRED" })),
+                )
                 .await?;
             s.relationships += 1;
         }
@@ -386,9 +404,9 @@ pub async fn extract_docs_with(
     transcribe_cmd: Option<&str>,
 ) -> Result<DocSummary> {
     if embed {
-        prime
-            .embed_text("warm")
-            .map_err(|e| anyhow::anyhow!("embedding requested but the embedder is unavailable: {e}"))?;
+        prime.embed_text("warm").map_err(|e| {
+            anyhow::anyhow!("embedding requested but the embedder is unavailable: {e}")
+        })?;
     }
 
     let mut files = Vec::new();
@@ -461,8 +479,10 @@ async fn emit_usage(prime: &Prime, model: &str, s: &DocSummary) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{method, path as mpath};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path as mpath},
+    };
 
     #[test]
     fn parse_handles_fenced_and_bare_json() {
@@ -485,7 +505,10 @@ mod tests {
 
     #[test]
     fn safe_token_sanitizes() {
-        assert_eq!(safe_token("Software Component", "concept"), "software_component");
+        assert_eq!(
+            safe_token("Software Component", "concept"),
+            "software_component"
+        );
         assert_eq!(safe_token("", "concept"), "concept");
         assert_eq!(safe_token("depends-on!", "related_to"), "depends_on");
     }
@@ -495,8 +518,16 @@ mod tests {
         let prime = Prime::open_in_memory().await.unwrap();
         let ex = Extraction {
             entities: vec![
-                Entity { name: "LoginForm".into(), kind: "component".into(), summary: "the UI".into() },
-                Entity { name: "AuthService".into(), kind: "service".into(), summary: "auth".into() },
+                Entity {
+                    name: "LoginForm".into(),
+                    kind: "component".into(),
+                    summary: "the UI".into(),
+                },
+                Entity {
+                    name: "AuthService".into(),
+                    kind: "service".into(),
+                    summary: "auth".into(),
+                },
             ],
             relationships: vec![Relationship {
                 from: "LoginForm".into(),
@@ -534,7 +565,11 @@ mod tests {
             .await;
 
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("design.md"), "Billing depends on the Queue for async work.").unwrap();
+        std::fs::write(
+            dir.path().join("design.md"),
+            "Billing depends on the Queue for async work.",
+        )
+        .unwrap();
 
         let prime = Prime::open_in_memory().await.unwrap();
         let cfg = LlmConfig {
@@ -542,7 +577,9 @@ mod tests {
             api_key: None,
             model: "test-model".into(),
         };
-        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None).await.unwrap();
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None)
+            .await
+            .unwrap();
         assert_eq!(s.files, 1);
         assert_eq!(s.entities, 2);
         assert_eq!(s.relationships, 1);
@@ -550,7 +587,11 @@ mod tests {
         let g = prime.full_graph(None, None, None);
         // 1 document + 2 entities.
         assert_eq!(g.nodes.len(), 3);
-        assert!(g.nodes.iter().any(|n| n.properties.get("name").and_then(|v| v.as_str()) == Some("Billing")));
+        assert!(
+            g.nodes
+                .iter()
+                .any(|n| n.properties.get("name").and_then(|v| v.as_str()) == Some("Billing"))
+        );
         assert!(g.edges.iter().any(|e| e.relation == "depends_on"));
     }
 
@@ -562,7 +603,10 @@ mod tests {
         let p = dir.path().join("sample.pdf");
         std::fs::write(&p, bytes).unwrap();
         let text = read_doc_text(&p, None).unwrap();
-        assert!(text.contains("AuthService"), "PDF text missing marker: {text:?}");
+        assert!(
+            text.contains("AuthService"),
+            "PDF text missing marker: {text:?}"
+        );
     }
 
     #[tokio::test]
@@ -590,7 +634,9 @@ mod tests {
             api_key: None,
             model: "m".into(),
         };
-        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None).await.unwrap();
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None)
+            .await
+            .unwrap();
         // The PDF was discovered, text-extracted, sent to the LLM, and folded.
         assert_eq!(s.files, 1);
         assert_eq!(s.entities, 1);
@@ -696,7 +742,9 @@ mod tests {
             api_key: None,
             model: "meter-model".into(),
         };
-        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None).await.unwrap();
+        let s = extract_docs_with(&prime, dir.path(), false, &cfg, None)
+            .await
+            .unwrap();
 
         // Usage is captured from the response's `usage` block.
         assert_eq!(s.llm_calls, 1);

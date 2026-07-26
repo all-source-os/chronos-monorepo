@@ -44,8 +44,7 @@ See https://www.all-source.xyz to connect.
 `prime_recall`, `prime_neighbors`, `prime_shortest_path`.
 "#;
 
-const DESCRIPTION: &str =
-    "Query this repo's code as a durable knowledge graph (Prime Hound) over MCP — \
+const DESCRIPTION: &str = "Query this repo's code as a durable knowledge graph (Prime Hound) over MCP — \
 impact analysis, PR triage, structural reports, and semantic code search. Use \
 instead of grepping when you need structure.";
 
@@ -187,7 +186,11 @@ mod tests {
         // claude-code + cursor + agents = 3 distinct files (cursor alias dedup'd).
         assert_eq!(written.len(), 3);
         assert!(dir.path().join(".cursor/rules/prime-hound.mdc").exists());
-        assert!(dir.path().join(".agents/skills/prime-hound/SKILL.md").exists());
+        assert!(
+            dir.path()
+                .join(".agents/skills/prime-hound/SKILL.md")
+                .exists()
+        );
     }
 
     #[test]
@@ -236,7 +239,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let hooks = dir.path().join(".git/hooks");
         std::fs::create_dir_all(&hooks).unwrap();
-        std::fs::write(hooks.join("post-commit"), "#!/bin/sh\necho someone-elses-hook\n").unwrap();
+        std::fs::write(
+            hooks.join("post-commit"),
+            "#!/bin/sh\necho someone-elses-hook\n",
+        )
+        .unwrap();
         assert!(git_hook(&hooks, dir.path(), Path::new("/x"), Path::new("/y")).is_err());
     }
 }

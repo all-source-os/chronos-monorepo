@@ -19,7 +19,7 @@ use std::{collections::HashMap, sync::OnceLock};
 
 use serde_json::Value;
 
-/// All bundled templates, keyed by entity_type. Lazily initialised.
+/// All bundled templates, keyed by `entity_type`. Lazily initialised.
 fn templates() -> &'static HashMap<&'static str, Value> {
     static CELL: OnceLock<HashMap<&'static str, Value>> = OnceLock::new();
     CELL.get_or_init(|| {
@@ -49,7 +49,7 @@ const BUNDLED_TEMPLATES: &[(&str, &str)] = &[
     ("document", include_str!("../templates/document.json")),
 ];
 
-/// Return a summary view of every template: entity_type + description.
+/// Return a summary view of every template: `entity_type` + description.
 /// Used by the `prime_list_templates` MCP tool so agents can decide which
 /// one to fetch in full.
 pub fn list_templates_summary() -> Value {
