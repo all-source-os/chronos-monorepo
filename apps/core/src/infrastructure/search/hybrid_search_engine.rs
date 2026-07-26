@@ -921,14 +921,29 @@ mod integration_tests {
     use super::*;
     use crate::infrastructure::search::{KeywordSearchEngineConfig, VectorSearchEngineConfig};
 
+    // VectorSearchEngine::with_config eagerly calls TextEmbedding::try_new, which
+    // retrieves the ONNX model. cargo runs these tests in parallel, so on a cold
+    // cache three concurrent retrievals race and one loses with
+    // "Failed to retrieve model.onnx" — reproducibly the third test. Serialize
+    // construction so the first call populates the cache and the rest read it.
+    static MODEL_INIT: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn create_test_engines() -> (Arc<VectorSearchEngine>, Arc<KeywordSearchEngine>) {
-        let vector_engine = Arc::new(
-            VectorSearchEngine::with_config(VectorSearchEngineConfig {
-                default_similarity_threshold: 0.0,
-                ..Default::default()
-            })
-            .unwrap(),
-        );
+        let vector_engine = {
+            // A poisoned lock only means another test panicked; the cache is still
+            // usable, so recover rather than cascading the failure.
+            let _guard = MODEL_INIT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+            Arc::new(
+                VectorSearchEngine::with_config(VectorSearchEngineConfig {
+                    default_similarity_threshold: 0.0,
+                    ..Default::default()
+                })
+                .unwrap(),
+            )
+        };
 
         let keyword_engine = Arc::new(
             KeywordSearchEngine::with_config(KeywordSearchEngineConfig {
