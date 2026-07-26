@@ -32,7 +32,7 @@ func serveResend(h *ResendWebhookHandler, body []byte) *httptest.ResponseRecorde
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.POST("/api/v1/webhooks/resend/inbound", h.Inbound)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/resend/inbound", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/resend/inbound", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w
@@ -137,7 +137,7 @@ func serveResendEvents(h *ResendWebhookHandler, body []byte) *httptest.ResponseR
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.POST("/api/v1/webhooks/resend/events", h.Events)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/resend/events", bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/resend/events", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,7 @@ func doCORS(t *testing.T, allowed map[string]struct{}, method, origin string) *h
 	r.Use(corsMiddleware(allowed))
 	r.GET("/x", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest(method, "/x", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), method, "/x", http.NoBody)
 	if origin != "" {
 		req.Header.Set("Origin", origin)
 	}

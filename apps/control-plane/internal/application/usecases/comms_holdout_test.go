@@ -55,10 +55,13 @@ func newCommsUC(repo *persistence.MemoryTenantRepository, core clients.CoreClien
 // --- HoldoutAssignment: deterministic + bounded ---
 
 func TestHoldoutAssignment_Deterministic(t *testing.T) {
-	// Same (tenant, campaign) always lands the same side, on every call.
+	// Same (tenant, campaign) always lands the same side, on every call. Capture
+	// the first result and compare against it — comparing a call to itself would
+	// hold even if the function were nondeterministic within a single expression.
+	want := HoldoutAssignment("tenant-x", "camp-1", 50)
 	for i := 0; i < 100; i++ {
-		if HoldoutAssignment("tenant-x", "camp-1", 50) != HoldoutAssignment("tenant-x", "camp-1", 50) {
-			t.Fatal("holdout assignment is not stable for the same (tenant, campaign)")
+		if got := HoldoutAssignment("tenant-x", "camp-1", 50); got != want {
+			t.Fatalf("holdout assignment is not stable for the same (tenant, campaign): call %d gave %v, want %v", i, got, want)
 		}
 	}
 	// Boundaries: 0% never holds out, 100% always.

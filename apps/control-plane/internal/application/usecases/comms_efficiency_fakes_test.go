@@ -45,13 +45,6 @@ func (c *effCore) addEvent(tenant, eventType, entityID string, ts time.Time, pay
 	c.events = append(c.events, effEvent{tenant: tenant, eventType: eventType, entityID: entityID, ts: ts.UTC(), payload: payload})
 }
 
-// markChurned makes QueryEvents for a tenant return an error (deleted/unreadable).
-func (c *effCore) markChurned(tenant string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.churned[tenant] = true
-}
-
 func (c *effCore) QueryEvents(_ context.Context, req clients.QueryEventsRequest) (*clients.QueryEventsResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

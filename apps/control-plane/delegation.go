@@ -370,7 +370,11 @@ func (cp *ControlPlane) ProxyPrime(c *gin.Context) {
 // response (choices + usage) is copied back. Mirrors forwardRequest's status +
 // body copy so streaming and non-streaming replies both pass through.
 func (d *delegationClient) forwardExtraction(c *gin.Context, upstreamURL, apiKey string, body []byte) {
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
+	// upstreamURL is EXTRACTION_LLM_URL from the process environment (see the
+	// single caller, ProxyExtraction) — operator-configured, never caller-derived.
+	// Only the request BODY comes from the tenant. G704's taint analysis cannot
+	// see that, so it flags the parameter.
+	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body)) //nolint:gosec // G704 false positive: URL is operator-set env, not user input
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "extraction build request", "message": err.Error()})
 		return
@@ -380,7 +384,7 @@ func (d *delegationClient) forwardExtraction(c *gin.Context, upstreamURL, apiKey
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
-	resp, err := d.http.Do(req)
+	resp, err := d.http.Do(req) //nolint:gosec // G704 false positive: see above
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "extraction upstream", "message": err.Error()})
 		return

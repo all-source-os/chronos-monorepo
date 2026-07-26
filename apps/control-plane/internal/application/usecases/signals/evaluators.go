@@ -166,7 +166,8 @@ func GrandfatherWindow(sub entities.SubscriptionMetadata, now time.Time) Signal 
 	return s
 }
 
-// EditionTrap. trapDetected is the cross-service determination from the QS probe
+// EditionTrap grades the edition trap for one tenant. trapDetected is the
+// cross-service determination from the QS probe
 // + fleet heuristic (see EditionTrapDetected). The trap is fleet-wide, so the
 // per-tenant signal is Critical for every tenant when the trap is present.
 func EditionTrap(trapDetected bool) Signal {
@@ -238,7 +239,8 @@ func APIKeyValidity(keyOK, roleDrifted bool) Signal {
 	return s
 }
 
-// EmptyReadSymptom. symptomRate>0 for a tenant that HAS Core data points at a
+// EmptyReadSymptom grades read-path health for one tenant. symptomRate>0 for a
+// tenant that HAS Core data points at a
 // read-path/identity problem (never data loss — runbook lesson). hasCoreData
 // gates the alarm: a genuinely-empty tenant returning 0 rows is correct.
 func EmptyReadSymptom(symptomRate float64, hasCoreData bool) Signal {

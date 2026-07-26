@@ -98,7 +98,7 @@ func serveInbox(h *InboxAdminHandler, method, target, body string) *httptest.Res
 	} else {
 		rdr = strings.NewReader("")
 	}
-	req := httptest.NewRequest(method, target, rdr)
+	req := httptest.NewRequestWithContext(context.Background(), method, target, rdr)
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
