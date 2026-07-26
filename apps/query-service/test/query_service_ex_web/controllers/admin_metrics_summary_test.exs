@@ -36,7 +36,7 @@ defmodule QueryServiceExWeb.AdminMetricsSummaryTest do
 
   test "events_total comes from the real storage_events_total series, not a placeholder" do
     summary = @core_metrics |> PrometheusParser.parse() |> AdminMetricsController.build_summary()
-    assert summary.events_total == 13354
+    assert summary.events_total == 13_354
   end
 
   test "events_total falls back to the session counter when storage total is absent" do

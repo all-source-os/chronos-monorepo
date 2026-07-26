@@ -8,6 +8,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
   """
   use ExUnit.Case, async: false
 
+  alias QueryServiceEx.Projections.Catalog
   alias QueryServiceEx.Projections.TenantProjections
 
   @state_table :tenant_projection_state
@@ -71,7 +72,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
                TenantProjections.get_state(
                  tenant,
                  "event-count",
-                 QueryServiceEx.Projections.Catalog.tenant_key()
+                 Catalog.tenant_key()
                )
 
       assert state["total"] == 3
@@ -133,7 +134,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
                TenantProjections.get_state(
                  tenant,
                  "events-per-day",
-                 QueryServiceEx.Projections.Catalog.tenant_key()
+                 Catalog.tenant_key()
                )
 
       assert state["by_day"] == %{"2026-01-01" => 2, "2026-01-02" => 1}
@@ -172,7 +173,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
                TenantProjections.get_state(
                  tenant,
                  "active-entities",
-                 QueryServiceEx.Projections.Catalog.tenant_key()
+                 Catalog.tenant_key()
                )
 
       assert state["distinct"] == 2
@@ -205,7 +206,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
           TenantProjections.get_state(
             tenant,
             "event-count",
-            QueryServiceEx.Projections.Catalog.tenant_key()
+            Catalog.tenant_key()
           )
         )
       end)
@@ -230,7 +231,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
           TenantProjections.status(b, "event-count") == :ready
       end)
 
-      key = QueryServiceEx.Projections.Catalog.tenant_key()
+      key = Catalog.tenant_key()
       assert {:ok, %{"total" => 1}} = TenantProjections.get_state(a, "event-count", key)
       # B has no events — its bucket either absent or zero, never A's data
       assert TenantProjections.get_state(b, "event-count", key) == {:error, :not_found}
@@ -252,7 +253,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
       assert :ok = TenantProjections.disable(tenant, "event-count")
       assert TenantProjections.status(tenant, "event-count") == nil
 
-      key = QueryServiceEx.Projections.Catalog.tenant_key()
+      key = Catalog.tenant_key()
       assert TenantProjections.get_state(tenant, "event-count", key) == {:error, :not_found}
     end
   end

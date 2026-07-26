@@ -217,20 +217,18 @@ defmodule QueryServiceEx.Projections.Catalog do
         ts = event_field(event, "timestamp")
         recent = Map.get(acc, "recent", %{})
 
-        cond do
-          is_nil(entity) ->
-            acc
+        if is_nil(entity) do
+          acc
+        else
+          new_entity? = not Map.has_key?(recent, entity)
+          recent = Map.put(recent, entity, ts || recent[entity])
+          recent = cap_recent(recent, @entity_summary_max_rows)
 
-          true ->
-            new_entity? = not Map.has_key?(recent, entity)
-            recent = Map.put(recent, entity, ts || recent[entity])
-            recent = cap_recent(recent, @entity_summary_max_rows)
+          distinct = Map.get(acc, "distinct", 0) + if(new_entity?, do: 1, else: 0)
 
-            distinct = Map.get(acc, "distinct", 0) + if(new_entity?, do: 1, else: 0)
-
-            acc
-            |> Map.put("distinct", distinct)
-            |> Map.put("recent", recent)
+          acc
+          |> Map.put("distinct", distinct)
+          |> Map.put("recent", recent)
         end
       end
     }

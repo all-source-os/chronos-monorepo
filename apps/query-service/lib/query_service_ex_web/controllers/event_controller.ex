@@ -537,6 +537,7 @@ defmodule QueryServiceExWeb.EventController do
   # already forwards metadata verbatim; single create previously rebuilt the
   # event map with only entity_id/event_type/payload, silently dropping it.
   defp maybe_put_metadata(event, nil), do: event
+
   defp maybe_put_metadata(event, metadata) when is_map(metadata),
     do: Map.put(event, :metadata, metadata)
 

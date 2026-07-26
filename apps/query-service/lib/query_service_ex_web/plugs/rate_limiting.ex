@@ -90,7 +90,10 @@ defmodule QueryServiceExWeb.Plugs.RateLimiting do
     String.to_existing_atom(tier)
   rescue
     ArgumentError ->
-      Logger.warning("[RateLimiting] Unknown subscription tier #{inspect(tier)}; using :free limits")
+      Logger.warning(
+        "[RateLimiting] Unknown subscription tier #{inspect(tier)}; using :free limits"
+      )
+
       :free
   end
 
