@@ -882,8 +882,9 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
           {false, _jwt, _jws} ->
             {:error, :invalid_key}
 
-          {:error, _reason} ->
-            {:error, :invalid_key}
+            # JOSE.JWT.verify_strict/3 only ever returns {boolean(), JWT, JWS};
+            # an {:error, _} clause here is unreachable. Any other shape raises,
+            # and the rescue below turns that into {:error, :invalid_key} anyway.
         end
     end
   rescue

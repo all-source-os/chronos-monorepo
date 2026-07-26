@@ -98,7 +98,11 @@ defmodule QueryServiceEx.PrometheusParser do
   finite bound still doesn't cover it), the largest finite bound is returned
   rather than infinity.
   """
-  @spec histogram_quantile(map(), String.t(), float(), float()) :: float()
+  # `default` is returned verbatim whenever the histogram cannot answer (no
+  # buckets, zero total, or an uninterpolatable target), so it is part of the
+  # return type. Callers pass nil when they want an honest empty rather than a
+  # fabricated 0.0 — see CoreBackendMetrics.from_parsed/1.
+  @spec histogram_quantile(map(), String.t(), float(), float() | nil) :: float() | nil
   def histogram_quantile(parsed, name, q, default \\ 0.0)
       when is_float(q) and q >= 0.0 and q <= 1.0 do
     case Map.get(parsed, "#{name}_bucket") do

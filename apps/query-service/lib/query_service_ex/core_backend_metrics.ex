@@ -105,14 +105,11 @@ defmodule QueryServiceEx.CoreBackendMetrics do
 
   defp seconds_to_us(nil), do: nil
   defp seconds_to_us(seconds) when is_number(seconds), do: Float.round(seconds * 1_000_000, 1)
-  defp seconds_to_us(_), do: nil
 
   defp seconds_to_ms(nil), do: nil
   defp seconds_to_ms(seconds) when is_number(seconds), do: Float.round(seconds * 1_000, 3)
-  defp seconds_to_ms(_), do: nil
 
   # Gauges come back as floats from the parser; integral byte/count gauges read
   # cleaner as integers. Non-numeric sentinels collapse to 0.
   defp round_metric(v) when is_number(v), do: round(v)
-  defp round_metric(_), do: 0
 end
