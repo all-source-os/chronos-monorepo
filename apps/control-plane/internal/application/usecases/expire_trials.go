@@ -167,7 +167,7 @@ func TenantIsActiveTrial(metadata map[string]interface{}) bool {
 		return false
 	}
 	if sub, ok := metadata["subscription"].(map[string]interface{}); ok {
-		if tier, _ := sub["tier"].(string); tier == TrialTierName {
+		if tier, _ := sub["tier"].(string); tier == TrialTierName { //nolint:errcheck // zero value is the intended fallback for a missing/!string tier
 			return true
 		}
 	}

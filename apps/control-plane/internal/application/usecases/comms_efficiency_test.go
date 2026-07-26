@@ -215,6 +215,7 @@ func TestEngagementIdempotency(t *testing.T) {
 	uc := newCommsUC(repo, core, &fakeMailer{})
 
 	// Seed the correlation so the engagement resolves to real tags.
+	//nolint:errcheck // seeding correlation; the assertions below cover the outcome
 	_ = uc.recorder.setCorrelation(context.Background(), CommsTags{
 		TenantID: "t1", CampaignID: "paid", TrailStage: "paid_welcome", Variant: "A", Tier: "trial", MessageID: "esp-1",
 	})
@@ -232,11 +233,13 @@ func TestEngagementIdempotency(t *testing.T) {
 	}
 
 	// A different engagement TYPE for the same message is a distinct funnel event.
-	if s, _ := uc.RecordEngagement(context.Background(), "esp-1", "email.opened", rfc(effT0), ""); s != EngagementIngested {
+	if s, _ := uc.RecordEngagement( //nolint:errcheck // status is what this asserts on
+		context.Background(), "esp-1", "email.opened", rfc(effT0), ""); s != EngagementIngested {
 		t.Errorf("a different engagement type must ingest, got %q", s)
 	}
 	// An unknown ESP type is ignored, not mis-ingested.
-	if s, _ := uc.RecordEngagement(context.Background(), "esp-1", "email.delivery_delayed", rfc(effT0), ""); s != EngagementIgnored {
+	if s, _ := uc.RecordEngagement( //nolint:errcheck // status is what this asserts on
+		context.Background(), "esp-1", "email.delivery_delayed", rfc(effT0), ""); s != EngagementIgnored {
 		t.Errorf("unknown ESP type must be ignored, got %q", s)
 	}
 }
@@ -248,6 +251,7 @@ func TestEngagementResolvesTagsForReconciler(t *testing.T) {
 	saveBareTenant(t, repo, "t1")
 	core := newEffCore()
 	uc := newCommsUC(repo, core, &fakeMailer{})
+	//nolint:errcheck // seeding correlation; the assertions below cover the outcome
 	_ = uc.recorder.setCorrelation(context.Background(), CommsTags{
 		TenantID: "t1", CampaignID: "paid", TrailStage: "paid_welcome", Variant: "A", Tier: "trial",
 		SendTS: rfc(effT0), MessageID: "esp-1",

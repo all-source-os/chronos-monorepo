@@ -48,7 +48,10 @@ func TestSyncEventsUsage_CorrectsDrift(t *testing.T) {
 	if res.Skipped || res.EventsUsed != 143_002 {
 		t.Fatalf("expected events_used corrected to 143002, got %+v", res)
 	}
-	tn, _ := repo.FindByID("t1")
+	tn, err := repo.FindByID("t1")
+	if err != nil {
+		t.Fatalf("repo.FindByID: %v", err)
+	}
 	if got := extractQuotas(tn.Metadata).EventsUsed; got != 143_002 {
 		t.Fatalf("persisted events_used = %d, want 143002", got)
 	}
@@ -73,7 +76,10 @@ func TestSyncEventsUsage_NilCoreSkips(t *testing.T) {
 	repo := persistence.NewMemoryTenantRepository()
 	seedTenant(t, repo, "t1", 1_000_000)
 	uc := NewSyncEventsUsageUseCase(repo, persistence.NewMemoryAuditRepository(), nil)
-	res, _ := uc.Execute(context.Background(), "t1")
+	res, err := uc.Execute(context.Background(), "t1")
+	if err != nil {
+		t.Fatalf("uc.Execute: %v", err)
+	}
 	if !res.Skipped {
 		t.Fatalf("nil core client must skip, got %+v", res)
 	}

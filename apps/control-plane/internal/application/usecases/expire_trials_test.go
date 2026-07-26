@@ -33,7 +33,7 @@ func TestTrialSubscriptionMetadata(t *testing.T) {
 	if !expiresAt.Equal(wantExpiry) {
 		t.Errorf("expiresAt = %v, want %v", expiresAt, wantExpiry)
 	}
-	gotStr, _ := sub["trial_expires_at"].(string)
+	gotStr, _ := sub["trial_expires_at"].(string) //nolint:errcheck // absent value correctly reads as empty and fails the assert below
 	if gotStr != wantExpiry.UTC().Format(time.RFC3339) {
 		t.Errorf("trial_expires_at = %q, want %q", gotStr, wantExpiry.UTC().Format(time.RFC3339))
 	}
@@ -152,7 +152,7 @@ func TestExpireTrials_ReactivatedSuspendIsReversible(t *testing.T) {
 	// tenants, so a suspended one is never re-processed; reactivating restores
 	// access and the tenant is no longer in scope until a fresh trial window.
 	got.Activate()
-	_ = repo.Update(got)
+	_ = repo.Update(got) //nolint:errcheck // test setup
 	if g, _ := repo.FindByID(tenant.ID); g.Status != entities.TenantStatusActive {
 		t.Fatalf("reactivation failed, status = %s", g.Status)
 	}

@@ -172,7 +172,10 @@ func TestAnalyze_PlanNotInCatalog(t *testing.T) {
 	// A retired alias must NOT be flagged (it maps to a canonical tier).
 	seedAnalyzeTenant(t, repo, "legacy", oldEnough(), subMeta("growth", "active")) // retired → studio
 	core.statsByTenant["legacy"] = 10
-	rep2, _ := uc.Execute(context.Background(), AnalyzeRequest{})
+	rep2, err := uc.Execute(context.Background(), AnalyzeRequest{})
+	if err != nil {
+		t.Fatalf("uc.Execute: %v", err)
+	}
 	if _, ok := hasFinding(findTenant(t, rep2, "legacy"), CodePlanNotInCatalog); ok {
 		t.Errorf("retired tier 'growth' wrongly flagged plan_not_in_catalog")
 	}
@@ -294,7 +297,10 @@ func TestAnalyze_FleetCreatedAtNotReal(t *testing.T) {
 		seedAnalyzeTenant(t, repo2, id, sameDay, subMeta("free", ""))
 	}
 	uc2 := NewAnalyzeTenantsUseCase(repo2, core2, nil, nil)
-	rep2, _ := uc2.Execute(context.Background(), AnalyzeRequest{})
+	rep2, err := uc2.Execute(context.Background(), AnalyzeRequest{})
+	if err != nil {
+		t.Fatalf("uc2.Execute: %v", err)
+	}
 	if _, ok := hasFleetFinding(rep2, CodeCreatedAtNotReal); ok {
 		t.Errorf("7 tenants sharing a date wrongly tripped created_at_not_real")
 	}
@@ -319,7 +325,10 @@ func TestAnalyze_FleetCreatedAtNotReal(t *testing.T) {
 		seedAnalyzeTenant(t, repo3, id, time.Date(2026, 1, 1+i, 9, 0, 0, 0, time.UTC), subMeta("free", ""))
 	}
 	uc3 := NewAnalyzeTenantsUseCase(repo3, core3, nil, nil)
-	rep3, _ := uc3.Execute(context.Background(), AnalyzeRequest{})
+	rep3, err := uc3.Execute(context.Background(), AnalyzeRequest{})
+	if err != nil {
+		t.Fatalf("uc3.Execute: %v", err)
+	}
 	if _, ok := hasFleetFinding(rep3, CodeCreatedAtNotReal); ok {
 		t.Errorf("legit same-day batch (minority of many real dates) wrongly tripped created_at_not_real")
 	}

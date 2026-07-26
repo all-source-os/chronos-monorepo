@@ -47,7 +47,7 @@ func newFakeQS(t *testing.T) *fakeQS {
 	mux.HandleFunc("/api/admin/metrics/summary", func(w http.ResponseWriter, r *http.Request) {
 		f.gotAuth = r.Header.Get("Authorization")
 		f.gotPaths = append(f.gotPaths, r.URL.Path)
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test response
 			"uptime_seconds":       86400.0,
 			"events_total":         1500000.0,
 			"events_per_second":    469.0,
@@ -58,7 +58,7 @@ func newFakeQS(t *testing.T) *fakeQS {
 	})
 	mux.HandleFunc("/api/admin/metrics/timeseries", func(w http.ResponseWriter, r *http.Request) {
 		f.gotPaths = append(f.gotPaths, r.URL.Path+"?"+r.URL.RawQuery)
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // test response
 			"metric": r.URL.Query().Get("metric"),
 			"range":  r.URL.Query().Get("range"),
 			"points": []map[string]any{
@@ -250,7 +250,7 @@ func TestMetrics_QSUnreachableZeroState(t *testing.T) {
 func TestMetrics_QSErrorStatusZeroState(t *testing.T) {
 	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte(`{"error":"boom"}`))
+		_, _ = w.Write([]byte(`{"error":"boom"}`)) //nolint:errcheck // test response
 	}))
 	t.Cleanup(bad.Close)
 

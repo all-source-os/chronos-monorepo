@@ -60,10 +60,10 @@ func (c *effCore) QueryEvents(_ context.Context, req clients.QueryEventsRequest)
 	}
 	var since, until time.Time
 	if req.Since != "" {
-		since, _ = time.Parse(time.RFC3339, req.Since)
+		since, _ = time.Parse(time.RFC3339, req.Since) //nolint:errcheck // fake: unparseable input behaves as zero time
 	}
 	if req.Until != "" {
-		until, _ = time.Parse(time.RFC3339, req.Until)
+		until, _ = time.Parse(time.RFC3339, req.Until) //nolint:errcheck // fake: unparseable input behaves as zero time
 	}
 	var matched []effEvent
 	for _, e := range c.events {
@@ -168,7 +168,10 @@ func (c *effCore) engageEvent(eventType string, tags CommsTags) {
 }
 
 func mustTime(rfc string) time.Time {
-	t, _ := time.Parse(time.RFC3339, rfc)
+	t, err := time.Parse(time.RFC3339, rfc)
+	if err != nil {
+		panic("mustTime: " + rfc + ": " + err.Error())
+	}
 	return t.UTC()
 }
 

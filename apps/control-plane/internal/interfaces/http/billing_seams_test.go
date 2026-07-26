@@ -187,7 +187,7 @@ func TestSeam_Checkout_NoActiveSubCreatesCheckout(t *testing.T) {
 		CheckoutURL string `json:"checkout_url"`
 		IsPortal    bool   `json:"is_portal"`
 	}
-	_ = json.Unmarshal(w.Body.Bytes(), &res)
+	_ = json.Unmarshal(w.Body.Bytes(), &res) //nolint:errcheck // test decode
 	if res.IsPortal || res.CheckoutURL == "" {
 		t.Errorf("expected fresh checkout, got %+v", res)
 	}
@@ -268,7 +268,7 @@ func TestSeam_Webhook_SignatureToTierPersisted(t *testing.T) {
 		},
 		"meta": map[string]interface{}{"custom_data": map[string]interface{}{"tenant_id": "tenant-123"}},
 	}
-	body, _ := json.Marshal(event)
+	body, _ := json.Marshal(event) //nolint:errcheck // test fixture
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/webhooks/lemonsqueezy", strings.NewReader(string(body)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Signature", signPayload(body, secret))

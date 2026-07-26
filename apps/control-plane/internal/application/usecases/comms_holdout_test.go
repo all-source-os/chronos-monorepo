@@ -207,7 +207,7 @@ func countNonSkippedSends(c *effCore) int {
 	n := 0
 	for _, e := range c.events {
 		if e.eventType == MessageSentEventType {
-			if skipped, _ := e.payload["skipped"].(bool); !skipped {
+			if skipped, _ := e.payload["skipped"].(bool); !skipped { //nolint:errcheck // absent 'skipped' correctly reads as false
 				n++
 			}
 		}

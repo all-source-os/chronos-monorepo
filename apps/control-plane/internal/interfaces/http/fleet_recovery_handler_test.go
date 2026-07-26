@@ -340,7 +340,7 @@ func TestTenantHealth_AllSignals(t *testing.T) {
 func TestDiagnoseEdition_TrapDetected(t *testing.T) {
 	// Stand up a fake QS /health that reports edition=community.
 	qs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"status": "healthy", "edition": "community"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "healthy", "edition": "community"}) //nolint:errcheck // test response
 	}))
 	defer qs.Close()
 
@@ -585,7 +585,7 @@ func TestRotateKeys_TokenGatedApply(t *testing.T) {
 	// 1. dry-run → confirm_token
 	w := doAdmin(t, r, http.MethodPost, "/api/v1/admin/recovery/t-rot/rotate-keys?dry_run=true", tok, map[string]any{"reason": "rot"})
 	var dr usecases.RecoveryResult
-	_ = json.Unmarshal(w.Body.Bytes(), &dr)
+	_ = json.Unmarshal(w.Body.Bytes(), &dr) //nolint:errcheck // test decode
 	if dr.ConfirmToken == "" {
 		t.Fatalf("no confirm_token from dry-run")
 	}
@@ -725,7 +725,7 @@ func TestReapDemo_TokenGatedApplyDeletesAndAudits(t *testing.T) {
 	beforeAudits := len(env.core.recoveryAudits())
 	w := doAdmin(t, r, http.MethodPost, "/api/v1/admin/tenants/reap-demo?dry_run=true", tok, map[string]any{"reason": "litter"})
 	var dr usecases.ReapDemoResult
-	_ = json.Unmarshal(w.Body.Bytes(), &dr)
+	_ = json.Unmarshal(w.Body.Bytes(), &dr) //nolint:errcheck // test decode
 	if dr.ConfirmToken == "" {
 		t.Fatalf("no confirm_token from dry-run")
 	}

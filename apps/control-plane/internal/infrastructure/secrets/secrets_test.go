@@ -37,9 +37,18 @@ func TestSealOpenRoundtrip(t *testing.T) {
 }
 
 func TestSealIsNondeterministic(t *testing.T) {
-	s, _ := NewSealer(key32())
-	a, _ := s.Seal([]byte("x"))
-	b, _ := s.Seal([]byte("x"))
+	s, err := NewSealer(key32())
+	if err != nil {
+		t.Fatalf("NewSealer: %v", err)
+	}
+	a, err := s.Seal([]byte("x"))
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+	b, err := s.Seal([]byte("x"))
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
 	if a == b {
 		t.Error("two seals of the same plaintext are identical (nonce reuse?)")
 	}
@@ -54,8 +63,14 @@ func TestOpenRejectsLegacyPlaintext(t *testing.T) {
 }
 
 func TestOpenFailsWithWrongKey(t *testing.T) {
-	s1, _ := NewSealer(key32())
-	token, _ := s1.Seal([]byte("secret"))
+	s1, err := NewSealer(key32())
+	if err != nil {
+		t.Fatalf("NewSealer: %v", err)
+	}
+	token, err := s1.Seal([]byte("secret"))
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
 
 	other := key32()
 	other[0] ^= 0xFF

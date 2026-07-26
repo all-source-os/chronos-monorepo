@@ -43,7 +43,10 @@ func TestSyncExtractionUsage_SumsTokensPayload(t *testing.T) {
 	if res.Skipped || res.ExtractionTokensUsed != 400 {
 		t.Fatalf("expected 400 tokens summed, got %+v", res)
 	}
-	tn, _ := repo.FindByID("t1")
+	tn, err := repo.FindByID("t1")
+	if err != nil {
+		t.Fatalf("repo.FindByID: %v", err)
+	}
 	if got := extractQuotas(tn.Metadata).ExtractionTokensUsed; got != 400 {
 		t.Fatalf("persisted extraction_tokens_used = %d, want 400", got)
 	}
@@ -54,11 +57,14 @@ func TestSyncExtractionUsage_SkipsWhenAligned(t *testing.T) {
 	audit := persistence.NewMemoryAuditRepository()
 	seedTenant(t, repo, "t1", 0)
 	// Pre-set the meter to the value the events will sum to → no-op.
-	tn, _ := repo.FindByID("t1")
+	tn, err := repo.FindByID("t1")
+	if err != nil {
+		t.Fatalf("repo.FindByID: %v", err)
+	}
 	q := extractQuotas(tn.Metadata)
 	q.ExtractionTokensUsed = 400
 	tn.Metadata["quotas"] = &q
-	_ = repo.Update(tn)
+	_ = repo.Update(tn) //nolint:errcheck // test setup
 
 	core := &extractionMockCore{events: []clients.EventEntry{usageEvent(400)}}
 	uc := NewSyncExtractionUsageUseCase(repo, audit, core)
@@ -75,7 +81,10 @@ func TestSyncExtractionUsage_NilCoreSkips(t *testing.T) {
 	repo := persistence.NewMemoryTenantRepository()
 	seedTenant(t, repo, "t1", 0)
 	uc := NewSyncExtractionUsageUseCase(repo, persistence.NewMemoryAuditRepository(), nil)
-	res, _ := uc.Execute(context.Background(), "t1")
+	res, err := uc.Execute(context.Background(), "t1")
+	if err != nil {
+		t.Fatalf("uc.Execute: %v", err)
+	}
 	if !res.Skipped {
 		t.Fatalf("nil core client must skip, got %+v", res)
 	}

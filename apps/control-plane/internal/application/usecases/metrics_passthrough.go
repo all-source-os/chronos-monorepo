@@ -277,7 +277,7 @@ func (uc *MetricsPassthroughUseCase) get(ctx context.Context, path string, query
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // close-on-defer, non-actionable
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Drain so the connection can be reused, then fall back to zero state.
-		_, _ = io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body) //nolint:errcheck // draining the body is best-effort
 		return nil, false
 	}
 	body, err := io.ReadAll(resp.Body)
