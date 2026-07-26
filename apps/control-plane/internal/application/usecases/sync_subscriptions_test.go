@@ -101,6 +101,7 @@ func TestSyncSubscriptions_StatusCanceled(t *testing.T) {
 		"sub-300": {Tier: "studio", Status: "active", PaymentProvider: providerLemonSqueezy},
 	})
 	ls := &mockLSClient{subs: map[string]*clients.SubscriptionResponse{
+		//nolint:misspell // LemonSqueezy sends the "cancelled" spelling
 		"sub-300": {ID: "sub-300", Status: "cancelled", VariantID: 9001},
 	}}
 	uc := NewSyncSubscriptionsUseCase(repo, ls, updateSubUC, VariantTierMap{"9001": "studio"})
@@ -113,8 +114,9 @@ func TestSyncSubscriptions_StatusCanceled(t *testing.T) {
 		t.Fatalf("expected change on cancel, got %+v", res)
 	}
 	tenant, _ := repo.FindByID("tenant-3")
+	//nolint:misspell // the handler stores LemonSqueezy's "cancelled" spelling
 	if got := extractSubscriptionsMap(tenant.Metadata)["sub-300"].Status; got != "cancelled" {
-		t.Errorf("expected stored status cancelled, got %q", got)
+		t.Errorf("expected stored status cancelled, got %q", got) //nolint:misspell // ditto
 	}
 }
 

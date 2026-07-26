@@ -467,7 +467,7 @@ func (cp *ControlPlane) ProxyExtraction(c *gin.Context) {
 // Core's /api/v1/stats is global (store.stats()) unless a tenant_id is supplied,
 // so this MUST force the auth-derived tenant — proxying it bare would hand the
 // caller whole-fleet totals. Forcing it also means a caller-supplied tenant_id is
-// overwritten, not honoured (#230).
+// overwritten, not honored (#230).
 func (cp *ControlPlane) ProxyStats(c *gin.Context) {
 	_, tenantID, _, ok := authIdentityFromContext(c)
 	if !ok {

@@ -115,7 +115,7 @@ func newCommsTestEnv(t *testing.T) *commsTestEnv {
 
 // router builds the real admin router (AdminAuthMiddleware) plus the tenant-facing
 // notice routes behind a tiny middleware that injects auth_tenant_id (the same key
-// AuthMiddleware sets), so the caller-scoped behaviour is exercised without the
+// AuthMiddleware sets), so the caller-scoped behavior is exercised without the
 // full external auth client.
 func (e *commsTestEnv) router(callerTenant string) *gin.Engine {
 	gin.SetMode(gin.TestMode)

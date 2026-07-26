@@ -34,7 +34,7 @@ type ReapDemoResult struct {
 
 // reapDemoTokenScope binds the confirm_token to the matched count so a token
 // minted for one preview can't be replayed once the demo backlog has grown
-// (same defence as batchTokenScope).
+// (same defense as batchTokenScope).
 func reapDemoTokenScope(count int) string {
 	return "demo:" + itoaInt(count)
 }

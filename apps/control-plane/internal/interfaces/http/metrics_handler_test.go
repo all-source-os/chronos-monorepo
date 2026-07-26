@@ -14,7 +14,7 @@ import (
 )
 
 // metricsRouter builds the real admin router for the metrics passthrough with
-// AdminAuthMiddleware, so 401/403 behaviour is exercised end-to-end (proves the
+// AdminAuthMiddleware, so 401/403 behavior is exercised end-to-end (proves the
 // /api/v1/admin group middleware reuse — no new auth code). The routes mirror
 // main.go registration exactly so prompt 035's admin client matches.
 func metricsRouter(uc *usecases.MetricsPassthroughUseCase) *gin.Engine {

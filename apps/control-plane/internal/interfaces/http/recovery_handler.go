@@ -70,7 +70,7 @@ func (h *RecoveryHandler) toRequest(c *gin.Context, b recoveryBody) usecases.Rec
 
 // bindBody binds the JSON body; an empty body is allowed (defaults to a dry-run
 // false / no-confirmation request, which guards will reject for Destructive
-// actions — exactly the desired behaviour).
+// actions — exactly the desired behavior).
 func bindBody(c *gin.Context) (recoveryBody, bool) {
 	var b recoveryBody
 	if c.Request.Body != nil && c.Request.ContentLength != 0 {

@@ -1170,7 +1170,7 @@ func main() {
 }
 
 // warnX402MultiInstance logs a loud warning at boot when the operator has
-// signalled that the Control Plane runs more than one instance. The x402
+// signaled that the Control Plane runs more than one instance. The x402
 // included-allowance counter is in-process (CoreQuotaChecker), so it is exact
 // only on a single machine; across N instances the boundary overshoot is
 // bounded by (N-1) × calls-since-the-last-1-minute reconciler tick. Set

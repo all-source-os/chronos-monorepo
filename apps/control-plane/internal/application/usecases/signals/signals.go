@@ -6,7 +6,7 @@
 // Each signal names its source backend and a threshold. A signal evaluation
 // produces a Signal{Name, Value, Tier, Source}; the rollup converts the set of
 // signals into one Tier and carries the contributing-signal list so a consumer
-// can show *why* a tenant is non-green, not just the colour.
+// can show *why* a tenant is non-green, not just the color.
 //
 // Architecture note (CLAUDE.md / MEMORY.md): Core IS the database. A tenant that
 // "reports empty data" is classified here as a read-path / identity symptom

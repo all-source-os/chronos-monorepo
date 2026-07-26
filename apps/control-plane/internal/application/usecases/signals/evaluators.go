@@ -133,7 +133,8 @@ func SubscriptionState(sub entities.SubscriptionMetadata, now time.Time) Signal 
 	case "past_due":
 		s.Tier = TierDegraded
 		s.Value = "past_due (grace)"
-	case "canceled", "cancelled", "unpaid", "expired":
+	// Both spellings are matched on purpose: LemonSqueezy sends the British form.
+	case "canceled", "cancelled", "unpaid", "expired": //nolint:misspell // mirrors LemonSqueezy status spelling
 		s.Tier = TierCritical
 	default:
 		// Unknown status — be conservative but not critical.

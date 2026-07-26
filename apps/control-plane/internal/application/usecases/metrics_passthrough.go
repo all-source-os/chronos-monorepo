@@ -263,7 +263,7 @@ func (uc *MetricsPassthroughUseCase) get(ctx context.Context, path string, query
 	if len(query) > 0 {
 		target += "?" + query.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)
 	if err != nil {
 		return nil, false
 	}

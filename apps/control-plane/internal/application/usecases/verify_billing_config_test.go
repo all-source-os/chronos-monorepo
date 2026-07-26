@@ -171,11 +171,14 @@ func TestVerifyBillingConfig_CatalogTierMissingVariant(t *testing.T) {
 // misconfiguration (typo / drift) and must be flagged.
 func TestVerifyBillingConfig_OrphanVariantTier(t *testing.T) {
 	v := fullVariants()
-	v["enterprize:monthly"] = "999" // typo'd tier (enterprize) — not a known tier
+	//nolint:misspell // "enterprize" is a deliberate typo: the point of this test
+	// is that an unknown tier is rejected. Correcting it to "enterprise" would
+	// make it a VALID tier and the assertion below would stop testing anything.
+	v["enterprize:monthly"] = "999"
 	ls := &verifyMockLS{variants: v, storeID: "store-1"}
 	r := NewVerifyBillingConfigUseCase(ls, "abc123def456").Execute()
 	if r.OK || !hasCode(r, "variant_unknown_tier") {
-		t.Fatalf("expected variant_unknown_tier error for enterprize, got %+v", r)
+		t.Fatalf("expected variant_unknown_tier error for enterprize, got %+v", r) //nolint:misspell // refers to the deliberate typo above
 	}
 }
 

@@ -781,7 +781,7 @@ func (uc *CommsUseCase) renderContextFor(t *entities.Tenant) CommsRenderContext 
 
 // cohortTokenScope binds a cohort confirm_token to the audience + count so a
 // token minted for one preview can't be replayed against a different cohort /
-// count (same defence as batchTokenScope / reapDemoTokenScope).
+// count (same defense as batchTokenScope / reapDemoTokenScope).
 func cohortTokenScope(a NoticeAudience, count int) string {
 	return cohortDescription(a) + ":" + itoaInt(count)
 }

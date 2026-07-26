@@ -214,7 +214,7 @@ func TestPrimarySubscriptionFor(t *testing.T) {
 
 	t.Run("no active subscriptions yields canceled free primary", func(t *testing.T) {
 		subs := map[string]SubscriptionRef{
-			"sub-a": {Tier: "studio", Status: "cancelled"},
+			"sub-a": {Tier: "studio", Status: "canceled"},
 		}
 		p := PrimarySubscriptionFor(subs, "lemonsqueezy")
 		if p.Tier != "free" || p.Status != "canceled" || p.SubscriptionID != "" {

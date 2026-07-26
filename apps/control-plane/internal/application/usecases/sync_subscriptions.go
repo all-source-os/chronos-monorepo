@@ -27,6 +27,8 @@ type SubSyncResult struct {
 // It only touches subscriptions ALREADY tracked on the tenant (the
 // subscription_created webhook still seeds new ones); it catches drift in
 // status (active→cancelled/expired) and plan (variant changed) on known subs.
+//
+//nolint:misspell // LemonSqueezy's own status spelling
 type SyncSubscriptionsUseCase struct {
 	tenantRepo  repositories.TenantRepository
 	lsClient    clients.LemonSqueezyClient

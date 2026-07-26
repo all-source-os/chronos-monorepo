@@ -166,7 +166,7 @@ func newFleetTestEnv(t *testing.T, queryHealthURL string) *fleetTestEnv {
 	}
 }
 
-// router builds the real admin router with AdminAuthMiddleware so 403 behaviour
+// router builds the real admin router with AdminAuthMiddleware so 403 behavior
 // is exercised end-to-end (proves middleware reuse).
 func (e *fleetTestEnv) router() *gin.Engine {
 	gin.SetMode(gin.TestMode)

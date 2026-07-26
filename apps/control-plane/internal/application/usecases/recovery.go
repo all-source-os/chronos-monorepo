@@ -111,7 +111,7 @@ func (g recoveryGuard) validateConfirmToken(action, tenantID, token string) bool
 
 func (g recoveryGuard) signToken(action, tenantID string, bucket int64) string {
 	mac := hmac.New(sha256.New, g.secret)
-	_, _ = mac.Write([]byte(fmt.Sprintf("recovery|%s|%s|%d", action, tenantID, bucket))) //nolint:errcheck // hash.Write never errors
+	_, _ = fmt.Fprintf(mac, "recovery|%s|%s|%d", action, tenantID, bucket) //nolint:errcheck // hash.Write never errors
 	return hex.EncodeToString(mac.Sum(nil))
 }
 

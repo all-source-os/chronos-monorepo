@@ -21,7 +21,7 @@ const (
 
 // CommsTemplate is one operator template keyed to a health/lifecycle event. It
 // renders a subject + plain-text body from the tenant + a small render context,
-// and declares its category (opt-out behaviour) + cooldown (rate-limit window).
+// and declares its category (opt-out behavior) + cooldown (rate-limit window).
 type CommsTemplate struct {
 	// Key is the stable template id echoed in admin.message.sent and used as the
 	// rate-limit cooldown key (one cooldown per tenant+template).
