@@ -155,7 +155,7 @@ uuid.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 ctrlc.workspace = true
-iai-callgrind = "0.14"
+iai-callgrind = "0.16"
 proptest = "1"
 tempfile.workspace = true
 testcontainers = "0.26"
