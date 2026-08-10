@@ -17,6 +17,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
   `ConsumerEvent` type (WAL `position` + `event`) to ack with `ack_consumer`.
   Resolves issue #246.
 
+### Fixed
+
+- Docs: `CoreClient::get_projection_state` and `ProjectionHandle::get_state` no
+  longer claim Core's `GET /api/v1/projections/:name/:entity_id/state` requires
+  a registered projection. Core ≥ 0.19.1 resolves the registered projection
+  first and falls back to the projection state cache, so state pushed with
+  `put_projection_state` / `bulk_put_projection_state` reads back through the
+  same endpoint — the "one worker computes, many stateless readers read" shape.
+  The stale caveat predates the Core v0.19.1 fallback. Resolves issue #247.
+>>>>>>> 9ebc707 (docs(sdk-rust): correct get_projection_state rustdoc — Core falls back to the projection state cache (Fixes #247))
+
 ## [0.21.0] — 2026-05-16
 
 ### Added

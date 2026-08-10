@@ -639,11 +639,15 @@ impl<S: WorkerState> ProjectionHandle<S> {
     ///
     /// This calls `CoreClient::get_projection_state` under the hood.
     ///
-    /// **Caveat:** Core's GET endpoint requires a projection to be registered
-    /// in its projection manager. If the worker is the only writer (common
-    /// case), Core has the state in cache but the GET path returns 404 (becomes
-    /// `Ok(None)` here). For most use cases, prefer [`Self::state`] to read
-    /// the in-memory reduced state directly.
+    /// Core resolves the registered projection first, then falls back to the
+    /// projection state cache, so the state this worker flushes is readable
+    /// back even though the worker never registers a projection in Core's
+    /// manager. Requires Core ≥ 0.19.1; older versions had no cache fallback
+    /// and returned `Ok(None)` here.
+    ///
+    /// [`Self::state`] reads the in-memory reduced state with no round-trip and
+    /// is the cheaper choice in-process; this method is what other processes
+    /// (or other nodes) use to read the same state from Core.
     pub async fn get_state<T: DeserializeOwned>(
         &self,
         entity_id: &str,

@@ -19,13 +19,22 @@ impl CoreClient {
     ///
     /// # Core behavior
     ///
-    /// Core's `GET /api/v1/projections/:name/:entity_id/state` requires the
-    /// projection to be registered in Core's projection manager. State written
-    /// purely via [`Self::put_projection_state`] (without a matching registered
-    /// projection) is not readable through this endpoint — it lives in a
-    /// separate cache. For the common case (ProjectionWorker managing its own
-    /// in-memory state), prefer reading through
-    /// [`ProjectionHandle::get_state`](crate::projection_worker::ProjectionHandle::get_state).
+    /// Core's `GET /api/v1/projections/:name/:entity_id/state` resolves in two
+    /// steps: the registered projection's own state first, then it falls back
+    /// to the projection state cache. So state written with
+    /// [`Self::put_projection_state`] / [`Self::bulk_put_projection_state`] is
+    /// readable back through this endpoint — and through the bulk and summary
+    /// endpoints — with no projection registered in Core's manager. That is the
+    /// "compute client-side, serve from Core" shape: one worker folds and
+    /// pushes, any number of stateless readers read.
+    ///
+    /// Requires Core ≥ 0.19.1. Older Core versions had no cache fallback and
+    /// returned `found: false` for unregistered projections.
+    ///
+    /// On the node running the worker,
+    /// [`ProjectionHandle::get_state`](crate::projection_worker::ProjectionHandle::get_state)
+    /// is cheaper (no round-trip) — but it is in-process, so it only serves
+    /// that one node.
     pub async fn get_projection_state<T: DeserializeOwned>(
         &self,
         name: &str,
