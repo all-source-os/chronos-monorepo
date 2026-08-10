@@ -69,6 +69,9 @@ impl ClientConfig {
 #[derive(Debug)]
 pub(crate) struct HttpTransport {
     pub(crate) base_url: String,
+    /// Kept alongside the reqwest default headers so non-HTTP transports
+    /// (the WebSocket stream) can authenticate with the same credential.
+    pub(crate) api_key: String,
     http: reqwest::Client,
     retry: RetryConfig,
     circuit_breaker: CircuitBreaker,
@@ -98,6 +101,7 @@ impl HttpTransport {
 
         Ok(Self {
             base_url: config.base_url.trim_end_matches('/').to_string(),
+            api_key: config.api_key.clone(),
             http,
             retry: config.retry.clone(),
             circuit_breaker: CircuitBreaker::new(

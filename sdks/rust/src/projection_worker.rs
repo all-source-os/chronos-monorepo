@@ -415,8 +415,12 @@ async fn run_forever<S: WorkerState>(
             break;
         }
 
-        let stream_client =
-            EventStreamClient::new(worker.core.transport().base_url.clone(), String::new());
+        // The stream authenticates with the same key as the client's HTTP calls —
+        // gateways in front of Core reject an empty bearer at the handshake.
+        let stream_client = EventStreamClient::new(
+            worker.core.transport().base_url.clone(),
+            worker.core.transport().api_key.clone(),
+        );
 
         caught_up.store(false, Ordering::SeqCst);
 
@@ -1156,5 +1160,74 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, Error::Config(_)));
+    }
+
+    /// The worker's WebSocket handshake must carry the same credential the
+    /// client's HTTP calls use — a real listener captures the header the
+    /// reconnect loop actually sends.
+    #[tokio::test]
+    async fn stream_handshake_carries_the_client_api_key() {
+        use tokio::net::TcpListener;
+        use tokio_tungstenite::tungstenite::handshake::server::{
+            Request as HandshakeRequest, Response as HandshakeResponse,
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut tx = Some(tx);
+            let ws = tokio_tungstenite::accept_hdr_async(
+                stream,
+                move |req: &HandshakeRequest, resp: HandshakeResponse| {
+                    let auth = req
+                        .headers()
+                        .get("Authorization")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or("")
+                        .to_string();
+                    if let Some(tx) = tx.take() {
+                        let _ = tx.send(auth);
+                    }
+                    Ok(resp)
+                },
+            )
+            .await
+            .unwrap();
+            // Hold the socket open so the worker stays in its stream loop.
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            drop(ws);
+        });
+
+        let core = CoreClient::new(&format!("http://{addr}"), "secret-key-123").unwrap();
+        let worker = ProjectionWorker::<Vec<String>>::builder(core)
+            .name("auth-worker")
+            .event_types(&["test."])
+            .reducer(|_state, _event| Ok(()))
+            .build()
+            .unwrap();
+
+        let shutdown_flag = Arc::new(AtomicBool::new(false));
+        let task = tokio::spawn(run_forever(
+            worker,
+            Arc::new(AtomicU64::new(0)),
+            Arc::new(AtomicBool::new(false)),
+            Arc::clone(&shutdown_flag),
+            Arc::new(Notify::new()),
+            Arc::new(AtomicBool::new(false)),
+        ));
+
+        let auth = tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .expect("no WebSocket handshake within 5s")
+            .expect("handshake header not reported");
+
+        shutdown_flag.store(true, Ordering::SeqCst);
+        task.abort();
+        server.abort();
+
+        assert_eq!(auth, "Bearer secret-key-123");
     }
 }
