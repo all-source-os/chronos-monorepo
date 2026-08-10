@@ -438,8 +438,39 @@ defmodule McpServerElixir.Protocol.McpTools do
          }}
 
       true ->
-        dispatch_tool(tool_name, args_without_format, state, format)
+        safe_dispatch(tool_name, args_without_format, state, format)
     end
+  end
+
+  # A raising tool handler must not take the stdio session down with it.
+  #
+  # Every handler starts with `Map.fetch!(args, "<required>")`, so a client that
+  # omits a required argument raised a KeyError straight out of the server
+  # GenServer's `handle_info/2`, killing the process and dropping the client's
+  # connection — which looks from the client side like the tools vanishing and
+  # coming back with no config change (#229, fourth ask). Exits behave the same
+  # way, and a backend call can exit on timeout.
+  #
+  # This is NOT the barrier that keeps the session alive — it cannot be. It sits
+  # below `call_tool/3`'s own argument shaping, so a client sending `"arguments"`
+  # as a JSON string raises before this rescue is ever reachable. The barrier is
+  # `Server.guarded_process/2`, at the `handle_info/2` seam. What this buys is
+  # per-tool attribution in the log and a clean `{:error, reason}` return, so a
+  # handler failure is reported as *that tool* failing.
+  defp safe_dispatch(tool_name, args, state, format) do
+    dispatch_tool(tool_name, args, state, format)
+  rescue
+    exception ->
+      Logger.error(
+        "Tool #{tool_name} raised: " <>
+          Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      {:error, Exception.message(exception)}
+  catch
+    kind, value ->
+      Logger.error("Tool #{tool_name} #{kind}: #{inspect(value)}")
+      {:error, "#{kind}: #{inspect(value)}"}
   end
 
   defp dispatch_tool(tool_name, args, state, format) do
@@ -2519,7 +2550,10 @@ defmodule McpServerElixir.Protocol.McpTools do
               current_state: Map.get(state_data, "current_state", %{}),
               total_events: length(events),
               event_types: event_types,
-              created_at: List.first(events) |> Map.get("timestamp"),
+              # Default to an empty map: an entity can reconstruct from a
+              # snapshot while its events are archived away, and Map.get/3 on
+              # the nil that List.first/1 then returns raises BadMapError (#229).
+              created_at: events |> List.first(%{}) |> Map.get("timestamp"),
               last_updated: Map.get(state_data, "last_updated"),
               lifecycle:
                 Enum.map(events, fn e ->
@@ -2534,7 +2568,7 @@ defmodule McpServerElixir.Protocol.McpTools do
             📋 Entity Explanation: "#{entity_id}"
             🔹 Total Events: #{length(events)}
             🔹 Event Types: #{length(event_types)}
-            🔹 Created: #{List.first(events) |> Map.get("timestamp", "unknown")}
+            🔹 Created: #{events |> List.first(%{}) |> Map.get("timestamp", "unknown")}
             🔹 Last Updated: #{Map.get(state_data, "last_updated", "unknown")}\
             """
 

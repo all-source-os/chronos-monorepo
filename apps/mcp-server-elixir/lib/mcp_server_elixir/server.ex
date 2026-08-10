@@ -93,6 +93,21 @@ defmodule McpServerElixir.Server do
   def handle_info({:stdin_line, line}, state) do
     handle_input(line, state)
     {:noreply, state}
+  rescue
+    # Last resort. `handle_input/2` already guards request handling with a
+    # -32603 reply (see `guarded_process/2`); this clause only exists so that a
+    # failure in the guard itself — or in parsing, or in the error path — still
+    # cannot take the GenServer down. Nothing above this line may propagate.
+    exception ->
+      Logger.error(
+        "stdio line handling raised: " <> Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      {:noreply, state}
+  catch
+    kind, value ->
+      Logger.error("stdio line handling #{kind}: #{inspect(value)}")
+      {:noreply, state}
   end
 
   @impl true
@@ -126,7 +141,7 @@ defmodule McpServerElixir.Server do
       json_string ->
         case JsonRpc.parse_request(json_string) do
           {:ok, request} ->
-            process_request(request, state)
+            guarded_process(request, state)
 
           {:error, reason} ->
             Logger.warning("Failed to parse JSON-RPC request: #{inspect(reason)}")
@@ -134,6 +149,57 @@ defmodule McpServerElixir.Server do
         end
     end
   end
+
+  # The barrier between client-controlled input and the GenServer's life.
+  #
+  # This has to sit at the seam — around the whole of `process_request/2` — not
+  # deeper inside a tool. `McpTools.call_tool/3` shapes the arguments
+  # (`Map.get(args, "format")`) before its own rescue is reachable, and
+  # `process_request/2` reads `params["name"]` before that, so a client sending
+  # `"arguments"` as a JSON string or a list — which real MCP/LLM clients
+  # routinely do — raised a BadMapError straight out of `handle_info/2` and
+  # killed the server. From the client's side that is the session dropping and
+  # the tools "vanishing" with no config change (#229). With the supervisor at
+  # the default `max_restarts: 3` in 5s, four such requests in five seconds
+  # terminate the whole application.
+  #
+  # Everything a request touches is inside this guard: argument shaping,
+  # dispatch, and the JSON encoding of the reply. A bad request degrades to a
+  # JSON-RPC error; it never becomes a process exit.
+  defp guarded_process(request, state) do
+    process_request(request, state)
+  rescue
+    exception ->
+      Logger.error(
+        "Request #{inspect(Map.get(request, :method))} raised: " <>
+          Exception.format(:error, exception, __STACKTRACE__)
+      )
+
+      fail_request(request, Exception.message(exception))
+  catch
+    kind, value ->
+      Logger.error("Request #{inspect(Map.get(request, :method))} #{kind}: #{inspect(value)}")
+      fail_request(request, "#{kind}: #{inspect(value)}")
+  end
+
+  # A notification (no id) is owed no response — but the process still lives.
+  defp fail_request(%{id: nil}, _reason), do: :ok
+
+  defp fail_request(%{id: id} = request, reason) do
+    send_error(id, -32_603, error_message(failure_label(request), reason), reason)
+  end
+
+  # Keep per-tool attribution at the seam: a client that broke `tools/call`
+  # wants to know *which* tool failed, not just that `tools/call` did.
+  defp failure_label(%{method: "tools/call", params: params}) when is_map(params) do
+    case Map.get(params, "name") do
+      name when is_binary(name) -> name
+      _ -> "tools/call"
+    end
+  end
+
+  defp failure_label(%{method: method}) when is_binary(method), do: method
+  defp failure_label(_request), do: "request"
 
   defp process_request(%{method: "initialize", params: _params, id: id}, state) do
     response = %{
@@ -249,11 +315,52 @@ defmodule McpServerElixir.Server do
     "#{tool_name} failed: #{String.slice(detail, 0, @error_message_limit)}"
   end
 
-  defp send_response(response) do
-    json = Jason.encode!(response)
-    # Write to stdout without newline (MCP protocol expects JSON lines)
-    IO.write(:stdio, json <> "\n")
+  @unencodable_error ~s({"jsonrpc":"2.0","id":null,"error":{"code":-32603,) <>
+                       ~s("message":"Internal error: response could not be serialized"}})
+
+  @doc false
+  # `Jason.encode!` here used to be the success path's own way of killing the
+  # session: a result carrying anything Jason cannot encode raised inside the
+  # GenServer, so the client lost its connection instead of getting an error
+  # (#229). No shipping handler builds such a result today — this is the barrier
+  # against the next one that does.
+  #
+  # Public (but @doc false) so the regression test can drive the real writer.
+  def send_response(response) do
+    case Jason.encode(response) do
+      {:ok, json} ->
+        write_line(json)
+
+      {:error, reason} ->
+        Logger.error(
+          "Response for id #{inspect(Map.get(response, :id))} is not JSON-encodable: " <>
+            inspect(reason)
+        )
+
+        write_line(unencodable_error(Map.get(response, :id)))
+    end
   end
+
+  # The fallback is built from an already-sanitised id and a literal message, so
+  # it cannot fail the same way; the hardcoded constant is the floor if it does.
+  defp unencodable_error(id) do
+    payload = %{
+      jsonrpc: "2.0",
+      id: encodable(id),
+      error: %{
+        code: -32_603,
+        message: "Internal error: response could not be serialized"
+      }
+    }
+
+    case Jason.encode(payload) do
+      {:ok, json} -> json
+      {:error, _reason} -> @unencodable_error
+    end
+  end
+
+  # MCP frames responses as JSON lines on stdout.
+  defp write_line(json), do: IO.write(:stdio, json <> "\n")
 
   defp send_error(id, code, message, data) do
     error = %{

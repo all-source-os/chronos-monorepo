@@ -19,6 +19,14 @@ config :mcp_server_elixir,
 # Logger configuration
 config :logger, level: :info
 
+# Log to stderr. stdout IS the JSON-RPC channel for a stdio MCP server, so a log
+# line written there is protocol garbage to the client — which is how the
+# connection "flapped" with no config change (#229). `Server.init/1` set the
+# encoding on :standard_error but that does not move Logger's device; Elixir's
+# default handler logs to :standard_io unless told otherwise. This is not
+# env-specific: it holds wherever the server speaks MCP over stdio.
+config :logger, :default_handler, config: [type: :standard_error]
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [

@@ -396,6 +396,22 @@ curl localhost:3901/health # Check Control Plane is running
 - Check entity exists before querying
 - Test the underlying API directly with curl
 
+### Tools Vanish Mid-Session / Connection Flaps
+stdout is the JSON-RPC channel — anything else written there is protocol garbage
+to the client, and a crash in the server process drops the stream outright. Two
+causes were fixed in #229: Logger defaulted to `:standard_io` (now
+`:standard_error`, set in `config/config.exs`), and an exception while handling a
+request took the server GenServer down with it. Request handling is now wrapped
+at the seam (`Server.guarded_process/2`, around the whole of `process_request/2`)
+so JSON-RPC parsing, argument shaping, tool dispatch and response encoding all
+degrade to a `-32603` error instead of a process exit — including
+client-controlled shape errors such as `"arguments"` arriving as a JSON string
+rather than an object. That matters because the supervisor's default
+`max_restarts: 3` in 5s means four fatal requests in five seconds would take the
+whole application down, not just the session. If it recurs, capture the
+connector's **stderr** — that is where the server logs — and check that no
+library you added writes to stdout.
+
 ## Resources
 
 - [Model Context Protocol Spec](https://spec.modelcontextprotocol.io/)
