@@ -561,7 +561,6 @@ pub async fn query_events(
     State(store): State<SharedStore>,
 ) -> Result<Json<QueryEventsResponse>> {
     let offset = offset_param.offset.unwrap_or(0);
-    let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
 
     // Sort order. Default is ascending (oldest first) to preserve replay
@@ -607,36 +606,18 @@ pub async fn query_events(
         }));
     }
 
-    // Query without limit to get total count
-    let unlimited_req = QueryEventsRequest {
-        entity_id: req.entity_id,
-        event_type: req.event_type,
+    // One windowed pass: the store sorts borrowed matches, applies `offset` and
+    // `limit`, and clones only the page — while still reporting the pre-window
+    // match count for `total_count`/`has_more`. Asking for the total used to
+    // mean a second, unlimited query that cloned the whole history, so
+    // `?entity_id=X&limit=1&order=desc` cost as much as fetching everything
+    // (issue #251). Offset is applied before limit so `offset=N&limit=N` walks
+    // pages instead of returning page one forever (issue #250).
+    let scoped_req = QueryEventsRequest {
         tenant_id: enforced_tenant,
-        as_of: req.as_of,
-        since: req.since,
-        until: req.until,
-        limit: None,
-        event_type_prefix: req.event_type_prefix,
-        exclude_event_type_prefix: req.exclude_event_type_prefix,
-        payload_filter: req.payload_filter,
+        ..req
     };
-    let mut all_events = store.query(&unlimited_req)?;
-    let total_count = all_events.len();
-
-    // store.query() returns events ascending by (timestamp, version).
-    // Reverse for `order=desc` so the limit below takes the newest events.
-    if descending {
-        all_events.reverse();
-    }
-
-    // Apply offset, then limit. Order matters: the offset windows the full
-    // ordered match set, so `offset=N&limit=N` walks pages instead of returning
-    // page one forever (issue #250).
-    let limited_events: Vec<Event> = if let Some(limit) = requested_limit {
-        all_events.into_iter().skip(offset).take(limit).collect()
-    } else {
-        all_events.into_iter().skip(offset).collect()
-    };
+    let (limited_events, total_count) = store.query_window(&scoped_req, offset, descending)?;
 
     let count = limited_events.len();
     // `has_more` is relative to the window actually served, not to the page
@@ -2579,6 +2560,32 @@ mod tests {
         Arc::new(EventStore::new())
     }
 
+    /// Call the REAL `GET /api/v1/events/query` handler with `query` as the
+    /// query string, parsed through the same extractors the router uses.
+    ///
+    /// Tests that hand the handler DTOs they built themselves cannot see
+    /// parameters the DTOs never declare (issue #250) and cannot exercise the
+    /// ordering/windowing composition the handler delegates to the store
+    /// (issue #251), so ordering and pagination guards go through here.
+    /// `tenant_id` is defaulted to the one `create_test_event` stamps.
+    async fn query_page(store: &SharedStore, query: &str) -> QueryEventsResponse {
+        use axum::extract::{Query, State};
+
+        let uri: axum::http::Uri = format!("/api/v1/events/query?tenant_id=test-stream&{query}")
+            .parse()
+            .unwrap();
+        query_events(
+            OptionalAuth(None),
+            Query::try_from_uri(&uri).unwrap(),
+            Query::try_from_uri(&uri).unwrap(),
+            Query::try_from_uri(&uri).unwrap(),
+            State(store.clone()),
+        )
+        .await
+        .unwrap()
+        .0
+    }
+
     fn create_test_event(entity_id: &str, event_type: &str) -> Event {
         Event::from_strings(
             event_type.to_string(),
@@ -2835,6 +2842,58 @@ mod tests {
         assert_eq!(ids(&other), vec!["tenant-99".to_string()]);
     }
 
+    // Regression guard for issue #251: a bounded page must cost the page, not the
+    // whole match set. The handler used to re-run the query with `limit: None`
+    // just to compute `total_count`, so `?entity_id=E&limit=1&order=desc` — the
+    // documented "latest event for an entity" read — cloned and sorted the
+    // entity's entire history on every request.
+    //
+    // Cost is measured by counting `Event` CLONES (`crate::clone_probe`), NOT
+    // with Core's `query_results_total` metric: that counter is incremented with
+    // `results.len()`, i.e. rows RETURNED, so it reads 1 whether the store
+    // clones one event or clones 200 and discards 199 — it cannot fail on a
+    // revert of the store-side windowing. Drives the REAL handler through
+    // query-string deserialization so the count is what an HTTP caller pays.
+    #[test]
+    fn query_events_limit_does_not_materialize_whole_history() {
+        const HISTORY: usize = 200;
+
+        let store = create_test_store();
+        for _ in 0..HISTORY {
+            store
+                .ingest(&create_test_event("entity-hot", "user.updated"))
+                .unwrap();
+        }
+
+        // `clone_probe` is thread-local, so the handler future is driven to
+        // completion on THIS thread (current-thread runtime, inside the measured
+        // closure) — every clone the request makes is therefore counted.
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let (resp, materialized) = crate::clone_probe::measure(|| {
+            runtime.block_on(query_page(
+                &store,
+                "entity_id=entity-hot&limit=1&order=desc",
+            ))
+        });
+
+        // The page itself stays correct: one event, and the total/has_more pair
+        // still describes the full match set.
+        assert_eq!(resp.count, 1);
+        assert_eq!(resp.events.len(), 1);
+        assert_eq!(resp.total_count, HISTORY);
+        assert!(resp.has_more);
+
+        assert_eq!(
+            materialized, 1,
+            "limit=1 materialized {materialized} events out of {HISTORY}: \
+             `limit` must bound what a request materializes, not just what it \
+             returns"
+        );
+    }
+
     // Tenant-isolation gate: the public events query must fail CLOSED — a request
     // with no auth context and no tenant_id returns nothing, never a cross-tenant
     // scan. Calls the real handler so the boundary check is exercised.
@@ -3007,43 +3066,119 @@ mod tests {
     // logic in `query_events` (store.query → reverse-if-desc → take(limit)).
     #[tokio::test]
     async fn test_query_events_order_desc_returns_latest() {
+        // Drives the REAL handler. An earlier version of this test rebuilt the
+        // ordering inline (`ascending.clone(); reverse(); take(1)`) and never
+        // called `query_events`, so it could not fail on a mis-composition in
+        // the code that actually serves `order=desc` — which since issue #251
+        // lives in `EventStore::query_window`, not in the handler.
         let store = create_test_store();
 
-        // Three events for the same entity with strictly increasing
-        // timestamps — mimics a backfill appending a corrected event.
+        // Five events for the same entity with strictly increasing timestamps —
+        // mimics a backfill appending corrected events.
         let base = chrono::Utc::now();
-        for i in 0..3i64 {
+        let mut ascending_ids = Vec::new();
+        for i in 0..5i64 {
             let mut event = create_test_event("org-1", "auth.org.updated");
             event.timestamp = base + chrono::Duration::seconds(i);
             event.version = i + 1;
+            ascending_ids.push(event.id);
             store.ingest(&event).unwrap();
         }
+        let newest_ts = base + chrono::Duration::seconds(4);
 
-        let req = QueryEventsRequest {
-            entity_id: Some("org-1".to_string()),
-            ..Default::default()
-        };
-        let ascending = store.query(&req).unwrap();
-        assert_eq!(ascending.len(), 3);
-        // Ascending order: oldest timestamp first.
-        assert!(ascending[0].timestamp < ascending[1].timestamp);
-        assert!(ascending[1].timestamp < ascending[2].timestamp);
-        let oldest_ts = ascending[0].timestamp;
-        let newest_ts = ascending[2].timestamp;
-
-        // `order=desc`: handler reverses, then `limit=1` takes the front.
-        let mut descending = ascending.clone();
-        descending.reverse();
-        let latest: Vec<Event> = descending.into_iter().take(1).collect();
-        assert_eq!(latest.len(), 1);
+        // The documented "latest event for an entity" read.
+        let latest = query_page(&store, "entity_id=org-1&limit=1&order=desc").await;
+        assert_eq!(latest.count, 1);
         assert_eq!(
-            latest[0].timestamp, newest_ts,
-            "order=desc&limit=1 must yield the newest event"
+            latest.events[0].id,
+            ascending_ids[4],
+            "order=desc&limit=1 must yield the NEWEST event, got the one at \
+             ascending position {:?}",
+            ascending_ids
+                .iter()
+                .position(|id| *id == latest.events[0].id)
         );
+        assert_eq!(latest.events[0].timestamp, newest_ts);
+        assert_eq!(latest.total_count, 5, "total is the full match set");
+        assert!(latest.has_more);
 
-        // Default (ascending) + limit=1 still yields the oldest event.
-        let oldest: Vec<Event> = ascending.into_iter().take(1).collect();
-        assert_eq!(oldest[0].timestamp, oldest_ts);
+        // Default order (and an explicit `asc`) still yields the OLDEST.
+        for qs in [
+            "entity_id=org-1&limit=1",
+            "entity_id=org-1&limit=1&order=asc",
+        ] {
+            let oldest = query_page(&store, qs).await;
+            assert_eq!(oldest.events[0].id, ascending_ids[0], "{qs}");
+            assert_eq!(oldest.events[0].timestamp, base);
+        }
+
+        // An unbounded desc page is the exact reverse of the ascending one —
+        // reversal must apply to the whole match set, not just to the page.
+        let all_desc = query_page(&store, "entity_id=org-1&order=desc").await;
+        let got: Vec<_> = all_desc.events.iter().map(|e| e.id).collect();
+        let expected: Vec<_> = ascending_ids.iter().rev().copied().collect();
+        assert_eq!(got, expected, "order=desc must return newest-first");
+    }
+
+    // Regression guard for issue #251's relocation of the ordering: `order=desc`
+    // moved out of the handler and into `EventStore::query_window`, where it now
+    // composes with `offset` and `limit`. The contract is reverse-THEN-skip-THEN-
+    // take: `order=desc&offset=1&limit=2` is "the 2nd and 3rd newest". Skipping
+    // before reversing (or reversing only the page) returns a different, quietly
+    // wrong page — with the same count, total_count and has_more.
+    #[tokio::test]
+    async fn query_events_desc_composes_with_offset_and_limit() {
+        let store = create_test_store();
+        let base = chrono::Utc::now();
+        let mut ascending_ids = Vec::new();
+        for i in 0..5i64 {
+            let mut event = create_test_event("org-1", "auth.org.updated");
+            event.timestamp = base + chrono::Duration::seconds(i);
+            event.version = i + 1;
+            ascending_ids.push(event.id);
+            store.ingest(&event).unwrap();
+        }
+        let newest_first: Vec<_> = ascending_ids.iter().rev().copied().collect();
+
+        for (offset, limit) in [(0, 2), (1, 2), (2, 2), (3, 2), (4, 2), (5, 2), (1, 4)] {
+            let page = query_page(
+                &store,
+                &format!("entity_id=org-1&order=desc&offset={offset}&limit={limit}"),
+            )
+            .await;
+            let got: Vec<_> = page.events.iter().map(|e| e.id).collect();
+            let expected: Vec<_> = newest_first
+                .iter()
+                .skip(offset)
+                .take(limit)
+                .copied()
+                .collect();
+            assert_eq!(
+                got, expected,
+                "order=desc&offset={offset}&limit={limit} must reverse, then \
+                 skip, then take"
+            );
+            assert_eq!(page.count, expected.len());
+            assert_eq!(page.total_count, 5);
+            assert_eq!(
+                page.has_more,
+                offset + expected.len() < 5,
+                "has_more must account for the offset (offset={offset})"
+            );
+        }
+
+        // Walking the whole entity newest-first must visit every event exactly
+        // once — the property a `order=desc` paginator depends on.
+        let mut walked = Vec::new();
+        for offset in (0..5).step_by(2) {
+            let page = query_page(
+                &store,
+                &format!("entity_id=org-1&order=desc&offset={offset}&limit=2"),
+            )
+            .await;
+            walked.extend(page.events.iter().map(|e| e.id));
+        }
+        assert_eq!(walked, newest_first, "desc paging must cover the set once");
     }
 
     #[tokio::test]

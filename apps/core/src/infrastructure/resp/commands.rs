@@ -302,7 +302,12 @@ fn handle_xlen(
         return (RespValue::err("invalid stream key"), None);
     };
 
-    // Query all events for this stream and return count
+    // Count the stream's events WITHOUT materializing them. This used to run
+    // `store.query(&request)` with `limit: None` and return `events.len()` —
+    // cloning an entity's entire history to produce a single integer, the same
+    // count-by-full-materialization shape as issue #251's `/events/query` bug.
+    // `limit: Some(0)` plus `query_window`'s pre-window `total` gives the count
+    // with an empty window, so XLEN clones nothing.
     let mut request = QueryEventsRequest {
         entity_id: None,
         event_type: None,
@@ -310,7 +315,7 @@ fn handle_xlen(
         as_of: None,
         since: None,
         until: None,
-        limit: None,
+        limit: Some(0),
         event_type_prefix: None,
         exclude_event_type_prefix: None,
         payload_filter: None,
@@ -323,8 +328,8 @@ fn handle_xlen(
         request.tenant_id = Some(stream_key.to_string());
     }
 
-    match store.query(&request) {
-        Ok(events) => (RespValue::Integer(events.len() as i64), None),
+    match store.query_window(&request, 0, false) {
+        Ok((_, total)) => (RespValue::Integer(total as i64), None),
         Err(e) => (RespValue::err(format!("query failed: {e}")), None),
     }
 }
@@ -507,6 +512,49 @@ mod tests {
 
         let (resp, _) = execute(&cmd(&["XLEN", "default"]), &store);
         assert_eq!(resp, RespValue::Integer(3));
+    }
+
+    // Regression guard for issue #251's second site. `XLEN` answers with an
+    // integer, so nothing in its response can reveal that it used to build that
+    // integer by cloning every matching event (`store.query` with `limit:
+    // None`, then `events.len()`) — a 100k-event stream cost 100k `Event`
+    // clones to say "100000". Counts materialized events directly
+    // (`crate::clone_probe`), so restoring the `store.query(...).len()` shape
+    // fails this test while `test_xlen` above stays green.
+    #[test]
+    fn xlen_counts_without_materializing_the_stream() {
+        const HISTORY: usize = 200;
+        let store = make_store();
+        for _ in 0..HISTORY {
+            execute(
+                &cmd(&[
+                    "XADD",
+                    "default",
+                    "*",
+                    "event_type",
+                    "test.event",
+                    "entity_id",
+                    "entity-hot",
+                ]),
+                &store,
+            );
+        }
+
+        // Each addressing form XLEN supports: tenant, entity: and type:.
+        for key in ["default", "entity:entity-hot", "type:test.event"] {
+            let ((resp, _), materialized) =
+                crate::clone_probe::measure(|| execute(&cmd(&["XLEN", key]), &store));
+            assert_eq!(
+                resp,
+                RespValue::Integer(HISTORY as i64),
+                "XLEN {key} must still report the true length"
+            );
+            assert_eq!(
+                materialized, 0,
+                "XLEN {key} cloned {materialized} events to return an integer — \
+                 counting must not materialize the stream"
+            );
+        }
     }
 
     #[test]

@@ -18,7 +18,14 @@ use uuid::Uuid;
 /// - Tenant ID cannot be empty (enforced by TenantId value object)
 /// - Timestamp must not be in the future
 /// - Version starts at 1
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+// `Clone` is derived in normal builds. Under `cfg(test)` it is hand-written so
+// that `crate::clone_probe` can count materialized events — that counter is how
+// the issue #251 guards observe that a bounded query clones the page and not
+// the entity's whole history (see `clone_probe`). The impl below is a
+// field-for-field copy; adding a field to `Event` without adding it there is a
+// compile error, not a silent divergence.
+#[cfg_attr(not(test), derive(Clone))]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Event {
     pub id: Uuid,
     pub event_type: EventType,
@@ -33,6 +40,36 @@ pub struct Event {
 
 fn default_tenant_id() -> TenantId {
     TenantId::default_tenant()
+}
+
+/// Test-only `Clone` that tallies materialized events (see `crate::clone_probe`
+/// and the issue #251 guards in `store.rs`). Behaviourally identical to the
+/// derived impl used in real builds.
+#[cfg(test)]
+impl Clone for Event {
+    fn clone(&self) -> Self {
+        crate::clone_probe::record();
+        let Event {
+            id,
+            event_type,
+            entity_id,
+            tenant_id,
+            payload,
+            timestamp,
+            metadata,
+            version,
+        } = self;
+        Event {
+            id: *id,
+            event_type: event_type.clone(),
+            entity_id: entity_id.clone(),
+            tenant_id: tenant_id.clone(),
+            payload: payload.clone(),
+            timestamp: *timestamp,
+            metadata: metadata.clone(),
+            version: *version,
+        }
+    }
 }
 
 impl Event {

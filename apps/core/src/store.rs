@@ -150,6 +150,40 @@ pub struct WebhookDeliveryTask {
     pub event: Event,
 }
 
+/// Reduce `items` to the `offset .. offset + limit` window under `order`,
+/// leaving that window sorted and everything past it dropped.
+///
+/// `limit == None` means "no window": the whole slice is sorted. Otherwise the
+/// window is partitioned off with `select_nth_unstable_by` — O(N) — and only
+/// the `offset + limit` retained items are sorted, O(k log k), instead of
+/// sorting all N (issue #251). `order` MUST be a total order (no two distinct
+/// items compare `Equal`); with one, this is observationally identical to
+/// sorting everything and then windowing, ties included.
+///
+/// The first `offset` items are kept, not skipped — the caller drops them,
+/// which is what makes `has_more`/`total` independent of the window.
+fn select_window<T>(
+    items: &mut Vec<T>,
+    offset: usize,
+    limit: Option<usize>,
+    order: impl Fn(&T, &T) -> std::cmp::Ordering + Copy,
+) {
+    match limit.map(|limit| offset.saturating_add(limit)) {
+        Some(0) => {
+            items.clear();
+            return;
+        }
+        Some(window_end) if window_end < items.len() => {
+            items.select_nth_unstable_by(window_end - 1, order);
+            items.truncate(window_end);
+        }
+        // No limit, or a window that already covers everything: nothing to
+        // partition off, the sort below orders the whole set.
+        _ => {}
+    }
+    items.sort_unstable_by(order);
+}
+
 impl EventStore {
     /// Create a new in-memory event store
     pub fn new() -> Self {
@@ -1808,9 +1842,38 @@ impl EventStore {
         }
     }
 
-    /// Query events based on filters (optimized with indices)
+    /// Query events based on filters (optimized with indices).
+    ///
+    /// Ascending by `(timestamp, version)`, windowed by `request.limit`.
     #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub fn query(&self, request: &QueryEventsRequest) -> Result<Vec<Event>> {
+        self.query_window(request, 0, false)
+            .map(|(events, _)| events)
+    }
+
+    /// Query events and return only the requested window, plus the total number
+    /// of matches the window was taken from.
+    ///
+    /// `request.limit` bounds the window; `offset` skips that many matches
+    /// first; `descending` returns newest first. The returned total is the
+    /// pre-window match count, which is what `total_count`/`has_more` need.
+    ///
+    /// Cost (issue #251). Matching still costs an O(N) index scan over the
+    /// entity's/type's entries — that is inherent to reporting `total`, and this
+    /// method does not pretend otherwise. What `limit` *does* bound is the
+    /// ordering and the materialization: matches are held as borrowed
+    /// references, the `offset + limit` window is partitioned off with
+    /// `select_nth_unstable_by` (O(N)) and only that window is sorted
+    /// (O(k log k)) and cloned. So a `limit=1` read over a 100k-event entity
+    /// scans 100k index entries but sorts and clones one event, where it
+    /// previously sorted and cloned 100k.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    pub fn query_window(
+        &self,
+        request: &QueryEventsRequest,
+        offset: usize,
+        descending: bool,
+    ) -> Result<(Vec<Event>, usize)> {
         // Lazy-load gate (Step 2): if the request scopes to a tenant,
         // make sure that tenant's persisted data is in memory before
         // running the in-memory index lookup. First call for a cold
@@ -1887,27 +1950,51 @@ impl EventStore {
             (0..events.len()).collect()
         };
 
-        // Fetch events and apply remaining filters
-        let mut results: Vec<Event> = offsets
+        // Apply remaining filters against BORROWED events — cloning happens
+        // only for the window that survives the selection below. Each match
+        // carries its scan position, which is the final tie-breaker and makes
+        // the ordering a *total* order; that is what lets the partial selection
+        // below produce exactly what a stable full sort would have.
+        let mut matches: Vec<(usize, &Event)> = offsets
             .iter()
-            .filter_map(|&offset| events.get(offset).cloned())
+            .filter_map(|&event_offset| events.get(event_offset))
             .filter(|event| self.apply_filters(event, request))
+            .enumerate()
             .collect();
 
-        // Sort by timestamp ascending, with version as a deterministic
+        // Total is the match count before windowing — callers surface it as
+        // `total_count`/`has_more`.
+        let total = matches.len();
+
+        // Order by timestamp ascending, with version as a deterministic
         // tie-breaker so events that share a timestamp keep a stable,
         // well-defined order — "the latest event" must be unambiguous
-        // (issue #177).
-        results.sort_by(|a, b| {
-            a.timestamp
-                .cmp(&b.timestamp)
-                .then_with(|| a.version.cmp(&b.version))
-        });
+        // (issue #177) — then by scan position, so equal (timestamp, version)
+        // pairs keep the order a stable sort gave them. `descending` is the
+        // exact reverse of that total order.
+        let order = |a: &(usize, &Event), b: &(usize, &Event)| {
+            let ascending =
+                a.1.timestamp
+                    .cmp(&b.1.timestamp)
+                    .then_with(|| a.1.version.cmp(&b.1.version))
+                    .then_with(|| a.0.cmp(&b.0));
+            if descending {
+                ascending.reverse()
+            } else {
+                ascending
+            }
+        };
 
-        // Apply limit
-        if let Some(limit) = request.limit {
-            results.truncate(limit);
-        }
+        // Bounded selection (issue #251): sort only the requested window.
+        select_window(&mut matches, offset, request.limit, order);
+
+        // Apply the offset. `limit` is already accounted for: either the window
+        // was truncated by `select_window`, or it covered the whole match set.
+        let results: Vec<Event> = matches
+            .into_iter()
+            .skip(offset)
+            .map(|(_, event)| event.clone())
+            .collect();
 
         // Record query results count (v0.6 feature)
         #[cfg(feature = "server")]
@@ -1919,7 +2006,7 @@ impl EventStore {
             timer.observe_duration();
         }
 
-        Ok(results)
+        Ok((results, total))
     }
 
     /// Filter index entries based on query parameters
@@ -5495,5 +5582,222 @@ mod tests {
         let store = seed_two_tenants();
         let all = store.reconstruct_state("a-1", None).unwrap();
         assert_eq!(all.get("event_count").unwrap(), 3);
+    }
+
+    // -----------------------------------------------------------------
+    // Issue #251: `limit` must bound the store's work, not just its
+    // response. These guards count `Event` CLONES (crate::clone_probe),
+    // not returned rows — `query_results_total` is incremented with
+    // `results.len()`, so it reads 1 both when the store clones one event
+    // and when it clones the whole history and throws the rest away.
+    // Revert `query_window` to "clone every match, sort all N, truncate"
+    // and these go red; row-shaped assertions alone would not.
+    // -----------------------------------------------------------------
+
+    fn seed_hot_entity(history: usize) -> EventStore {
+        let store = EventStore::new();
+        for _ in 0..history {
+            store
+                .ingest(&create_test_event("entity-hot", "user.updated"))
+                .unwrap();
+        }
+        store
+    }
+
+    fn hot_request(limit: Option<usize>) -> QueryEventsRequest {
+        QueryEventsRequest {
+            entity_id: Some("entity-hot".to_string()),
+            limit,
+            ..QueryEventsRequest::default()
+        }
+    }
+
+    #[test]
+    fn query_window_limit_bounds_materialization_not_just_the_response() {
+        const HISTORY: usize = 400;
+        let store = seed_hot_entity(HISTORY);
+
+        // The documented "latest event for an entity" read.
+        let ((page, total), materialized) = crate::clone_probe::measure(|| {
+            store.query_window(&hot_request(Some(1)), 0, true).unwrap()
+        });
+        assert_eq!(page.len(), 1, "limit=1 returns one event");
+        assert_eq!(total, HISTORY, "total is still the full match count");
+        assert_eq!(
+            materialized, 1,
+            "limit=1 cloned {materialized} of {HISTORY} events: `limit` must \
+             bound what the store materializes, not just what it returns"
+        );
+
+        // An offset page materializes the page, not everything up to it.
+        let ((page, _), materialized) = crate::clone_probe::measure(|| {
+            store
+                .query_window(&hot_request(Some(5)), 300, false)
+                .unwrap()
+        });
+        assert_eq!(page.len(), 5);
+        assert_eq!(
+            materialized, 5,
+            "offset=300&limit=5 cloned {materialized} events, expected 5"
+        );
+
+        // The unbounded query legitimately materializes everything — the
+        // ceiling only applies where the caller asked for a window.
+        let ((all, _), materialized) = crate::clone_probe::measure(|| {
+            store.query_window(&hot_request(None), 0, true).unwrap()
+        });
+        assert_eq!(all.len(), HISTORY);
+        assert_eq!(materialized, HISTORY as u64);
+    }
+
+    #[test]
+    fn query_window_cost_does_not_grow_with_entity_history() {
+        // The same bounded page against a 10x longer history. Materialization
+        // is bounded by the window, so history length must not show up in the
+        // clone count — only the O(N) index scan that `total` inherently needs
+        // still scales, and that clones no events.
+        let short = seed_hot_entity(40);
+        let long = seed_hot_entity(400);
+
+        let (_, short_cost) = crate::clone_probe::measure(|| {
+            short.query_window(&hot_request(Some(1)), 0, true).unwrap()
+        });
+        let (_, long_cost) = crate::clone_probe::measure(|| {
+            long.query_window(&hot_request(Some(1)), 0, true).unwrap()
+        });
+
+        assert_eq!(
+            (short_cost, long_cost),
+            (1, 1),
+            "a limit=1 page materialized {short_cost} events over a 40-event \
+             history and {long_cost} over 400 — cost is tracking history length"
+        );
+    }
+
+    #[test]
+    fn select_window_orders_only_the_window() {
+        // The complexity claim in `select_window`'s doc comment, made
+        // observable: counting comparisons. A full sort of N items costs
+        // ~N·log2(N); partial selection of a small window costs ~N. Replace the
+        // `select_nth_unstable_by` with a plain `sort_unstable_by` over all N
+        // and the ratio collapses, failing this test.
+        use std::cell::Cell;
+        const N: usize = 4096;
+
+        let comparisons = Cell::new(0usize);
+        let order = |a: &u64, b: &u64| {
+            comparisons.set(comparisons.get() + 1);
+            a.cmp(b)
+        };
+        let shuffled = || -> Vec<u64> {
+            (0..N as u64)
+                .map(|i| (i * 2_654_435_761) % 1_000_003)
+                .collect()
+        };
+
+        let mut bounded = shuffled();
+        select_window(&mut bounded, 0, Some(1), order);
+        let bounded_cost = comparisons.replace(0);
+        assert_eq!(bounded.len(), 1, "window of 1 keeps 1 item");
+
+        let mut everything = shuffled();
+        select_window(&mut everything, 0, None, order);
+        let full_sort_cost = comparisons.get();
+        assert_eq!(everything.len(), N);
+
+        assert!(
+            bounded_cost < 4 * N,
+            "selecting a 1-item window out of {N} took {bounded_cost} comparisons \
+             (~{}·N) — that is sort-shaped, not selection-shaped",
+            bounded_cost / N
+        );
+        assert!(
+            bounded_cost * 3 < full_sort_cost,
+            "a 1-item window cost {bounded_cost} comparisons against \
+             {full_sort_cost} for sorting all {N}: the window is not bounding \
+             the ordering work"
+        );
+    }
+
+    #[test]
+    fn select_window_is_equivalent_to_sort_then_window() {
+        // Exhaustive small-input check that partial selection cannot diverge
+        // from sort-then-window, including duplicate keys (the total order is
+        // supplied by the caller — here (key, position)).
+        let order = |a: &(u32, usize), b: &(u32, usize)| a.cmp(b);
+        let source: Vec<(u32, usize)> = [7, 3, 3, 9, 1, 3, 5, 9, 0, 2]
+            .into_iter()
+            .enumerate()
+            .map(|(i, k)| (k, i))
+            .collect();
+
+        let mut sorted = source.clone();
+        sorted.sort_by(order);
+
+        for offset in 0..12 {
+            for limit in [None, Some(0), Some(1), Some(3), Some(10), Some(50)] {
+                let mut got = source.clone();
+                select_window(&mut got, offset, limit, order);
+                let got: Vec<_> = got.into_iter().skip(offset).collect();
+                let expected: Vec<_> = sorted
+                    .iter()
+                    .copied()
+                    .skip(offset)
+                    .take(limit.unwrap_or(usize::MAX))
+                    .collect();
+                assert_eq!(got, expected, "offset={offset} limit={limit:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn query_window_bounded_selection_matches_a_full_sort() {
+        // Bounded selection (partial select + sort of the window only) must be
+        // observationally identical to sort-everything-then-window, including
+        // ties and the descending path — otherwise the perf win silently
+        // changes pagination.
+        let store = EventStore::new();
+        for i in 0..50 {
+            store
+                .ingest(&create_test_event(&format!("e-{i:02}"), "user.created"))
+                .unwrap();
+        }
+        let all = |descending: bool| {
+            let (events, _) = store
+                .query_window(&QueryEventsRequest::default(), 0, descending)
+                .unwrap();
+            events
+        };
+
+        for descending in [false, true] {
+            let reference = all(descending);
+            for offset in [0, 1, 7, 49, 50, 100] {
+                for limit in [1, 3, 10, 50, 100] {
+                    let (page, total) = store
+                        .query_window(
+                            &QueryEventsRequest {
+                                limit: Some(limit),
+                                ..QueryEventsRequest::default()
+                            },
+                            offset,
+                            descending,
+                        )
+                        .unwrap();
+                    let expected: Vec<_> = reference
+                        .iter()
+                        .skip(offset)
+                        .take(limit)
+                        .map(|e| e.id)
+                        .collect();
+                    let got: Vec<_> = page.iter().map(|e| e.id).collect();
+                    assert_eq!(
+                        got, expected,
+                        "desc={descending} offset={offset} limit={limit}: windowed \
+                         selection must match a full sort"
+                    );
+                    assert_eq!(total, 50, "total is always the full match count");
+                }
+            }
+        }
     }
 }

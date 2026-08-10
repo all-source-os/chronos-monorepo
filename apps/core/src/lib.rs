@@ -96,6 +96,11 @@ pub mod security;
 /// Shared test fixture builders for integration tests and cross-crate use
 pub mod test_utils;
 
+/// Test-only probe counting `Event` clones — lets unit tests assert on how much
+/// a call materializes, not just on what it returns. See issue #251.
+#[cfg(test)]
+mod clone_probe;
+
 /// Async webhook delivery worker
 #[cfg(feature = "server")]
 pub mod webhook_worker;
