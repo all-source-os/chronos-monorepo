@@ -97,31 +97,39 @@ defmodule QueryServiceExWeb.EventController do
     ]
   )
 
+  # Every filter Core's GET /api/v1/events/query accepts, minus tenant_id
+  # (injected from the authenticated caller) and limit/offset (parsed as ints
+  # with defaults). Forwarded verbatim so a query answers the same through the
+  # gateway as it does against Core directly (issue #252).
+  @core_compat_filters ~w(
+    entity_id event_type event_type_prefix exclude_event_type_prefix
+    payload_filter since until as_of order
+  )a
+
   @doc """
   Query events returning Core-compatible format (no HATEOAS wrapping).
 
   This endpoint proxies to Core's GET /api/v1/events/query and returns
-  the response as-is: `{"events": [...], "count": N}`.
+  the response as-is: `{"events": [...], "count": N, "total_count": N,
+  "has_more": bool}`.
 
-  Used by SDKs that call query_events() and expect the Core wire format.
+  Used by SDKs that call query_events() and expect the Core wire format —
+  including the pagination metadata their paginators drive off.
   """
   def query_core_compat(conn, params) do
     tenant_id = get_tenant_id!(conn)
     consistency = conn.assigns[:consistency]
 
+    page = %{limit: parse_int(params["limit"], 100), offset: parse_int(params["offset"], 0)}
+
     query_params =
-      %{limit: parse_int(params["limit"], 100), offset: parse_int(params["offset"], 0)}
-      |> maybe_put(:entity_id, params["entity_id"])
-      |> maybe_put(:event_type, params["event_type"])
-      |> maybe_put(:since, params["since"])
-      |> maybe_put(:until, params["until"])
+      Enum.reduce(@core_compat_filters, page, fn key, acc ->
+        maybe_put(acc, key, params[Atom.to_string(key)])
+      end)
 
-    case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do
-      {:ok, events} when is_list(events) ->
-        json(conn, %{events: events, count: length(events)})
-
-      {:ok, %{"events" => events, "count" => count}} ->
-        json(conn, %{events: events, count: count})
+    case RustCoreClient.query_events_page(tenant_id, query_params, consistency: consistency) do
+      {:ok, %{"events" => events} = body} ->
+        json(conn, core_compat_response(events, body))
 
       {:ok, body} when is_map(body) ->
         json(conn, body)
@@ -131,6 +139,28 @@ defmodule QueryServiceExWeb.EventController do
         |> put_status(:bad_request)
         |> json(%{error: to_string(reason)})
     end
+  end
+
+  # Pagination metadata Core returns alongside the events, passed through
+  # untouched. Never synthesized when absent: inventing `has_more: false` for an
+  # older Core would stop a paginator early, whereas a missing key lets the
+  # client fall back to its own short-page heuristic.
+  @core_compat_metadata [
+    {"total_count", :total_count},
+    {"has_more", :has_more},
+    {"entity_version", :entity_version}
+  ]
+
+  # Rebuild Core's envelope, keeping the pagination metadata (issue #252).
+  defp core_compat_response(events, body) do
+    base = %{events: events, count: Map.get(body, "count", length(events))}
+
+    Enum.reduce(@core_compat_metadata, base, fn {source, key}, acc ->
+      case Map.fetch(body, source) do
+        {:ok, value} -> Map.put(acc, key, value)
+        :error -> acc
+      end
+    end)
   end
 
   @doc """
@@ -357,9 +387,11 @@ defmodule QueryServiceExWeb.EventController do
     consistency = conn.assigns[:consistency]
     limit = parse_int(params["limit"], 20)
 
+    # Core orders by `order=asc|desc`; it has no `sort` param, so `sort` was
+    # silently discarded and this endpoint served the OLDEST events (#252).
     query_params = %{
       limit: limit,
-      sort: "timestamp:desc"
+      order: "desc"
     }
 
     case RustCoreClient.query_events(tenant_id, query_params, consistency: consistency) do

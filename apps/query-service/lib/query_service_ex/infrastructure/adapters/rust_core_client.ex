@@ -286,6 +286,42 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
     end
   end
 
+  @doc """
+  Query events and return Core's full response envelope with tenant isolation.
+
+  Unlike `query_events/3`, which unwraps to just the event list, this keeps the
+  pagination metadata Core returns (`total_count`, `has_more`, `entity_version`).
+  Callers that proxy Core's wire format to clients must use this — dropping
+  `has_more` forces SDK paginators onto the `fetched < page_size` heuristic,
+  which is only correct when the last page is short (issue #252).
+
+  ## Returns
+    * `{:ok, %{"events" => [...], "count" => N, ...}}` - Core's response body
+    * `{:error, reason}` - Error details
+  """
+  def query_events_page(tenant_id, params, opts \\ [])
+      when is_binary(tenant_id) and is_map(params) do
+    params_with_tenant = Map.put(params, :tenant_id, tenant_id)
+    client = client_for_consistency(Keyword.get(opts, :consistency))
+
+    case Tesla.get(client, "/api/v1/events/query", query: params_with_tenant) do
+      {:ok, %Tesla.Env{status: 200, body: %{"events" => events} = body}} when is_list(events) ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_list(body) ->
+        {:ok, %{"events" => body, "count" => length(body)}}
+
+      {:ok, %Tesla.Env{status: 200, body: body}} when is_map(body) ->
+        {:ok, body}
+
+      {:ok, %Tesla.Env{status: status, body: body}} ->
+        {:error, "HTTP #{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   # Deprecated: Use query_events/2 with tenant_id for proper isolation
   @doc false
   def query_events(%Query{} = query) do
