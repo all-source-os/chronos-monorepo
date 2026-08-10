@@ -1705,6 +1705,23 @@ pub async fn delete_projection(
     })))
 }
 
+/// Query parameters for `GET /api/v1/projections/{name}/state`.
+///
+/// All optional: with none of them set the endpoint keeps its historical
+/// behaviour of returning every cached entity for the projection, so existing
+/// callers (the Query Service's `ProjectionServer` hydration, the SDKs) are
+/// unaffected. Names match `ListEntitiesRequest` for consistency.
+#[derive(Debug, Default, Deserialize)]
+pub struct ProjectionStateSummaryParams {
+    /// Maximum number of entity states to return. Unbounded when absent.
+    pub limit: Option<usize>,
+    /// Number of matching states to skip before applying `limit`. Default 0.
+    pub offset: Option<usize>,
+    /// Return only entities whose id starts with this prefix — lets a caller
+    /// walk one shard of the keyspace without enumerating the whole projection.
+    pub entity_id_prefix: Option<String>,
+}
+
 /// Get aggregate projection state (all entities).
 ///
 /// Returns the cached states written via `save_projection_state` /
@@ -1712,33 +1729,79 @@ pub async fn delete_projection(
 /// registered with the projection manager — this supports SDK-managed
 /// projections that push state without server-side registration.
 ///
+/// Supports `limit`, `offset` and `entity_id_prefix` (issue #249): this is the
+/// only endpoint that can *enumerate* a projection — `bulk_get_projection_states`
+/// needs the ids up front — so a projection with one entry per tenant needs a
+/// way to bound and resume a request. Entities are ordered by `entity_id` so
+/// offset paging is stable; `total` is the full match set and `has_more` tells
+/// a paginator when to stop.
+///
 /// Returns an empty list when no state has been written.
 pub async fn get_projection_state_summary(
     State(store): State<SharedStore>,
     Path(name): Path<String>,
+    Query(params): Query<ProjectionStateSummaryParams>,
 ) -> Result<Json<serde_json::Value>> {
     let cache = store.projection_state_cache();
     let prefix = format!("{name}:");
-    let states: Vec<serde_json::Value> = cache
+    let offset = params.offset.unwrap_or(0);
+
+    // Collect the matching keys first and sort them. DashMap iteration order is
+    // arbitrary, so offset paging is only coherent against a total order — and
+    // windowing ids instead of values means only the returned page's states are
+    // cloned, not the whole projection.
+    let mut entity_ids: Vec<String> = cache
         .iter()
-        .filter(|entry| entry.key().starts_with(&prefix))
-        .map(|entry| {
-            let entity_id = entry.key().strip_prefix(&prefix).unwrap_or(entry.key());
-            serde_json::json!({
-                "entity_id": entity_id,
-                "state": entry.value().clone()
+        .filter_map(|entry| entry.key().strip_prefix(&prefix).map(ToString::to_string))
+        .filter(|entity_id| {
+            params
+                .entity_id_prefix
+                .as_ref()
+                .is_none_or(|p| entity_id.starts_with(p))
+        })
+        .collect();
+    entity_ids.sort_unstable();
+
+    let total = entity_ids.len();
+
+    let page = entity_ids.into_iter().skip(offset);
+    let page: Vec<String> = match params.limit {
+        Some(limit) => page.take(limit).collect(),
+        None => page.collect(),
+    };
+
+    let states: Vec<serde_json::Value> = page
+        .into_iter()
+        .filter_map(|entity_id| {
+            // Skip entries deleted between the key scan and the value read.
+            cache.get(&format!("{prefix}{entity_id}")).map(|entry| {
+                serde_json::json!({
+                    "entity_id": entity_id,
+                    "state": entry.value().clone()
+                })
             })
         })
         .collect();
 
-    let total = states.len();
+    let count = states.len();
+    // Relative to the window actually served — a paginator that trusts a bare
+    // `count < total` never terminates once an offset is in play (cf. #250).
+    let has_more = offset + count < total;
 
-    tracing::debug!("Projection state summary: {} ({} entities)", name, total);
+    tracing::debug!(
+        "Projection state summary: {} ({} of {} entities, offset {})",
+        name,
+        count,
+        total,
+        offset
+    );
 
     Ok(Json(serde_json::json!({
         "projection": name,
         "states": states,
-        "total": total
+        "count": count,
+        "total": total,
+        "has_more": has_more
     })))
 }
 
@@ -2656,6 +2719,120 @@ mod tests {
         let past = page(&store, 10, 100).await;
         assert_eq!(past.count, 0);
         assert!(!past.has_more, "offset beyond the match set is exhausted");
+    }
+
+    // Regression guard for issue #249: `GET /api/v1/projections/{name}/state`
+    // must honour `limit`, `offset` and `entity_id_prefix`. The handler used to
+    // take only `Path(name)`, so query parameters were dropped on the floor and
+    // the response grew linearly with the number of cached entities — a caller
+    // with one entry per tenant had no way to bound a request or resume one.
+    // Driven through a real router so query-string deserialization is exercised:
+    // a test that hands the handler a DTO it built itself cannot fail on
+    // parameters the handler never declares.
+    #[tokio::test]
+    async fn projection_state_summary_honours_limit_offset_and_prefix() {
+        use axum::{
+            body::{Body, to_bytes},
+            http::Request,
+        };
+        use tower::ServiceExt; // for `oneshot`
+
+        let store = create_test_store();
+        let cache = store.projection_state_cache();
+        for i in 0..25 {
+            cache.insert(
+                format!("demo:tenant-{i:02}"),
+                serde_json::json!({ "n": i as u64 }),
+            );
+        }
+        // A neighbouring projection and a same-prefix-looking key must not leak.
+        cache.insert(
+            "other:tenant-99".to_string(),
+            serde_json::json!({ "n": 99 }),
+        );
+
+        let app = Router::new()
+            .route(
+                "/api/v1/projections/{name}/state",
+                get(get_projection_state_summary),
+            )
+            .with_state(store.clone());
+
+        async fn fetch(app: &Router, uri: &str) -> serde_json::Value {
+            let resp = app
+                .clone()
+                .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), axum::http::StatusCode::OK, "GET {uri}");
+            let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+            serde_json::from_slice(&bytes).unwrap()
+        }
+
+        let ids = |body: &serde_json::Value| -> Vec<String> {
+            body["states"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|s| s["entity_id"].as_str().unwrap().to_string())
+                .collect()
+        };
+
+        // No params: unchanged behaviour — the whole projection, scoped to it.
+        let all = fetch(&app, "/api/v1/projections/demo/state").await;
+        assert_eq!(all["total"], 25);
+        assert_eq!(ids(&all).len(), 25);
+
+        // limit bounds the body; total still reports the full match set.
+        let p1 = fetch(&app, "/api/v1/projections/demo/state?limit=10").await;
+        assert_eq!(ids(&p1).len(), 10, "limit must bound the response");
+        assert_eq!(p1["total"], 25);
+        assert_eq!(p1["count"], 10);
+        assert_eq!(p1["has_more"], true);
+
+        // offset resumes where the previous page stopped.
+        let p2 = fetch(&app, "/api/v1/projections/demo/state?limit=10&offset=10").await;
+        let p3 = fetch(&app, "/api/v1/projections/demo/state?limit=10&offset=20").await;
+        assert_eq!(ids(&p3).len(), 5, "last page returns the remainder");
+        assert_eq!(p3["has_more"], false, "offset + count == total → exhausted");
+        assert_ne!(ids(&p1), ids(&p2), "offset=10 must skip the first page");
+
+        let mut walked = ids(&p1);
+        walked.extend(ids(&p2));
+        walked.extend(ids(&p3));
+        let unique: std::collections::HashSet<_> = walked.iter().cloned().collect();
+        assert_eq!(
+            unique.len(),
+            25,
+            "paging the whole projection must yield 25 distinct entities"
+        );
+
+        // Paging is only meaningful over a stable order — DashMap iteration is not.
+        let mut sorted = walked.clone();
+        sorted.sort();
+        assert_eq!(walked, sorted, "pages must be ordered by entity_id");
+
+        // Past the end: empty page, exhausted rather than "more".
+        let past = fetch(&app, "/api/v1/projections/demo/state?limit=10&offset=100").await;
+        assert_eq!(past["count"], 0);
+        assert_eq!(past["has_more"], false);
+        assert_eq!(past["total"], 25);
+
+        // entity_id_prefix narrows to one shard of the keyspace.
+        let shard = fetch(
+            &app,
+            "/api/v1/projections/demo/state?entity_id_prefix=tenant-1",
+        )
+        .await;
+        assert_eq!(shard["total"], 10, "tenant-10..tenant-19");
+        assert!(
+            ids(&shard).iter().all(|id| id.starts_with("tenant-1")),
+            "entity_id_prefix must filter"
+        );
+
+        // The projection scope itself still holds under paging.
+        let other = fetch(&app, "/api/v1/projections/other/state?limit=10").await;
+        assert_eq!(ids(&other), vec!["tenant-99".to_string()]);
     }
 
     // Tenant-isolation gate: the public events query must fail CLOSED — a request
@@ -3877,10 +4054,13 @@ mod tests {
         // Different projection name — must not appear in the summary.
         cache.insert("trades:t-1".into(), serde_json::json!({"x": 1}));
 
-        let resp =
-            get_projection_state_summary(State(Arc::clone(&store)), Path("assets".to_string()))
-                .await
-                .unwrap();
+        let resp = get_projection_state_summary(
+            State(Arc::clone(&store)),
+            Path("assets".to_string()),
+            Query(ProjectionStateSummaryParams::default()),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(resp.0["total"], 2);
         let states = resp.0["states"].as_array().unwrap();

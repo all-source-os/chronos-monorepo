@@ -223,11 +223,42 @@ Get projection state.
 curl http://localhost:3900/api/v1/projections/user_stats/user-456/state
 ```
 
-#### GET /api/v1/projections/:name/states
-List all states for a projection.
+#### GET /api/v1/projections/:name/state
+List the states for a projection. This is the only way to *enumerate* a
+projection — `/bulk` requires the entity ids up front.
+
+Optional query parameters (all default to "everything", so an unparameterised
+call returns the whole projection as before):
+
+| Parameter | Description |
+|-----------|-------------|
+| `limit` | Maximum number of entity states to return. Unbounded when absent. |
+| `offset` | Number of matching states to skip before applying `limit`. Default `0`. |
+| `entity_id_prefix` | Return only entities whose id starts with this prefix. |
+
+States are ordered by `entity_id` ascending, so offset paging is stable.
+The response carries `count` (states in this page), `total` (full match set) and
+`has_more` (`offset + count < total`) — page until `has_more` is `false`.
 
 ```bash
-curl http://localhost:3900/api/v1/projections/user_stats/states
+# Everything
+curl http://localhost:3900/api/v1/projections/user_stats/state
+
+# One page of 100, resumable
+curl "http://localhost:3900/api/v1/projections/user_stats/state?limit=100&offset=200"
+
+# One shard of the keyspace
+curl "http://localhost:3900/api/v1/projections/user_stats/state?entity_id_prefix=tenant-a"
+```
+
+```json
+{
+  "projection": "user_stats",
+  "states": [{ "entity_id": "user-456", "state": { "event_count": 42 } }],
+  "count": 1,
+  "total": 1,
+  "has_more": false
+}
 ```
 
 #### DELETE /api/v1/projections/:name/:entity_id/state
