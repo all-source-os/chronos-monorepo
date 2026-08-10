@@ -543,12 +543,24 @@ pub struct EventOrderParam {
     pub order: Option<String>,
 }
 
+/// Pagination offset for `GET /api/v1/events/query`. Separate from
+/// `QueryEventsRequest` for the same reason as `EventOrderParam`: offset is an
+/// HTTP-layer windowing concern, not part of the internal query predicate that
+/// `store.query()` and its ~50 call sites evaluate.
+#[derive(Debug, Deserialize)]
+pub struct EventOffsetParam {
+    /// Number of matching events to skip before applying `limit`. Default 0.
+    pub offset: Option<usize>,
+}
+
 pub async fn query_events(
     OptionalAuth(auth): OptionalAuth,
     Query(req): Query<QueryEventsRequest>,
     Query(order_param): Query<EventOrderParam>,
+    Query(offset_param): Query<EventOffsetParam>,
     State(store): State<SharedStore>,
 ) -> Result<Json<QueryEventsResponse>> {
+    let offset = offset_param.offset.unwrap_or(0);
     let requested_limit = req.limit;
     let queried_entity_id = req.entity_id.clone();
 
@@ -617,15 +629,20 @@ pub async fn query_events(
         all_events.reverse();
     }
 
-    // Apply limit
+    // Apply offset, then limit. Order matters: the offset windows the full
+    // ordered match set, so `offset=N&limit=N` walks pages instead of returning
+    // page one forever (issue #250).
     let limited_events: Vec<Event> = if let Some(limit) = requested_limit {
-        all_events.into_iter().take(limit).collect()
+        all_events.into_iter().skip(offset).take(limit).collect()
     } else {
-        all_events
+        all_events.into_iter().skip(offset).collect()
     };
 
     let count = limited_events.len();
-    let has_more = count < total_count;
+    // `has_more` is relative to the window actually served, not to the page
+    // size — a paginator that trusts a bare `count < total_count` never
+    // terminates once an offset is in play.
+    let has_more = offset + count < total_count;
     let events: Vec<EventDto> = limited_events.iter().map(EventDto::from).collect();
 
     // Include entity_version only when filtering by a single entity_id
@@ -2569,6 +2586,78 @@ mod tests {
         assert!(has_more);
     }
 
+    // Regression guard for issue #250: `GET /api/v1/events/query` must honour
+    // `offset`. It used to be dropped silently (the DTO did not declare it), so
+    // every page returned the same first `limit` events and `has_more` stayed
+    // true — the Rust SDK's `EventPaginator` (and the Go SDK's `QueryOptions`)
+    // both send `offset`, so `collect_all()` looped forever accumulating
+    // duplicates. Drives the REAL handler through query-string deserialization,
+    // because the bug lived in the wire layer: a hand-rolled test that builds
+    // the DTO in code cannot see a field the DTO never declares.
+    #[tokio::test]
+    async fn query_events_honours_offset_pagination() {
+        use axum::extract::{Query, State};
+
+        let store = create_test_store();
+        for i in 0..25 {
+            store
+                .ingest(&create_test_event(&format!("e-{i:02}"), "user.created"))
+                .unwrap();
+        }
+
+        // Parse a real query string through the same extractors the router uses.
+        async fn page(store: &SharedStore, limit: usize, offset: usize) -> QueryEventsResponse {
+            let uri: axum::http::Uri =
+                format!("/api/v1/events/query?tenant_id=test-stream&limit={limit}&offset={offset}")
+                    .parse()
+                    .unwrap();
+            let req: Query<QueryEventsRequest> = Query::try_from_uri(&uri).unwrap();
+            let order: Query<EventOrderParam> = Query::try_from_uri(&uri).unwrap();
+            let off: Query<EventOffsetParam> = Query::try_from_uri(&uri).unwrap();
+            assert_eq!(off.0.offset, Some(offset), "offset must deserialize");
+            query_events(OptionalAuth(None), req, order, off, State(store.clone()))
+                .await
+                .unwrap()
+                .0
+        }
+
+        let p1 = page(&store, 10, 0).await;
+        let p2 = page(&store, 10, 10).await;
+        let p3 = page(&store, 10, 20).await;
+
+        assert_eq!(p1.count, 10);
+        assert_eq!(p2.count, 10);
+        assert_eq!(p3.count, 5, "last page returns the remainder");
+        assert_eq!(p1.total_count, 25);
+
+        // The core failure: page 2 must not be page 1 again.
+        let ids = |r: &QueryEventsResponse| -> Vec<String> {
+            r.events.iter().map(|e| e.entity_id.clone()).collect()
+        };
+        assert_ne!(ids(&p1), ids(&p2), "offset=10 must skip the first page");
+
+        let mut all = ids(&p1);
+        all.extend(ids(&p2));
+        all.extend(ids(&p3));
+        let unique: std::collections::HashSet<_> = all.iter().cloned().collect();
+        assert_eq!(
+            unique.len(),
+            25,
+            "paging the whole set must yield 25 distinct entities, not duplicates"
+        );
+
+        // `has_more` must account for the offset, otherwise a paginator that
+        // trusts it never terminates.
+        assert!(p1.has_more, "25 events, page 1 of 10 → more remain");
+        assert!(p2.has_more, "25 events, page 2 of 10 → more remain");
+        assert!(!p3.has_more, "offset=20 + count=5 == total → exhausted");
+
+        // Past the end: empty page, and exhausted rather than "more".
+        let past = page(&store, 10, 100).await;
+        assert_eq!(past.count, 0);
+        assert!(!past.has_more, "offset beyond the match set is exhausted");
+    }
+
     // Tenant-isolation gate: the public events query must fail CLOSED — a request
     // with no auth context and no tenant_id returns nothing, never a cross-tenant
     // scan. Calls the real handler so the boundary check is exercised.
@@ -2587,6 +2676,7 @@ mod tests {
             OptionalAuth(None),
             Query(QueryEventsRequest::default()),
             Query(EventOrderParam { order: None }),
+            Query(EventOffsetParam { offset: None }),
             State(store.clone()),
         )
         .await
@@ -2606,6 +2696,7 @@ mod tests {
                 ..QueryEventsRequest::default()
             }),
             Query(EventOrderParam { order: None }),
+            Query(EventOffsetParam { offset: None }),
             State(store),
         )
         .await
