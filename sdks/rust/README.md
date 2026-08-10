@@ -185,8 +185,10 @@ For a deeper guide on projection design, operational concerns, and migration fro
 | Client | Method | Purpose |
 |--------|--------|---------|
 | `CoreClient` | `ingest_event` / `ingest_batch` | Write events |
-| `CoreClient` | `get/put_projection_state`, `bulk_put_projection_state` | Projection KV |
+| `CoreClient` | `get/put_projection_state`, `bulk_get/bulk_put_projection_state(s)` | Projection KV |
+| `CoreClient` | `get_projection_state_summary` | All entities of a projection |
 | `CoreClient` | `register/get/ack_consumer` | Durable consumer registry |
+| `CoreClient` | `poll_consumer_events` | Pull-based alternative to the WS stream |
 | `CoreClient` | `save_checkpoint` / `load_checkpoint` | Worker checkpoint helpers |
 | `QueryClient` | `query_events` | Filter events |
 | `QueryClient` | `query_and_fold::<F: EventFolder>` | Fold → state in one call |

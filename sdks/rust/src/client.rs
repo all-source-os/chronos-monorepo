@@ -116,7 +116,7 @@ impl HttpTransport {
         .await
     }
 
-    async fn get_with_query<T: for<'de> Deserialize<'de>>(
+    pub(crate) async fn get_with_query<T: for<'de> Deserialize<'de>>(
         &self,
         path: &str,
         query: &[(&str, String)],

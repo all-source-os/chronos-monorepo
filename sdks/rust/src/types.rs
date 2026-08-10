@@ -466,6 +466,21 @@ pub struct ConsumerState {
     pub cursor_position: Option<u64>,
 }
 
+/// A polled event plus the WAL offset to ack it at.
+///
+/// Returned by [`CoreClient::poll_consumer_events`](crate::CoreClient::poll_consumer_events).
+/// Core sends the event's fields flattened alongside `position`, so this type
+/// mirrors that shape.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ConsumerEvent {
+    /// Global WAL offset of this event — pass the highest one you processed to
+    /// [`CoreClient::ack_consumer`](crate::CoreClient::ack_consumer).
+    pub position: u64,
+    /// The event itself.
+    #[serde(flatten)]
+    pub event: Event,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

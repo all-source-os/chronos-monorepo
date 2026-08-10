@@ -4,6 +4,19 @@ All notable changes to the `allsource` Rust SDK.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org).
 
+## [Unreleased]
+
+### Added
+
+- `CoreClient::get_projection_state_summary` (`GET /api/v1/projections/:name/state`),
+  `CoreClient::bulk_get_projection_states` (`POST /api/v1/projections/:name/bulk`)
+  and `CoreClient::poll_consumer_events` (`GET /api/v1/consumers/:id/events`).
+  These three Core routes had no SDK method, and `CoreClient::transport()` is
+  `pub(crate)`, so reaching them meant standing up a second HTTP client without
+  the SDK's retry loop and circuit breaker. Polling returns the new
+  `ConsumerEvent` type (WAL `position` + `event`) to ack with `ack_consumer`.
+  Resolves issue #246.
+
 ## [0.21.0] — 2026-05-16
 
 ### Added

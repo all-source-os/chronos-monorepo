@@ -4103,4 +4103,38 @@ mod tests {
         assert_eq!(by_id["ETH"]["found"], serde_json::Value::Bool(true));
         assert_eq!(by_id["MISSING"]["found"], serde_json::Value::Bool(false));
     }
+
+    /// Pins the poll wire shape the Rust SDK's `poll_consumer_events` decodes:
+    /// `ConsumerEventDto` flattens the event, so its fields sit next to
+    /// `position` rather than nested under an `event` key.
+    #[tokio::test]
+    async fn poll_consumer_events_flattens_event_alongside_position() {
+        let store = create_test_store();
+        store
+            .ingest(&create_test_event("user-1", "user.created"))
+            .unwrap();
+        store
+            .ingest(&create_test_event("user-2", "user.updated"))
+            .unwrap();
+        store.consumer_registry().register("w1", &[]);
+
+        let resp = poll_consumer_events(
+            State(Arc::clone(&store)),
+            Path("w1".to_string()),
+            Query(ConsumerPollQuery { limit: Some(10) }),
+        )
+        .await
+        .unwrap();
+
+        let body = serde_json::to_value(&resp.0).unwrap();
+        assert_eq!(body["count"], 2);
+        let first = &body["events"][0];
+        assert_eq!(first["position"], 1);
+        assert!(
+            first.get("event").is_none(),
+            "event must be flattened, not nested: got {first:?}"
+        );
+        assert_eq!(first["event_type"], "user.created");
+        assert_eq!(first["entity_id"], "user-1");
+    }
 }

@@ -6,7 +6,11 @@
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 
-use crate::{client::CoreClient, types::ConsumerState, Error};
+use crate::{
+    client::CoreClient,
+    types::{ConsumerEvent, ConsumerState},
+    Error,
+};
 
 impl CoreClient {
     /// Read a projection entity's state from Core.
@@ -43,6 +47,58 @@ impl CoreClient {
             Some(state) => Ok(Some(serde_json::from_value(state)?)),
             None => Ok(None),
         }
+    }
+
+    /// Read every entity's state for a projection in one request.
+    ///
+    /// Uses `GET /api/v1/projections/:name/state`. Use this when you need to
+    /// enumerate a projection without knowing the entity ids up front; when you
+    /// do know them, prefer [`Self::bulk_get_projection_states`].
+    ///
+    /// # Core behavior
+    ///
+    /// The summary is served from the projection state cache — the states
+    /// written via [`Self::put_projection_state`] /
+    /// [`Self::bulk_put_projection_state`]. Registration in Core's projection
+    /// manager is not required, and an unwritten projection returns an empty
+    /// vec rather than an error.
+    pub async fn get_projection_state_summary<T: DeserializeOwned>(
+        &self,
+        name: &str,
+    ) -> Result<Vec<(String, T)>, Error> {
+        let path = format!("/api/v1/projections/{}/state", urlencode(name));
+        let resp: ProjectionStateSummaryResponse = self.transport().get(&path).await?;
+        resp.states
+            .into_iter()
+            .map(|item| Ok((item.entity_id, serde_json::from_value(item.state)?)))
+            .collect()
+    }
+
+    /// Read many entities' states in a single request.
+    ///
+    /// Uses `POST /api/v1/projections/:name/bulk`. Entities with no state come
+    /// back as `None`, in the order they were requested — the read counterpart
+    /// of [`Self::bulk_put_projection_state`].
+    pub async fn bulk_get_projection_states<T: DeserializeOwned>(
+        &self,
+        name: &str,
+        entity_ids: &[String],
+    ) -> Result<Vec<(String, Option<T>)>, Error> {
+        let path = format!("/api/v1/projections/{}/bulk", urlencode(name));
+        let body = BulkGetRequest {
+            entity_ids: entity_ids.to_vec(),
+        };
+        let resp: BulkGetResponse = self.transport().post(&path, &body).await?;
+        resp.states
+            .into_iter()
+            .map(|item| {
+                let state = match item.state {
+                    Some(state) if item.found => Some(serde_json::from_value(state)?),
+                    _ => None,
+                };
+                Ok((item.entity_id, state))
+            })
+            .collect()
     }
 
     /// Write a projection entity's state to Core.
@@ -115,6 +171,27 @@ impl CoreClient {
         self.transport().get(&path).await
     }
 
+    /// Poll a durable consumer for events since its last ack.
+    ///
+    /// Uses `GET /api/v1/consumers/:id/events`. This is the pull-based
+    /// alternative to [`EventStreamClient`](crate::EventStreamClient) for
+    /// environments where a long-lived WebSocket is awkward. `limit` caps the
+    /// batch size (Core defaults to 100 when omitted); the cursor only moves
+    /// once you [`Self::ack_consumer`] the highest [`ConsumerEvent::position`]
+    /// you processed, so an unacked poll returns the same events again.
+    pub async fn poll_consumer_events(
+        &self,
+        consumer_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<ConsumerEvent>, Error> {
+        let path = format!("/api/v1/consumers/{}/events", urlencode(consumer_id));
+        let query: Vec<(&str, String)> = limit
+            .map(|limit| vec![("limit", limit.to_string())])
+            .unwrap_or_default();
+        let resp: ConsumerEventsResponse = self.transport().get_with_query(&path, &query).await?;
+        Ok(resp.events)
+    }
+
     /// Acknowledge events up to `position`, advancing the consumer's cursor.
     ///
     /// After ack, subsequent reconnections replay from `position + 1`.
@@ -149,6 +226,44 @@ struct ProjectionStateResponse {
     state: Option<Value>,
     #[serde(default)]
     found: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ProjectionStateSummaryResponse {
+    #[serde(default)]
+    states: Vec<SummaryStateItem>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct SummaryStateItem {
+    entity_id: String,
+    state: Value,
+}
+
+#[derive(Debug, Serialize)]
+struct BulkGetRequest {
+    entity_ids: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct BulkGetResponse {
+    #[serde(default)]
+    states: Vec<BulkGetStateItem>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct BulkGetStateItem {
+    entity_id: String,
+    #[serde(default)]
+    state: Option<Value>,
+    #[serde(default)]
+    found: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ConsumerEventsResponse {
+    #[serde(default)]
+    events: Vec<ConsumerEvent>,
 }
 
 #[derive(Debug, Serialize)]
@@ -195,7 +310,7 @@ fn urlencode(s: &str) -> String {
 mod tests {
     use super::*;
     use wiremock::{
-        matchers::{method, path},
+        matchers::{body_json, method, path, query_param},
         Mock, MockServer, ResponseTemplate,
     };
 
@@ -322,6 +437,123 @@ mod tests {
             .bulk_put_projection_state("assets", &entries)
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn get_projection_state_summary_returns_all_entities() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/projections/assets/state"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "projection": "assets",
+                "states": [
+                    {"entity_id": "BTC", "state": {"symbol": "BTC"}},
+                    {"entity_id": "ETH", "state": {"symbol": "ETH"}}
+                ],
+                "total": 2
+            })))
+            .mount(&server)
+            .await;
+
+        let client = make_client(&server).await;
+        #[derive(serde::Deserialize, Debug, PartialEq)]
+        struct Asset {
+            symbol: String,
+        }
+        let states: Vec<(String, Asset)> =
+            client.get_projection_state_summary("assets").await.unwrap();
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].0, "BTC");
+        assert_eq!(states[0].1.symbol, "BTC");
+        assert_eq!(states[1].0, "ETH");
+    }
+
+    #[tokio::test]
+    async fn bulk_get_projection_states_sends_entity_ids_and_maps_missing() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/v1/projections/assets/bulk"))
+            .and(body_json(serde_json::json!({
+                "entity_ids": ["BTC", "MISSING"]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "projection": "assets",
+                "states": [
+                    {"entity_id": "BTC", "state": {"symbol": "BTC"}, "found": true},
+                    {"entity_id": "MISSING", "state": null, "found": false}
+                ],
+                "total": 2
+            })))
+            .mount(&server)
+            .await;
+
+        let client = make_client(&server).await;
+        #[derive(serde::Deserialize, Debug, PartialEq)]
+        struct Asset {
+            symbol: String,
+        }
+        let ids = vec!["BTC".to_string(), "MISSING".to_string()];
+        let states: Vec<(String, Option<Asset>)> = client
+            .bulk_get_projection_states("assets", &ids)
+            .await
+            .unwrap();
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].0, "BTC");
+        assert_eq!(states[0].1.as_ref().unwrap().symbol, "BTC");
+        assert_eq!(states[1].0, "MISSING");
+        assert!(states[1].1.is_none());
+    }
+
+    #[tokio::test]
+    async fn poll_consumer_events_decodes_flattened_events() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/consumers/w1/events"))
+            .and(query_param("limit", "2"))
+            // Core flattens the event next to `position` (ConsumerEventDto).
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "events": [
+                    {
+                        "position": 1,
+                        "id": "11111111-1111-4111-8111-111111111111",
+                        "event_type": "user.created",
+                        "entity_id": "user-1",
+                        "tenant_id": "default",
+                        "payload": {"name": "Ada"},
+                        "metadata": null,
+                        "timestamp": "2026-01-01T00:00:00Z",
+                        "version": 1
+                    }
+                ],
+                "count": 1
+            })))
+            .mount(&server)
+            .await;
+
+        let client = make_client(&server).await;
+        let events = client.poll_consumer_events("w1", Some(2)).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].position, 1);
+        assert_eq!(events[0].event.event_type, "user.created");
+        assert_eq!(events[0].event.entity_id, "user-1");
+    }
+
+    #[tokio::test]
+    async fn poll_consumer_events_omits_limit_when_unset() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/consumers/w1/events"))
+            .and(wiremock::matchers::query_param_is_missing("limit"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "events": [],
+                "count": 0
+            })))
+            .mount(&server)
+            .await;
+
+        let client = make_client(&server).await;
+        let events = client.poll_consumer_events("w1", None).await.unwrap();
+        assert!(events.is_empty());
     }
 
     #[tokio::test]
