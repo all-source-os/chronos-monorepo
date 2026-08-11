@@ -28,7 +28,7 @@ missing/empty · 🟡 honest-empty (real endpoint, empty for this tenant).
 | `GET /api/webhooks` | `{count:0, total:0, data:[]}` | yes 🟡 (empty) |
 | `GET /api/v1/prime/graph` | real `{nodes, edges, stats}` | yes ✅ |
 | `GET /api/metrics` → `.backend` | **Now a STRUCTURED map** (was a raw Prometheus TEXT blob). The QS controller parses Core's exposition into `{p99_latency_us, p99_latency_ms, storage_bytes, storage_events_total, parquet_files_total, wal_segments_total, scope:"platform", raw}`. p99 is `histogram_quantile(0.99)` over `allsource_query_duration_seconds` aggregated across all `query_type`s. **All values are PLATFORM-wide** (all tenants, reset-on-restart) — labelled `scope: "platform"`, never presented as tenant numbers. (029) | ✅ platform-scoped (labelled) |
-| `GET /api/billing/status` | **HTTP 500** (Core proxy error) | broken endpoint |
+| `GET /api/billing/status` | ~~**HTTP 500** (Core proxy error)~~ → real derived state. The 500 was NOT a Core proxy error: the route sat on the `:api` pipeline, so `assigns.tenant_id` was always nil and the Core client's `is_binary(tenant_id)` guard raised. Now on `:authenticated`, with the action failing closed (401) when there is no tenant context. | ✅ (guarded by `billing_status_route_test.exs`) |
 | `GET /api/schemas` | **HTTP 500** | broken endpoint |
 | `GET /api/analytics/summary` | `econnrefused` (Core analytics down) | broken endpoint |
 

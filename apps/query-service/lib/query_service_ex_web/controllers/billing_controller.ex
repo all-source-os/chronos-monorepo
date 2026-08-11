@@ -35,8 +35,30 @@ defmodule QueryServiceExWeb.BillingController do
   """
 
   def status(conn, _params) do
-    tenant_id = conn.assigns[:tenant_id]
+    case conn.assigns[:tenant_id] do
+      tenant_id when is_binary(tenant_id) and tenant_id != "" ->
+        respond_with_status(conn, tenant_id)
 
+      # Fail closed, and fail LOUDLY-but-correctly. Without a tenant this used to
+      # fall straight through to `RustCoreClient.query_events/3`, whose
+      # `is_binary(tenant_id)` guard turned a missing tenant context into a 500.
+      # 401 is the honest answer, and it survives a future router edit that drops
+      # the auth pipeline again. NEVER read the tenant from `params` — the web
+      # client sends `?tenant_id=` and honoring it would hand any caller another
+      # tenant's billing state.
+      _ ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{
+          error: %{
+            code: "unauthorized",
+            message: "Billing status requires an authenticated tenant context"
+          }
+        })
+    end
+  end
+
+  defp respond_with_status(conn, tenant_id) do
     case query_billing_state(tenant_id) do
       {:ok, state} ->
         json(conn, state)

@@ -265,7 +265,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   end
 
   def query_events(tenant_id, params, opts) when is_binary(tenant_id) and is_map(params) do
-    params_with_tenant = Map.put(params, :tenant_id, tenant_id)
+    params_with_tenant = enforce_tenant(params, tenant_id)
     client = client_for_consistency(Keyword.get(opts, :consistency))
 
     case Tesla.get(client, "/api/v1/events/query", query: params_with_tenant) do
@@ -301,7 +301,7 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
   """
   def query_events_page(tenant_id, params, opts \\ [])
       when is_binary(tenant_id) and is_map(params) do
-    params_with_tenant = Map.put(params, :tenant_id, tenant_id)
+    params_with_tenant = enforce_tenant(params, tenant_id)
     client = client_for_consistency(Keyword.get(opts, :consistency))
 
     case Tesla.get(client, "/api/v1/events/query", query: params_with_tenant) do
@@ -320,6 +320,27 @@ defmodule QueryServiceEx.Infrastructure.Adapters.RustCoreClient do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  # Stamp the authenticated tenant onto the outbound Core query, AUTHORITATIVELY.
+  #
+  # `Map.put(params, :tenant_id, ...)` only overrides the atom key. Callers that
+  # forward a raw request map (QueryController.build_simple_query/1 hands the
+  # request body straight through) carry a STRING `"tenant_id"` key, so the map
+  # ended up holding both and Tesla encoded both:
+  #
+  #     tenant_id=authenticated-tenant&limit=5&tenant_id=victim-tenant
+  #
+  # Core's axum extractor rejects that duplicate today (serde_urlencoded errors
+  # with `duplicate field \`tenant_id\``), so a legitimate query carrying a
+  # tenant_id in its body 400s — and the isolation only holds because of a
+  # parser detail on the other side of the network. Delete every spelling first
+  # so exactly one tenant_id, ours, goes on the wire.
+  defp enforce_tenant(params, tenant_id) do
+    params
+    |> Map.delete("tenant_id")
+    |> Map.delete(:tenant_id)
+    |> Map.put(:tenant_id, tenant_id)
   end
 
   # Deprecated: Use query_events/2 with tenant_id for proper isolation

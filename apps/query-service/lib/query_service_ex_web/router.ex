@@ -376,11 +376,23 @@ defmodule QueryServiceExWeb.Router do
   # -------------------------------------------------------------------
 
   if QueryServiceEx.Edition.enterprise?() do
+    # Billing status reads a TENANT'S billing events out of Core, so it needs a
+    # tenant context. On the `:api` pipeline it never got one: `assigns.tenant_id`
+    # was always nil and `BillingController.status/2` raised a FunctionClauseError
+    # inside RustCoreClient (`query_events/3` guards on `is_binary(tenant_id)`) —
+    # a hard 500 on every request, which is the "HTTP 500 (Core proxy error)"
+    # recorded in docs/checklists/dashboard-data-audit.md. `:authenticated`, not
+    # `:tenant_scoped`: gating billing status on an active subscription would lock
+    # a lapsed tenant out of the very page that tells them their subscription
+    # lapsed.
+    scope "/api/billing", QueryServiceExWeb do
+      pipe_through(:authenticated)
+
+      get("/status", BillingController, :status)
+    end
+
     scope "/api/billing", QueryServiceExWeb do
       pipe_through(:api)
-
-      # Billing status — reads from Core events (no LemonSqueezy secrets needed)
-      get("/status", BillingController, :status)
 
       # These redirect to Control Plane (need LemonSqueezy API access)
       get("/portal", BillingController, :portal)
