@@ -113,20 +113,16 @@ export default function CompareEventStoreDBPage() {
               AllSource vs EventStoreDB
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Both are event stores. Here's where we differ — performance, footprint, AI
-              integration, and licensing.
+              AllSource and EventStoreDB are both event stores. AllSource answers queries in 11.9µs,
+              ships 73 MCP tools for AI agents, and starts at $19/month self-serve; EventStoreDB is
+              the older, cluster-priced incumbent with a longer enterprise track record. This page
+              compares performance, footprint, AI integration, and licensing.
             </p>
             <div className="mt-8 flex items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className={cn(buttonVariants({ variant: "default" }))}
-              >
+              <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
                 Try AllSource <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
-              <Link
-                href="/docs"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
+              <Link href="/docs" className={cn(buttonVariants({ variant: "outline" }))}>
                 Read the docs
               </Link>
             </div>
@@ -225,10 +221,7 @@ export default function CompareEventStoreDBPage() {
               EventStoreDB.
             </p>
             <div className="mt-6">
-              <Link
-                href="/docs/quickstart"
-                className={cn(buttonVariants({ variant: "default" }))}
-              >
+              <Link href="/docs/quickstart" className={cn(buttonVariants({ variant: "default" }))}>
                 Quickstart <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
             </div>

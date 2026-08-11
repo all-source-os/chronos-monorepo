@@ -195,8 +195,10 @@ export default function CompareAgentMemoryPage() {
               Agent memory: five approaches, honestly compared
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Every team building with AI agents picks one of these five patterns — usually
-              accidentally. Here's where each wins, where each loses, and how to pick on purpose.
+              There are five common approaches to AI agent memory: built-in platform memory,
+              RAG/retrieval, file-based notes, a conventional database, and an event-sourced log.
+              Every team picks one, usually by accident. This page sets out where each approach
+              wins, where each breaks down, and how to choose deliberately.
             </p>
           </motion.div>
         </Section>

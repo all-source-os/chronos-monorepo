@@ -108,14 +108,13 @@ export default function UseCasesPage() {
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Four use cases where a mutable database is a liability and an event store is the
-              right foundation.
+              AllSource is an event store, and there are four jobs it does that a mutable database
+              cannot: regulator-grade audit trails, replaying history to rebuild state, giving AI
+              agents memory that survives a restart, and financial transaction history you can query
+              at any past point in time.
             </p>
             <div className="mt-8 flex items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className={cn(buttonVariants({ variant: "default" }))}
-              >
+              <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
                 Start free trial <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link
@@ -219,10 +218,7 @@ export default function UseCasesPage() {
               ))}
             </div>
             <div className="mt-8">
-              <Link
-                href="/signup"
-                className={cn(buttonVariants({ variant: "default" }))}
-              >
+              <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
                 Start building <Terminal className="ml-2 h-4 w-4" />
               </Link>
             </div>

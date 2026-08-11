@@ -20,36 +20,64 @@ import Footer from "@/components/sections/footer";
 import Header from "@/components/sections/header";
 
 const operators = [
-  { name: "Filter", icon: Filter, desc: "Drop events that don't match your criteria before they enter the pipeline" },
-  { name: "Map", icon: ArrowRight, desc: "Transform event payloads — rename fields, compute derived values, enrich with context" },
-  { name: "Reduce", icon: GitMerge, desc: "Aggregate events into running totals, counts, or custom accumulations over time windows" },
-  { name: "Window", icon: SplitSquareVertical, desc: "Group events by time window (tumbling, sliding, session) for batch-style processing on a stream" },
-  { name: "Branch", icon: Workflow, desc: "Route events to different downstream pipelines based on type, content, or custom predicates" },
-  { name: "Enrich", icon: Layers, desc: "Join event data with external sources — add user profiles, geo data, or lookup tables in-flight" },
+  {
+    name: "Filter",
+    icon: Filter,
+    desc: "Drop events that don't match your criteria before they enter the pipeline",
+  },
+  {
+    name: "Map",
+    icon: ArrowRight,
+    desc: "Transform event payloads — rename fields, compute derived values, enrich with context",
+  },
+  {
+    name: "Reduce",
+    icon: GitMerge,
+    desc: "Aggregate events into running totals, counts, or custom accumulations over time windows",
+  },
+  {
+    name: "Window",
+    icon: SplitSquareVertical,
+    desc: "Group events by time window (tumbling, sliding, session) for batch-style processing on a stream",
+  },
+  {
+    name: "Branch",
+    icon: Workflow,
+    desc: "Route events to different downstream pipelines based on type, content, or custom predicates",
+  },
+  {
+    name: "Enrich",
+    icon: Layers,
+    desc: "Join event data with external sources — add user profiles, geo data, or lookup tables in-flight",
+  },
 ];
 
 const features = [
   {
     title: "Projections",
-    description: "Materialized views that stay in sync with your event stream. Define a projection as a fold over events — AllSource keeps it current as new events arrive.",
+    description:
+      "Materialized views that stay in sync with your event stream. Define a projection as a fold over events — AllSource keeps it current as new events arrive.",
     icon: Activity,
     color: "from-blue-500/20 to-blue-500/5",
   },
   {
     title: "WebSocket Streaming",
-    description: "Subscribe to live event feeds via Phoenix Channels. The Query Service pushes new events to connected clients in real-time — no polling.",
+    description:
+      "Subscribe to live event feeds via Phoenix Channels. The Query Service pushes new events to connected clients in real-time — no polling.",
     icon: Radio,
     color: "from-green-500/20 to-green-500/5",
   },
   {
     title: "Event Replay",
-    description: "Replay any sequence of events through a pipeline. Rebuild projections from scratch, test new pipeline logic against historical data, or debug by replaying the last hour.",
+    description:
+      "Replay any sequence of events through a pipeline. Rebuild projections from scratch, test new pipeline logic against historical data, or debug by replaying the last hour.",
     icon: Repeat,
     color: "from-purple-500/20 to-purple-500/5",
   },
   {
     title: "469K Events/Sec",
-    description: "The Rust core processes events through pipelines at ingestion speed. No separate stream processor to deploy — it's built into the event store.",
+    description:
+      "The Rust core processes events through pipelines at ingestion speed. No separate stream processor to deploy — it's built into the event store.",
     icon: Zap,
     color: "from-yellow-500/20 to-yellow-500/5",
   },
@@ -93,8 +121,10 @@ export default function StreamProcessingPage() {
               </span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Filter, map, reduce, window, branch, and enrich events as they arrive. No separate
-              stream processor. No Kafka. No Flink. Just your event store doing the work.
+              AllSource processes event streams inside the event store itself — filtering, mapping,
+              reducing, windowing, branching, and enriching events as they arrive at 469K
+              events/sec. There is no separate stream processor to run: no Kafka, no Flink, no
+              second system to keep in sync.
             </p>
             <div className="mt-8 flex items-center justify-center gap-4">
               <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
@@ -136,7 +166,11 @@ export default function StreamProcessingPage() {
         </Section>
 
         {/* Pipeline JSON example */}
-        <Section title="Define pipelines as JSON" subtitle="Declarative pipeline definitions that version-control alongside your code" className="py-16">
+        <Section
+          title="Define pipelines as JSON"
+          subtitle="Declarative pipeline definitions that version-control alongside your code"
+          className="py-16"
+        >
           <motion.div
             className="mx-auto max-w-3xl overflow-hidden rounded-xl border bg-[#0c0c14]"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -167,7 +201,12 @@ export default function StreamProcessingPage() {
                 viewport={{ once: true }}
                 className="rounded-xl border p-6"
               >
-                <div className={cn("mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br", feat.color)}>
+                <div
+                  className={cn(
+                    "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
+                    feat.color
+                  )}
+                >
                   <feat.icon className="h-5 w-5" />
                 </div>
                 <h3 className="mb-2 text-lg font-semibold">{feat.title}</h3>
@@ -187,7 +226,10 @@ export default function StreamProcessingPage() {
             <Link href="/signup" className={cn(buttonVariants({ variant: "default", size: "lg" }))}>
               Start free trial
             </Link>
-            <Link href="/platform/event-sourcing" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
+            <Link
+              href="/platform/event-sourcing"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+            >
               Event sourcing platform
             </Link>
           </div>
