@@ -25,6 +25,7 @@ type stubLS struct {
 	portalURL string
 	variants  map[string]string // "tier:period" -> variant id
 	prices    map[string]int    // variant id -> cents
+	currency  string            // store currency; empty means USD
 }
 
 func (s *stubLS) GetCustomerPortalURL(_ context.Context, _ string) (string, error) {
@@ -49,6 +50,21 @@ func (s *stubLS) GetVariant(_ context.Context, variantID string) (*clients.Varia
 	return nil, nil
 }
 func (s *stubLS) GetStoreID() string { return "store-1" }
+
+// GetStoreCurrency backs GetCatalogUseCase's currency lookup. It is implemented
+// here rather than left to the embedded nil interface because the catalog path
+// genuinely calls it: without this, TestSeam_Catalog_ServesLSPrices panicked
+// with a nil-pointer dereference on every run. That is the cost of the
+// embedded-interface stub above — adding a method to LemonSqueezyClient turns
+// into a runtime panic in whichever test exercises it, not a compile error.
+// Defaults to USD so the existing price assertions ("$79") hold; set `currency`
+// to exercise the non-USD path (the real LS store is GBP).
+func (s *stubLS) GetStoreCurrency(_ context.Context) (string, error) {
+	if s.currency == "" {
+		return "USD", nil
+	}
+	return s.currency, nil
+}
 
 func withAuthTenant(tid string) gin.HandlerFunc {
 	return func(c *gin.Context) {
