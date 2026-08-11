@@ -18,6 +18,11 @@ import (
 	"github.com/allsource/control-plane/internal/domain/entities"
 )
 
+// envValueTrue is the canonical truthy value accepted by the boolean env-var
+// gates in this package (alongside "1" and "yes"), compared case-insensitively
+// after trimming.
+const envValueTrue = "true"
+
 // demoEnabled reports whether demo-account provisioning is turned on. It gates
 // DemoStartHandler, which CREATES A TENANT on every call. Default OFF: with
 // DEMO_ENABLED unset/false the endpoint mints nothing and returns 403, so a
@@ -30,7 +35,7 @@ import (
 // provisioning is an opt-in, never an ambient side effect.
 func demoEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("DEMO_ENABLED"))) {
-	case "true", "1", "yes":
+	case envValueTrue, "1", "yes":
 		return true
 	default:
 		return false

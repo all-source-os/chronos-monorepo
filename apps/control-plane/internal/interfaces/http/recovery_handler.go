@@ -11,6 +11,11 @@ import (
 	"github.com/allsource/control-plane/internal/domain"
 )
 
+// queryValueTrue is the only query-string value that opts a request into a
+// boolean flag (?dry_run=true, ?refresh=true). Anything else — including "1" and
+// "yes" — leaves the flag at its default.
+const queryValueTrue = "true"
+
 // RecoveryHandler exposes the POST /api/v1/admin/recovery/* mutating endpoints
 // (§5.1 P1). Like FleetHealthHandler it lives inside /api/v1/admin and inherits
 // AdminAuthMiddleware. Every guard (dry-run, confirmation, blast-radius) is
@@ -80,7 +85,7 @@ func bindBody(c *gin.Context) (recoveryBody, bool) {
 		}
 	}
 	// ?dry_run=true on the query string forces a dry-run even with an empty body.
-	if c.Query("dry_run") == "true" {
+	if c.Query("dry_run") == queryValueTrue {
 		b.DryRun = true
 	}
 	return b, true
@@ -154,7 +159,7 @@ func (h *RecoveryHandler) Batch(c *gin.Context) {
 			return
 		}
 	}
-	if c.Query("dry_run") == "true" {
+	if c.Query("dry_run") == queryValueTrue {
 		body.DryRun = true
 	}
 
@@ -199,7 +204,7 @@ func (h *RecoveryHandler) ReapDemo(c *gin.Context) {
 	}
 	// ?dry_run=true on the query string forces a dry-run even with an empty body
 	// (matches the recovery convention so a raw curl previews before deleting).
-	if c.Query("dry_run") == "true" {
+	if c.Query("dry_run") == queryValueTrue {
 		body.DryRun = true
 	}
 

@@ -83,9 +83,9 @@ func quotaMeta(used, quota int64) map[string]interface{} {
 // findTenant returns the analyzed tenant by id (fatal if absent).
 func findTenant(t *testing.T, rep *dto.AnalysisReport, id string) dto.AnalysisTenant {
 	t.Helper()
-	for _, tn := range rep.Tenants {
-		if tn.ID == id {
-			return tn
+	for i := range rep.Tenants {
+		if rep.Tenants[i].ID == id {
+			return rep.Tenants[i]
 		}
 	}
 	t.Fatalf("tenant %s not in report", id)

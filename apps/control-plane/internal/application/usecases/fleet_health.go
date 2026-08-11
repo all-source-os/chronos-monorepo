@@ -125,6 +125,10 @@ func (uc *FleetHealthUseCase) ComputeFleet(ctx context.Context, tierFilter strin
 
 	for _, t := range tenants {
 		assess := uc.assessTenant(ctx, t, fctx)
+		// The default deliberately absorbs TierHealthy AND any unrecognized tier
+		// into the healthy count, so an unknown value can never silently drop a
+		// tenant out of the summary totals.
+		//exhaustive:ignore // default is the intended home for TierHealthy + unknown
 		switch assess.Tier {
 		case signals.TierCritical:
 			summary.Critical++
@@ -263,7 +267,7 @@ func (uc *FleetHealthUseCase) buildFleetContext(ctx context.Context, tenants []*
 	// have data". We can only assert the heuristic's fleet half here; the QS
 	// probe contributes the edition value when present.
 	edition := uc.probeQSEdition(ctx)
-	if edition == "community" {
+	if edition == editionCommunity {
 		if countNonCommunityDataTenants(ctx, uc, tenants) >= uc.editionTrapThreshold {
 			fctx.editionTrap = true
 		}
@@ -338,14 +342,14 @@ func (uc *FleetHealthUseCase) QSEdition(ctx context.Context) string {
 
 // EditionTrapDetected re-runs the trap heuristic for the diagnose endpoint and
 // returns (detected, edition, nonCommunityDataTenants).
-func (uc *FleetHealthUseCase) EditionTrapDetected(ctx context.Context) (bool, string, int) {
+func (uc *FleetHealthUseCase) EditionTrapDetected(ctx context.Context) (detected bool, edition string, nonCommunityDataTenants int) {
 	tenants, err := uc.tenantRepo.FindAll()
 	if err != nil {
 		return false, "", 0
 	}
-	edition := uc.probeQSEdition(ctx)
+	edition = uc.probeQSEdition(ctx)
 	n := countNonCommunityDataTenants(ctx, uc, tenants)
-	detected := edition == "community" && n >= uc.editionTrapThreshold
+	detected = edition == editionCommunity && n >= uc.editionTrapThreshold
 	return detected, edition, n
 }
 

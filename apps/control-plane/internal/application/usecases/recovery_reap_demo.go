@@ -81,7 +81,7 @@ func (uc *RecoveryUseCase) ReapDemo(ctx context.Context, req RecoveryRequest) (*
 			Reason: req.Reason, Outcome: "preview",
 			Details: map[string]any{"matched_total": len(candidates), "ids": candidateIDs(candidates)},
 		})
-		result.Message = "dry-run: echo confirm_token to apply"
+		result.Message = dryRunPreviewMessage
 		return result, nil
 	}
 

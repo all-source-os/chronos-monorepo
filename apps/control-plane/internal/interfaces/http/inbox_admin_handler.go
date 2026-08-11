@@ -30,6 +30,11 @@ type inboxCore interface {
 	QueryEvents(ctx context.Context, req clients.QueryEventsRequest) (*clients.QueryEventsResponse, error)
 }
 
+// defaultInboxProviderName is the provider recorded on a grant when no sender is
+// wired (the only implementation today is emailprovider/resend, whose Name()
+// returns the same value).
+const defaultInboxProviderName = "resend"
+
 // inboxSender is the slice of the email provider the send endpoint needs.
 // *resend.Provider satisfies it.
 type inboxSender interface {
@@ -174,7 +179,7 @@ func (h *InboxAdminHandler) AddAddress(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "tenant_id and a valid email are required"})
 		return
 	}
-	provider := "resend"
+	provider := defaultInboxProviderName
 	if h.sender != nil {
 		provider = h.sender.Name()
 	}

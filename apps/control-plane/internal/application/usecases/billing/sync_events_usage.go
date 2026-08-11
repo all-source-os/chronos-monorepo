@@ -73,13 +73,13 @@ func (uc *SyncEventsUsageUseCase) Execute(ctx context.Context, tenantID string) 
 	if err != nil {
 		return nil, fmt.Errorf("count events for %s: %w", tenantID, err)
 	}
-	real := int64(resp.TotalCount)
+	coreCount := int64(resp.TotalCount)
 
-	if real == quotas.EventsUsed {
-		return &EventsUsageResult{TenantID: tenantID, EventsUsed: real, Skipped: true}, nil
+	if coreCount == quotas.EventsUsed {
+		return &EventsUsageResult{TenantID: tenantID, EventsUsed: coreCount, Skipped: true}, nil
 	}
 
-	quotas.EventsUsed = real
+	quotas.EventsUsed = coreCount
 	if tenant.Metadata == nil {
 		tenant.Metadata = make(map[string]interface{})
 	}
@@ -92,11 +92,11 @@ func (uc *SyncEventsUsageUseCase) Execute(ctx context.Context, tenantID string) 
 	if uc.auditRepo != nil {
 		auditEvent, _ := entities.NewAuditEvent("billing.events.synced", "report", "SCHEDULER", "/billing/events") //nolint:errcheck
 		auditEvent.WithResource("tenant", tenantID).WithTenant(tenantID)
-		auditEvent.AddMetadata("events_used", fmt.Sprintf("%d", real))
+		auditEvent.AddMetadata("events_used", fmt.Sprintf("%d", coreCount))
 		_ = uc.auditRepo.Log(auditEvent) //nolint:errcheck
 	}
 
-	return &EventsUsageResult{TenantID: tenantID, EventsUsed: real}, nil
+	return &EventsUsageResult{TenantID: tenantID, EventsUsed: coreCount}, nil
 }
 
 // ExecuteAll reconciles events_used for all active tenants.

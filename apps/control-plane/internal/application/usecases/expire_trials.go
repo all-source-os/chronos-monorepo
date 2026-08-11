@@ -224,6 +224,11 @@ func tenantHasActivePaidSubscription(metadata map[string]interface{}) bool {
 	if subID == "" {
 		return false // no active subscription
 	}
+	// Free is the only tier that is NOT a paid conversion; the default is correct
+	// for every current paid tier (indie/studio/scale/enterprise), and the retired
+	// names (pro/growth/team/starter) are already folded into those by
+	// MapRetiredTier, so they never reach this switch.
+	//exhaustive:ignore // every non-free tier is a paid conversion by default
 	switch entities.SubscriptionTier(entities.MapRetiredTier(tier)) {
 	case entities.TierFree:
 		return false // an "active free" sub is not a paid conversion

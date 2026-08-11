@@ -134,8 +134,7 @@ func (uc *BackfillEventsUsedUseCase) Execute(ctx context.Context, req BackfillRe
 // countTenantEvents pages through ALL of the tenant's events in Core (no event-type
 // filter, no since — a lifetime count) up to maxPages. Returns the count and
 // whether the page cap was reached (count is then a lower bound).
-func (uc *BackfillEventsUsedUseCase) countTenantEvents(ctx context.Context, tenantID string, maxPages int) (int64, bool, error) {
-	var total int64
+func (uc *BackfillEventsUsedUseCase) countTenantEvents(ctx context.Context, tenantID string, maxPages int) (total int64, capped bool, err error) {
 	offset := 0
 	for page := 0; page < maxPages; page++ {
 		resp, err := uc.coreClient.QueryEvents(ctx, clients.QueryEventsRequest{

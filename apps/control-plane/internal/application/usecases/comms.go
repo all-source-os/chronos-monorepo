@@ -199,7 +199,7 @@ func (uc *CommsUseCase) CreateNotice(ctx context.Context, req CreateNoticeReques
 		// count and mutates nothing". The apply path below is the only thing that
 		// emits admin.notice.created events, so a dry-run can never inflate the
 		// notice ledger.
-		result.Message = "dry-run: echo confirm_token to apply"
+		result.Message = dryRunPreviewMessage
 		return result, nil
 	}
 

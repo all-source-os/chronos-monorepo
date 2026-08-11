@@ -1179,7 +1179,7 @@ func main() {
 // it exact again (see CoreQuotaChecker doc + docs/runbooks/PRICING_BILLING_CUTOVER.md).
 func warnX402MultiInstance() {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv("CONTROL_PLANE_MULTI_INSTANCE")))
-	if v == "true" || v == "1" || v == "yes" {
+	if v == envValueTrue || v == "1" || v == "yes" {
 		log.Printf("WARNING: CONTROL_PLANE_MULTI_INSTANCE is set — the x402 included-allowance " +
 			"counter is per-instance and NOT shared. Residual boundary overshoot is bounded by " +
 			"(instances-1) × calls-since-last-reconciler-tick (~1 min). Move to a shared Core-side " +

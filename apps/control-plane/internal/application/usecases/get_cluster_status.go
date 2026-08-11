@@ -40,7 +40,7 @@ func (uc *GetClusterStatusUseCase) Execute(ctx context.Context) (*ClusterStatus,
 		status.Healthy = false
 		status.Details["health_error"] = err.Error()
 	} else {
-		status.Healthy = health.Status == "ok" || health.Status == "healthy"
+		status.Healthy = health.Status == "ok" || health.Status == statusHealthy
 		status.Version = health.Version
 		if health.Details != nil {
 			maps.Copy(status.Details, health.Details)

@@ -39,7 +39,7 @@ func (uc *FleetHealthUseCase) DiagnoseEdition(ctx context.Context) *EditionDiagn
 		d.Explanation = "Query Service edition is 'community', which pins EVERY request to the 'community' tenant. " +
 			"The fleet has " + itoaInt(n) + " non-community tenants WITH data, so real tenants' dashboards read empty. " +
 			"Set ALLSOURCE_EDITION=enterprise on allsource-query and confirm a new Fly release."
-	case edition == "community":
+	case edition == editionCommunity:
 		d.Explanation = "Query Service edition is 'community' but fewer than the threshold non-community data tenants exist; " +
 			"not flagged as the trap yet, but switch to enterprise before onboarding paying tenants."
 	case edition == "":

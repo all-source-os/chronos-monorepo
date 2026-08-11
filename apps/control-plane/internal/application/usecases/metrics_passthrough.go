@@ -242,7 +242,7 @@ func (uc *MetricsPassthroughUseCase) FetchClusterMembers(ctx context.Context) []
 		}
 		status := "unreachable"
 		if m.Connected {
-			status = "healthy"
+			status = statusHealthy
 		}
 		out = append(out, ClusterMember{
 			ID:      m.Node,

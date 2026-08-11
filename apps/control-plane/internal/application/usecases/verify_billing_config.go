@@ -36,7 +36,7 @@ const lemonSqueezySecretMaxLen = 40
 var requiredCatalogTiers = []string{"indie", "studio", "scale"}
 
 // requiredCatalogPeriods are the billing periods every paid tier must offer.
-var requiredCatalogPeriods = []string{"monthly", "annual"}
+var requiredCatalogPeriods = []string{monthlyBillingPeriod, annualBillingPeriod}
 
 // knownTiers is the set of canonical + retired tier ids any VARIANT key is
 // allowed to reference. A variant keyed on anything else is a typo/orphan — it
@@ -163,7 +163,7 @@ func (uc *VerifyBillingConfigUseCase) Execute() BillingConfigReport {
 			add(SeverityError, "variant_unknown_tier",
 				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q references unknown tier %q; not a canonical or retired tier, so it will never resolve in checkout", key, tier))
 		}
-		if period != "monthly" && period != "annual" {
+		if period != monthlyBillingPeriod && period != annualBillingPeriod {
 			add(SeverityWarn, "variant_unknown_period",
 				fmt.Sprintf("LEMON_SQUEEZY_VARIANT_MAP key %q has unexpected period %q (expected monthly|annual)", key, period))
 		}

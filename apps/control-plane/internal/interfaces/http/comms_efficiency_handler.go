@@ -38,7 +38,7 @@ func (h *CommsEfficiencyHandler) GetEfficiency(c *gin.Context) {
 		proj *usecases.EfficiencyProjection
 		err  error
 	)
-	if c.Query("refresh") == "true" {
+	if c.Query("refresh") == queryValueTrue {
 		proj, err = h.uc.ExecuteAll(ctx)
 	} else {
 		proj, err = h.uc.Latest(ctx)

@@ -95,6 +95,11 @@ func (r *CoreTenantRepository) Update(tenant *entities.Tenant) error {
 	if tenant.Metadata == nil {
 		tenant.Metadata = map[string]any{}
 	}
+	// TenantStatusDeleted is intentionally not handled here: the switch below
+	// routes it to DeleteTenant, so recording (or clearing) a lifecycle_status
+	// hint on a tenant that is about to be deleted would be a pointless metadata
+	// write. Only the suspended/archived/active hint matters.
+	//exhaustive:ignore // TenantStatusDeleted is handled by the DeleteTenant branch below
 	switch tenant.Status {
 	case entities.TenantStatusSuspended, entities.TenantStatusArchived:
 		tenant.Metadata["lifecycle_status"] = string(tenant.Status)

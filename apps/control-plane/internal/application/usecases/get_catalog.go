@@ -111,7 +111,7 @@ func (uc *GetCatalogUseCase) Execute(ctx context.Context, now time.Time) (*Catal
 		if p := uc.price(ctx, tier, defaultBillingPeriod, false, cat.Currency); p != nil {
 			entry.Monthly = p
 		}
-		if p := uc.price(ctx, tier, "annual", true, cat.Currency); p != nil {
+		if p := uc.price(ctx, tier, annualBillingPeriod, true, cat.Currency); p != nil {
 			entry.Annual = p
 		}
 		// Only include a tier if at least one period resolved.

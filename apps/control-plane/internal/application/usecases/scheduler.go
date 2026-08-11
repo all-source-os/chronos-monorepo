@@ -324,6 +324,17 @@ func (s *OperationScheduler) executeX402UsageSync(ctx context.Context) {
 // executeEventsUsageSync reconciles each tenant's events_used counter from the
 // real per-tenant event count in Core, so the usage meter (read by the usage
 // bar AND usage enforcement) self-heals from drift. No-op when not wired.
+//
+// This and executeExtractionUsageSync (and executeX402UsageSync above) are three
+// sibling fan-outs that dupl reads as copies. They are NOT one function over one
+// input: each drives a different use case, over a different result type
+// (EventsUsageResult.EventsUsed vs ExtractionUsageResult.ExtractionTokensUsed),
+// and emits a different audit action/resource and different log copy. The only
+// shared part is the 4-line synced/skipped/errored tally; folding it out needs a
+// generic helper plus a per-call adapter of the same size, in a file with no test
+// coverage where a mistyped audit action would ship silently. Kept explicit.
+//
+//nolint:dupl // sibling-but-independent usage sync; see the note above
 func (s *OperationScheduler) executeEventsUsageSync(ctx context.Context) {
 	if s.syncEventsUsageUC == nil {
 		return
@@ -356,6 +367,8 @@ func (s *OperationScheduler) executeEventsUsageSync(ctx context.Context) {
 
 // executeExtractionUsageSync reconciles each tenant's extraction_tokens_used
 // meter from prime.extraction.usage events in Core. Record-only (no billing).
+//
+//nolint:dupl // sibling-but-independent usage sync; see executeEventsUsageSync
 func (s *OperationScheduler) executeExtractionUsageSync(ctx context.Context) {
 	if s.syncExtractionUsageUC == nil {
 		return

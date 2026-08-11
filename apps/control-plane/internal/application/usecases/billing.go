@@ -15,8 +15,14 @@ import (
 const (
 	providerLemonSqueezy = "lemonsqueezy"
 
+	// monthlyBillingPeriod and annualBillingPeriod are the two canonical billing
+	// period values — the suffix of a LEMON_SQUEEZY_VARIANT_MAP key
+	// ("<tier>:<period>") and the value stored in subscription metadata.
+	monthlyBillingPeriod = "monthly"
+	annualBillingPeriod  = "annual"
+
 	// defaultBillingPeriod is used when a checkout request omits the period.
-	defaultBillingPeriod = "monthly"
+	defaultBillingPeriod = monthlyBillingPeriod
 )
 
 // --- Billing DTOs (handler-facing) ---
@@ -167,10 +173,10 @@ func (uc *ChangePlanUseCase) Execute(ctx context.Context, req ChangePlanRequest)
 	// Optimistically apply the new tier so the dashboard reflects it immediately.
 	period := req.BillingPeriod
 	switch period {
-	case "", "monthly":
-		period = "monthly"
-	case "yearly", "annual":
-		period = "annual"
+	case "", monthlyBillingPeriod:
+		period = monthlyBillingPeriod
+	case "yearly", annualBillingPeriod:
+		period = annualBillingPeriod
 	}
 	// Atomic per-tenant upsert + bubble-up (race-safe; see UpsertSubscription).
 	effective, _, err := uc.updateSubUC.UpsertSubscription(req.TenantID, sub.SubscriptionID, entities.SubscriptionRef{

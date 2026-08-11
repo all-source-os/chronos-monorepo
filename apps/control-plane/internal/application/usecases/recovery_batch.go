@@ -117,7 +117,7 @@ func (uc *RecoveryUseCase) Batch(ctx context.Context, req BatchRequest) (*BatchR
 			Reason: req.Reason, Outcome: "preview",
 			Details: map[string]any{"sub_action": sub, "affected": len(affected), "matched_total": len(matched)},
 		})
-		result.Message = "dry-run: echo confirm_token to apply"
+		result.Message = dryRunPreviewMessage
 		return result, nil
 	}
 

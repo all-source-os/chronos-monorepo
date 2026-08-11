@@ -40,14 +40,17 @@ func TestDemoStart_DisabledByDefault(t *testing.T) {
 // else — including unset — as OFF.
 func TestDemoEnabled_Parsing(t *testing.T) {
 	cases := map[string]bool{
-		"":        false,
-		"false":   false,
-		"0":       false,
-		"no":      false,
-		"off":     false,
-		"true":    true,
-		"TRUE":    true,
-		"  true ": true,
+		"":      false,
+		"false": false,
+		"0":     false,
+		"no":    false,
+		"off":   false,
+		"true":  true,
+		"TRUE":  true,
+		// The surrounding whitespace below IS the assertion: demoEnabled TrimSpaces
+		// its input, so this case proves a padded value is still honored. Trimming
+		// the key to satisfy gocritic's mapKey check would delete the test.
+		"  true ": true, //nolint:gocritic // mapKey: padded key is the assertion, see above
 		"1":       true,
 		"yes":     true,
 		"YES":     true,

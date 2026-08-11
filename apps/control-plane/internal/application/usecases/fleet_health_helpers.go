@@ -16,6 +16,17 @@ import (
 // with data is one whose id is something OTHER than this.
 const communityTenantID = "community"
 
+// editionCommunity is the ALLSOURCE_EDITION value QS reports when it is running
+// the community edition. It shares communityTenantID's literal by coincidence of
+// naming — this one is an EDITION, not a tenant id — so it gets its own name
+// rather than reusing the tenant constant in an edition comparison.
+const editionCommunity = "community"
+
+// statusHealthy is the "healthy" status string a backend health payload reports
+// (Core /health status, and the per-member cluster status the metrics passthrough
+// synthesizes). Distinct from signals.TierHealthy, which is a health-model tier.
+const statusHealthy = "healthy"
+
 // systemTenantIDs are non-customer tenants excluded from the edition-trap
 // data-tenant count (heartbeats, recovery audit, etc. live here).
 var systemTenantIDs = map[string]bool{
@@ -206,10 +217,10 @@ func subscriptionsFromMap(raw interface{}) map[string]entities.SubscriptionRef {
 // Core returns {status, version, details}. A non-"healthy" status, or a
 // details.durable==false, or a non-empty details.warnings list, is a durability
 // concern.
-func durabilityFromHealth(h *clients.HealthResponse) (bool, []string) {
-	warnings := []string{}
-	durable := true
-	if h.Status != "" && h.Status != "healthy" && h.Status != "ok" {
+func durabilityFromHealth(h *clients.HealthResponse) (durable bool, warnings []string) {
+	warnings = []string{}
+	durable = true
+	if h.Status != "" && h.Status != statusHealthy && h.Status != "ok" {
 		durable = false
 		warnings = append(warnings, "core status="+h.Status)
 	}

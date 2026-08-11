@@ -282,6 +282,11 @@ func pctString(p float64) string {
 // PaidTier reports whether the effective tier is a paid tier (anything other
 // than free / empty). Used to gate the last_event_age At-Risk escalation.
 func PaidTier(tier string) bool {
+	// The default is the correct answer for the remaining tiers: free (and the
+	// empty/unknown string) is not paid, and the retired names
+	// (pro/growth/team/starter) are mapped onto the canonical paid tiers by
+	// MapRetiredTier before the switch, so they never land here.
+	//exhaustive:ignore // free/empty/unknown are all correctly not-paid by default
 	switch entities.SubscriptionTier(entities.MapRetiredTier(tier)) {
 	case entities.TierIndie, entities.TierStudio, entities.TierScale, entities.TierEnterprise:
 		return true

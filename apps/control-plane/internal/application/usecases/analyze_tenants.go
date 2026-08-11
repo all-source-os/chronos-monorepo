@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/allsource/control-plane/internal/application/dto"
+	"github.com/allsource/control-plane/internal/application/usecases/signals"
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
@@ -729,7 +730,8 @@ func assembleReport(now time.Time, tenants []dto.AnalysisTenant, fleet []dto.Ana
 		byCat[f.Category]++
 		bySev[f.Severity]++
 	}
-	for _, t := range tenants {
+	for i := range tenants {
+		t := &tenants[i]
 		if len(t.Findings) > 0 {
 			flagged++
 		}
@@ -797,9 +799,9 @@ func severityRank(sev string) int {
 // data anomalies for this report).
 func healthTierToSeverity(tier string) string {
 	switch tier {
-	case "critical":
+	case string(signals.TierCritical):
 		return dto.AnalysisSeverityCritical
-	case "at_risk":
+	case string(signals.TierAtRisk):
 		return dto.AnalysisSeverityWarn
 	default:
 		return ""
@@ -811,7 +813,7 @@ func healthTierToSeverity(tier string) string {
 func fleetHealthReasonDetail(res *TenantHealthResult) string {
 	reasons := []string{}
 	for _, s := range res.Signals {
-		if s.Tier != "" && string(s.Tier) != "healthy" {
+		if s.Tier != "" && s.Tier != signals.TierHealthy {
 			reasons = append(reasons, fmt.Sprintf("%s=%s", s.Name, s.Value))
 		}
 	}
@@ -823,9 +825,9 @@ func fleetHealthReasonDetail(res *TenantHealthResult) string {
 
 // staleFromHealth reads the last_event_age signal from a tenant health result and
 // reports staleness (a degraded/at_risk recency) as an info finding.
-func staleFromHealth(res *TenantHealthResult) (bool, string) {
+func staleFromHealth(res *TenantHealthResult) (stale bool, detail string) {
 	for _, s := range res.Signals {
-		if s.Name == "last_event_age" && s.Tier != "" && string(s.Tier) != "healthy" && s.Value != "never ingested" {
+		if s.Name == "last_event_age" && s.Tier != "" && s.Tier != signals.TierHealthy && s.Value != "never ingested" {
 			return true, "no recent events (last event " + s.Value + " ago)"
 		}
 	}
@@ -835,6 +837,12 @@ func staleFromHealth(res *TenantHealthResult) (bool, string) {
 // isAlarmablePaidTier reports whether a tier is paid AND self-serve (so a missing
 // subscription is a real anomaly). Enterprise is sales-led/comp — excluded.
 func isAlarmablePaidTier(tier string) bool {
+	// The default is the correct answer for every remaining tier: free is not
+	// paid, enterprise is deliberately excluded (sales-led/comp, so a missing
+	// self-serve subscription is expected), and the retired tiers
+	// (pro/growth/team/starter) can never reach this switch because
+	// MapRetiredTier has already folded them into the canonical set.
+	//exhaustive:ignore // free/enterprise/retired are all correctly false by default
 	switch entities.SubscriptionTier(entities.MapRetiredTier(tier)) {
 	case entities.TierIndie, entities.TierStudio, entities.TierScale:
 		return true

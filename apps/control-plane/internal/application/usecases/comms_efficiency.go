@@ -313,9 +313,9 @@ func (uc *CommsEfficiencyUseCase) Compute(ctx context.Context) (*EfficiencyProje
 func (uc *CommsEfficiencyUseCase) attribute(ctx context.Context, touches []touch, groups map[groupKey]*groupAcc) {
 	type tgKey struct{ tenant, goal string }
 	byTenantGoal := map[tgKey][]touch{}
-	for _, t := range touches {
-		k := tgKey{t.tenant, t.goalEvent}
-		byTenantGoal[k] = append(byTenantGoal[k], t)
+	for i := range touches {
+		k := tgKey{touches[i].tenant, touches[i].goalEvent}
+		byTenantGoal[k] = append(byTenantGoal[k], touches[i])
 	}
 
 	// A tenant that no longer exists churned mid-window — its goal stream is
@@ -485,7 +485,8 @@ func finalizeGroup(g *groupAcc) EfficiencyGroup {
 func heroFrom(groups []EfficiencyGroup) TrialToPaidHero {
 	h := TrialToPaidHero{GoalEvent: GoalSubscriptionActivated}
 	var ttgTotalSec, ttgN int64
-	for _, g := range groups {
+	for i := range groups {
+		g := &groups[i]
 		if g.GoalEvent != GoalSubscriptionActivated {
 			continue
 		}

@@ -41,6 +41,11 @@ const (
 	confirmTokenTTL = 15 * time.Minute
 )
 
+// dryRunPreviewMessage is the message every dry-run preview returns: it tells
+// the operator how to turn the preview into an apply. Shared by the recovery
+// batch, reap-demo and cohort-notice previews so the three can never drift.
+const dryRunPreviewMessage = "dry-run: echo confirm_token to apply"
+
 // RecoveryRequest is the common body for every mutating recovery action
 // (§5.1). Action-specific fields ride in Extra.
 type RecoveryRequest struct {
