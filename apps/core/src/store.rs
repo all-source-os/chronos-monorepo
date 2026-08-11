@@ -1874,6 +1874,21 @@ impl EventStore {
         offset: usize,
         descending: bool,
     ) -> Result<(Vec<Event>, usize)> {
+        // Reject a payload filter that cannot be applied, BEFORE doing any
+        // work. `apply_filters` parses it per event with `if let Ok(..)`, so an
+        // unparseable filter degraded into NO filter: the query answered with
+        // every event the caller had asked to exclude, `total_count` agreed,
+        // and nothing in the response said the filter had been dropped. A
+        // filter must fail closed — loudly — not open.
+        if let Some(filter) = &request.payload_filter
+            && serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(filter).is_err()
+        {
+            return Err(AllSourceError::InvalidInput(format!(
+                "invalid 'payload_filter': expected a JSON object of field/value \
+                 pairs, got '{filter}'"
+            )));
+        }
+
         // Lazy-load gate (Step 2): if the request scopes to a tenant,
         // make sure that tenant's persisted data is in memory before
         // running the in-memory index lookup. First call for a cold
@@ -2043,6 +2058,31 @@ impl EventStore {
         // Tenant isolation: if a tenant_id is specified, only return events from that tenant
         if let Some(ref tid) = request.tenant_id
             && event.tenant_id_str() != tid
+        {
+            return false;
+        }
+
+        // Time range. Also pre-applied to index entries in `filter_entries`
+        // (cheaper — it skips the event fetch), but `filter_entries` runs ONLY
+        // on the indexed branches. A query that no index narrows — scoped by
+        // tenant alone, or by `payload_filter`/`exclude_event_type_prefix` —
+        // takes the full-scan branch and never reaches it, so without this
+        // `since`/`until`/`as_of` were silently dropped and the query answered
+        // with the entire history (`total`/`has_more` included). Re-checking
+        // here is idempotent for the indexed paths: same predicate, and an
+        // index entry's timestamp is its event's.
+        if let Some(as_of) = request.as_of
+            && event.timestamp > as_of
+        {
+            return false;
+        }
+        if let Some(since) = request.since
+            && event.timestamp < since
+        {
+            return false;
+        }
+        if let Some(until) = request.until
+            && event.timestamp > until
         {
             return false;
         }
@@ -5748,6 +5788,109 @@ mod tests {
                 assert_eq!(got, expected, "offset={offset} limit={limit:?}");
             }
         }
+    }
+
+    // `as_of`/`since`/`until` are applied in `filter_entries`, which only runs
+    // on the three INDEXED branches (entity_id / event_type / event_type_prefix).
+    // The full-scan branch — a query scoped only by tenant, or only by
+    // `payload_filter`/`exclude_event_type_prefix`, which is exactly what the
+    // gateway sends for "this tenant's activity since T" — builds its offsets
+    // as `(0..events.len())` and never calls it, and `apply_filters` did not
+    // check timestamps either. So the time window was silently dropped: the
+    // query returned the whole history, and `total`/`has_more` described that
+    // whole history too. Same class of "the parameter never reaches the code
+    // that would honour it" as #250's offset.
+    #[test]
+    fn query_window_applies_time_filters_on_the_full_scan_path() {
+        let store = EventStore::new();
+        let base = Utc::now() - chrono::Duration::hours(24);
+        let mut ids = Vec::new();
+        for i in 0..5i64 {
+            let mut event = create_test_event(&format!("e-{i}"), "user.created");
+            event.timestamp = base + chrono::Duration::hours(i);
+            event.version = i + 1;
+            ids.push(event.id);
+            store.ingest(&event).unwrap();
+        }
+        let at = |h: i64| base + chrono::Duration::hours(h);
+
+        // Tenant-only: no entity_id, no event_type, no event_type_prefix, so
+        // nothing narrows the scan.
+        let scoped = |mutate: &dyn Fn(&mut QueryEventsRequest)| {
+            let mut req = QueryEventsRequest {
+                tenant_id: Some("default".to_string()),
+                ..QueryEventsRequest::default()
+            };
+            mutate(&mut req);
+            req
+        };
+
+        for (label, req, expected) in [
+            (
+                "since=T+2 keeps only events at or after T+2",
+                scoped(&|r| r.since = Some(at(2))),
+                vec![ids[2], ids[3], ids[4]],
+            ),
+            (
+                "until=T+1 keeps only events at or before T+1",
+                scoped(&|r| r.until = Some(at(1))),
+                vec![ids[0], ids[1]],
+            ),
+            (
+                "as_of=T+1 is time travel: nothing newer than T+1",
+                scoped(&|r| r.as_of = Some(at(1))),
+                vec![ids[0], ids[1]],
+            ),
+            (
+                "since+until compose into a closed window",
+                scoped(&|r| {
+                    r.since = Some(at(1));
+                    r.until = Some(at(3));
+                }),
+                vec![ids[1], ids[2], ids[3]],
+            ),
+        ] {
+            let (events, total) = store.query_window(&req, 0, false).unwrap();
+            let got: Vec<_> = events.iter().map(|e| e.id).collect();
+            assert_eq!(got, expected, "{label}");
+            assert_eq!(
+                total,
+                expected.len(),
+                "{label}: total counts the events INSIDE the window — \
+                 has_more is derived from it, so a full-history total makes a \
+                 paginator walk events the caller filtered out"
+            );
+        }
+
+        // The indexed branches must keep agreeing with the full scan — the same
+        // window asked for with an entity filter is the same window.
+        let (indexed, total) = store
+            .query_window(
+                &scoped(&|r| {
+                    r.entity_id = Some("e-3".to_string());
+                    r.since = Some(at(2));
+                }),
+                0,
+                false,
+            )
+            .unwrap();
+        assert_eq!(
+            indexed.iter().map(|e| e.id).collect::<Vec<_>>(),
+            vec![ids[3]]
+        );
+        assert_eq!(total, 1);
+
+        // And the window composes with the #251 selection: a bounded page taken
+        // out of a time window is a page of that window, not of the history.
+        let (page, total) = store
+            .query_window(&scoped(&|r| r.since = Some(at(2))), 1, true)
+            .unwrap();
+        assert_eq!(
+            page.iter().map(|e| e.id).collect::<Vec<_>>(),
+            vec![ids[3], ids[2]],
+            "order=desc + offset=1 inside a since window"
+        );
+        assert_eq!(total, 3);
     }
 
     #[test]

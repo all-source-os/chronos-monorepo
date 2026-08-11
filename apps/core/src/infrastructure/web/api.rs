@@ -2894,6 +2894,291 @@ mod tests {
         );
     }
 
+    /// Like [`query_page`] but surfaces the handler's error instead of
+    /// unwrapping — for the parameter values that must be REJECTED.
+    async fn query_page_result(
+        store: &SharedStore,
+        query: &str,
+    ) -> Result<Json<QueryEventsResponse>> {
+        use axum::extract::{Query, State};
+
+        let uri: axum::http::Uri = format!("/api/v1/events/query?tenant_id=test-stream&{query}")
+            .parse()
+            .unwrap();
+        query_events(
+            OptionalAuth(None),
+            Query::try_from_uri(&uri).unwrap(),
+            Query::try_from_uri(&uri).unwrap(),
+            Query::try_from_uri(&uri).unwrap(),
+            State(store.clone()),
+        )
+        .await
+    }
+
+    // A filter the server cannot apply must be an ERROR, not silence. The
+    // payload filter is parsed inside the per-event predicate with `if let
+    // Ok(..)`, so an unparseable one simply never matched anything and the
+    // query answered as if no filter had been sent — the caller asked for
+    // "events where user_id = alice" and got the tenant's whole stream, with a
+    // `total_count` that agreed. Fails OPEN, which is the dangerous direction
+    // for a filter, and the endpoint already rejects an unusable `order`, so
+    // silence here was also inconsistent.
+    #[tokio::test]
+    async fn query_events_rejects_a_payload_filter_it_cannot_apply() {
+        let store = create_test_store();
+        for name in ["alice", "bob", "carol"] {
+            let mut event = create_test_event(name, "user.created");
+            event.payload = serde_json::json!({ "user_id": name });
+            store.ingest(&event).unwrap();
+        }
+
+        // A well-formed filter still filters — the guard must not reject the
+        // shape callers actually send (`{"user_id":"alice"}`, percent-encoded).
+        let ok = query_page(&store, "payload_filter=%7B%22user_id%22%3A%22alice%22%7D").await;
+        assert_eq!(ok.count, 1, "a valid payload_filter must still work");
+        assert_eq!(ok.total_count, 1);
+
+        for bad in [
+            "not-json",                    // not JSON at all
+            "%7B%22user_id%22%3A%22alice", // truncated object
+            "%5B%22alice%22%5D",           // valid JSON, but an array, not an object
+            "42",                          // valid JSON, but a scalar
+        ] {
+            let result = query_page_result(&store, &format!("payload_filter={bad}")).await;
+            let Err(err) = result else {
+                let resp = result.unwrap().0;
+                panic!(
+                    "payload_filter={bad} was silently ignored: returned {} of {} \
+                     events unfiltered instead of rejecting a filter the server \
+                     cannot apply",
+                    resp.count, resp.total_count
+                );
+            };
+            assert!(
+                matches!(err, crate::error::AllSourceError::InvalidInput(_)),
+                "payload_filter={bad} must be a 400, got {err:?}"
+            );
+        }
+    }
+
+    // `order` is the other parameter whose only legal values are a closed set.
+    // It is validated, but nothing pinned that: collapsing the match to a
+    // `_ => false` default arm would make `?order=descending` silently return
+    // OLDEST-first — a paginator would read the wrong end of the stream and
+    // nothing in the response would say so.
+    #[tokio::test]
+    async fn query_events_rejects_an_unusable_order_value() {
+        let store = create_test_store();
+        store
+            .ingest(&create_test_event("e-1", "user.created"))
+            .unwrap();
+
+        for bad in ["descending", "DESCENDING", "newest", "1", "asc%20"] {
+            let result = query_page_result(&store, &format!("order={bad}")).await;
+            let Err(err) = result else {
+                panic!("order={bad} must be rejected, not silently defaulted");
+            };
+            assert!(
+                matches!(err, crate::error::AllSourceError::InvalidInput(_)),
+                "order={bad} must be a 400, got {err:?}"
+            );
+        }
+
+        // The accepted spellings stay accepted, in any case.
+        for good in ["asc", "ASC", "desc", "DeSc"] {
+            let accepted = query_page_result(&store, &format!("order={good}"))
+                .await
+                .unwrap_or_else(|e| panic!("order={good} must be accepted: {e:?}"));
+            assert_eq!(accepted.0.count, 1, "order={good}");
+        }
+    }
+
+    // `exclude_event_type_prefix` had no test anywhere in Core — not at this
+    // handler, not in the store — despite being an HTTP-exposed filter the
+    // Query Service forwards verbatim, and despite #251 having just rewritten
+    // the code that decides WHEN it runs relative to the window. Its contract
+    // is more than "drop these events": the DTO promises exclusion happens
+    // BEFORE the limit, so excluded events never consume the result window, and
+    // the prefixes are comma-separated. Both claims are only observable in
+    // composition with `limit`/`offset`, so this drives the real handler.
+    #[tokio::test]
+    async fn query_events_exclude_prefix_applies_before_the_window() {
+        const TYPES: [&str; 4] = [
+            "audit.write",
+            "user.created",
+            "service.ping",
+            "user.updated",
+        ];
+        let store = create_test_store();
+        let base = chrono::Utc::now() - chrono::Duration::hours(24);
+        let mut kept = Vec::new();
+        for i in 0..12i64 {
+            let mut event = create_test_event("org-1", TYPES[i as usize % 4]);
+            event.timestamp = base + chrono::Duration::minutes(i);
+            event.version = i + 1;
+            if i % 2 == 1 {
+                kept.push(event.id);
+            }
+            store.ingest(&event).unwrap();
+        }
+        assert_eq!(kept.len(), 6, "half the stream is user.*");
+
+        // A page of 3 must be 3 SURVIVING events. Excluding after the window
+        // instead would serve 3 minus however many the page happened to hit —
+        // here 1 — while still reporting a plausible-looking count.
+        let page = query_page(
+            &store,
+            "exclude_event_type_prefix=audit.,%20service.&limit=3",
+        )
+        .await;
+        assert_eq!(
+            page.events.iter().map(|e| e.id).collect::<Vec<_>>(),
+            kept[..3].to_vec(),
+            "limit=3 must yield 3 non-excluded events: exclusion runs before \
+             the window, and the prefix list is comma-separated (whitespace \
+             trimmed)"
+        );
+        assert!(
+            page.events
+                .iter()
+                .all(|e| !e.event_type.starts_with("audit.")
+                    && !e.event_type.starts_with("service.")),
+            "excluded namespaces must not appear: {:?}",
+            page.events
+                .iter()
+                .map(|e| &e.event_type)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            page.total_count, 6,
+            "total_count is the post-exclusion match set, not the 12 ingested"
+        );
+        assert!(page.has_more);
+
+        // Paging the excluded view walks the 6 survivors exactly once and stops.
+        let mut walked = Vec::new();
+        for offset in [0, 3, 6] {
+            let p = query_page(
+                &store,
+                &format!("exclude_event_type_prefix=audit.,service.&limit=3&offset={offset}"),
+            )
+            .await;
+            assert_eq!(
+                p.has_more,
+                offset + p.count < 6,
+                "has_more must terminate on the excluded view (offset={offset})"
+            );
+            walked.extend(p.events.iter().map(|e| e.id));
+        }
+        assert_eq!(
+            walked, kept,
+            "exclusion + paging must cover the survivors once"
+        );
+
+        // Composes with order=desc: newest survivor first, not newest event.
+        let desc = query_page(
+            &store,
+            "exclude_event_type_prefix=audit.,service.&limit=1&order=desc",
+        )
+        .await;
+        assert_eq!(
+            desc.events[0].id,
+            *kept.last().unwrap(),
+            "order=desc&limit=1 over an excluded view is the newest SURVIVOR"
+        );
+
+        // One prefix excludes only its namespace; a prefix matching nothing
+        // excludes nothing.
+        let audit_only = query_page(&store, "exclude_event_type_prefix=audit.").await;
+        assert_eq!(audit_only.total_count, 9, "12 minus the 3 audit.* events");
+        let nothing = query_page(&store, "exclude_event_type_prefix=nosuch.").await;
+        assert_eq!(nothing.total_count, 12);
+    }
+
+    // `since`/`until`/`as_of` must narrow the result set on EVERY query shape,
+    // including the one no index narrows: scoped by tenant only, which is what
+    // the gateway forwards for "this tenant's activity since T" (the Query
+    // Service passes all three straight through — `@core_compat_filters`).
+    // Those three filters are evaluated against index entries, and the
+    // full-scan branch of the store never consults the index, so a tenant-only
+    // query silently ignored the window and answered with the whole history —
+    // with `total_count`/`has_more` describing that history too, so a paginator
+    // walked events the caller had explicitly excluded.
+    //
+    // Driven through the real handler and real query-string deserialization:
+    // the parameters exist on the DTO and parse fine, so nothing at the wire
+    // layer reveals that no code downstream reads them on this path.
+    #[tokio::test]
+    async fn query_events_honours_time_window_without_an_entity_or_type_filter() {
+        use chrono::SecondsFormat;
+
+        let store = create_test_store();
+        let base = chrono::Utc::now() - chrono::Duration::hours(24);
+        let mut ids = Vec::new();
+        for i in 0..5i64 {
+            let mut event = create_test_event(&format!("e-{i}"), "user.created");
+            event.timestamp = base + chrono::Duration::hours(i);
+            event.version = i + 1;
+            ids.push(event.id);
+            store.ingest(&event).unwrap();
+        }
+        // `Z`-suffixed so the timestamp survives a query string — an offset of
+        // `+00:00` would be decoded as a space.
+        let at = |h: i64| {
+            (base + chrono::Duration::hours(h)).to_rfc3339_opts(SecondsFormat::Micros, true)
+        };
+
+        for (qs, expected) in [
+            (format!("since={}", at(2)), vec![ids[2], ids[3], ids[4]]),
+            (format!("until={}", at(1)), vec![ids[0], ids[1]]),
+            (format!("as_of={}", at(1)), vec![ids[0], ids[1]]),
+            (
+                format!("since={}&until={}", at(1), at(3)),
+                vec![ids[1], ids[2], ids[3]],
+            ),
+        ] {
+            let resp = query_page(&store, &qs).await;
+            let got: Vec<_> = resp.events.iter().map(|e| e.id).collect();
+            assert_eq!(got, expected, "?{qs} must return only the window");
+            assert_eq!(resp.count, expected.len(), "?{qs}");
+            assert_eq!(
+                resp.total_count,
+                expected.len(),
+                "?{qs}: total_count must count the window, not the history"
+            );
+            assert!(!resp.has_more, "?{qs}: the whole window was served");
+        }
+
+        // The window composes with paging: page 2 of a `since` window is the
+        // second page OF THAT WINDOW, and `has_more` terminates on it.
+        let page1 = query_page(&store, &format!("since={}&limit=2", at(2))).await;
+        let page2 = query_page(&store, &format!("since={}&limit=2&offset=2", at(2))).await;
+        assert_eq!(
+            page1.events.iter().map(|e| e.id).collect::<Vec<_>>(),
+            vec![ids[2], ids[3]]
+        );
+        assert!(page1.has_more, "3 in the window, 2 served");
+        assert_eq!(
+            page2.events.iter().map(|e| e.id).collect::<Vec<_>>(),
+            vec![ids[4]]
+        );
+        assert!(!page2.has_more, "offset 2 + count 1 == the window's 3");
+        assert_eq!(page2.total_count, 3);
+
+        // …and with `order=desc`.
+        let desc = query_page(&store, &format!("since={}&order=desc", at(2))).await;
+        assert_eq!(
+            desc.events.iter().map(|e| e.id).collect::<Vec<_>>(),
+            vec![ids[4], ids[3], ids[2]]
+        );
+
+        // An empty window is empty, not "everything".
+        let empty = query_page(&store, &format!("since={}", at(99))).await;
+        assert_eq!(empty.count, 0);
+        assert_eq!(empty.total_count, 0);
+        assert!(!empty.has_more);
+    }
+
     // Tenant-isolation gate: the public events query must fail CLOSED — a request
     // with no auth context and no tenant_id returns nothing, never a cross-tenant
     // scan. Calls the real handler so the boundary check is exercised.

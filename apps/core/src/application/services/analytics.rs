@@ -516,6 +516,64 @@ impl AnalyticsEngine {
 mod tests {
     use super::*;
 
+    // `GET /api/v1/analytics/frequency` takes `entity_id` and `event_type` as
+    // OPTIONAL filters, so the headline "how busy has this deployment been
+    // since T" call arrives with neither — and that is exactly the shape the
+    // store answers with a full scan, the one branch that never evaluated
+    // `since`/`until`. The response then reported the whole history's events
+    // under a `time_range` claiming the requested window: not an empty result a
+    // caller would notice, a wrong number that looks right.
+    #[test]
+    fn event_frequency_without_a_filter_still_respects_its_time_range() {
+        use crate::store::EventStore;
+
+        let store = EventStore::new();
+        let base = Utc::now() - chrono::Duration::hours(24);
+        for i in 0..6i64 {
+            let mut event = crate::domain::entities::Event::from_strings(
+                "user.created".to_string(),
+                format!("e-{i}"),
+                "default".to_string(),
+                serde_json::json!({}),
+                None,
+            )
+            .unwrap();
+            event.timestamp = base + chrono::Duration::hours(i);
+            event.version = i + 1;
+            store.ingest(&event).unwrap();
+        }
+
+        // No entity_id, no event_type: nothing for an index to narrow.
+        let response = AnalyticsEngine::event_frequency(
+            &store,
+            &EventFrequencyRequest {
+                entity_id: None,
+                event_type: None,
+                since: base + chrono::Duration::hours(2),
+                until: Some(base + chrono::Duration::hours(4)),
+                window: TimeWindow::Hour,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            response.total_events, 3,
+            "events at T+2, T+3 and T+4 are inside the range; the 6-event \
+             history is not"
+        );
+        let counted: usize = response.buckets.iter().map(|b| b.count).sum();
+        assert_eq!(
+            counted, 3,
+            "the buckets must add up to the events in the range"
+        );
+        assert!(
+            response.buckets.iter().all(|b| b.timestamp
+                >= TimeWindow::Hour.truncate(response.time_range.from)
+                && b.timestamp <= response.time_range.to),
+            "no bucket may fall outside the reported time_range"
+        );
+    }
+
     #[test]
     fn test_time_window_truncation() {
         let timestamp = chrono::Utc::now();
