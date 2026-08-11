@@ -87,9 +87,10 @@ async fn ingest_n_events(core: &CoreClient, entity_prefix: &str, n: u64) -> u64 
 async fn wait_caught_up<S: WorkerState>(handle: &ProjectionHandle<S>) {
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while !handle.is_caught_up() {
-        if std::time::Instant::now() > deadline {
-            panic!("worker did not catch up within 10s");
-        }
+        assert!(
+            std::time::Instant::now() <= deadline,
+            "worker did not catch up within 10s"
+        );
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }

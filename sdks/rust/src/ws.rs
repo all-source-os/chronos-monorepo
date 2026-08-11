@@ -50,6 +50,13 @@ pub struct StreamedEvent {
 }
 
 /// An item yielded by the event stream.
+// `Event` is much larger than the two control variants, but it is also the
+// variant that dominates: `ReplayComplete` fires once per connection and
+// `Lagged` only on overflow. Boxing to even out the size would add a heap
+// allocation to every streamed event — paying on the hot path to shrink the
+// rare cases. Kept inline deliberately; boxing would also be a breaking change
+// for consumers matching on `StreamItem::Event(e)`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum StreamItem {
     /// An event (replay or live).
@@ -113,7 +120,7 @@ impl EventStreamClient {
             "type": "subscribe",
             "filters": filters,
         });
-        ws.send(Message::Text(subscribe.to_string().into()))
+        ws.send(Message::Text(subscribe.to_string()))
             .await
             .map_err(|e| Error::WebSocket(format!("subscribe send failed: {e}")))?;
 
@@ -149,6 +156,12 @@ impl EventStream {
 impl Stream for EventStream {
     type Item = Result<StreamItem, Error>;
 
+    // Every other arm of the match below `return`s, so the `continue` arms are
+    // technically redundant — but they are the arms that say "this frame is not
+    // an event, go read another message". Written as bare `{}` blocks they read
+    // as "do nothing" in a poll loop where doing nothing and looping are very
+    // different outcomes. Keeping them explicit.
+    #[allow(clippy::needless_continue)]
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             match futures_util::ready!(Pin::new(&mut self.inner).poll_next(cx)) {
@@ -224,7 +237,7 @@ fn parse_frame(text: &str, current_mode: StreamMode) -> Result<Option<StreamItem
             "replay" => {
                 let position = val
                     .get("position")
-                    .and_then(|v| v.as_u64())
+                    .and_then(serde_json::Value::as_u64)
                     .ok_or_else(|| Error::WebSocket("replay frame missing position".into()))?;
                 let event_val = val
                     .get("event")
@@ -237,11 +250,17 @@ fn parse_frame(text: &str, current_mode: StreamMode) -> Result<Option<StreamItem
                 })))
             }
             "replay_complete" => {
-                let replayed = val.get("replayed").and_then(|v| v.as_u64()).unwrap_or(0);
+                let replayed = val
+                    .get("replayed")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
                 Ok(Some(StreamItem::ReplayComplete { replayed }))
             }
             "lagged" => {
-                let missed = val.get("missed").and_then(|v| v.as_u64()).unwrap_or(0);
+                let missed = val
+                    .get("missed")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
                 Ok(Some(StreamItem::Lagged { missed }))
             }
             "subscribe" => Ok(None), // echo of our own subscribe — ignore
@@ -431,7 +450,7 @@ mod tests {
             ];
 
             for f in frames {
-                ws_stream.send(Message::Text(f.into())).await.unwrap();
+                ws_stream.send(Message::Text(f)).await.unwrap();
             }
             // Close cleanly; drop ws_stream to release the TCP socket.
             let _ = ws_stream.close(None).await;

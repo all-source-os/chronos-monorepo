@@ -488,8 +488,8 @@ async fn run_forever<S: WorkerState>(
             "reconnecting"
         );
         tokio::select! {
-            _ = tokio::time::sleep(delay) => {}
-            _ = shutdown_notify.notified() => break,
+            () = tokio::time::sleep(delay) => {}
+            () = shutdown_notify.notified() => break,
         }
     }
 }
@@ -527,7 +527,7 @@ async fn run_loop_with_tracking<S: WorkerState>(
         }
 
         tokio::select! {
-            _ = shutdown_notify.notified() => {
+            () = shutdown_notify.notified() => {
                 worker.flush_state_if_configured().await;
                 if let Some(pos) = last_replay_position {
                     let _ = worker.core.save_checkpoint(&worker.name, pos).await;
