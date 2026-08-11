@@ -62,7 +62,7 @@ _Empty — no live sweep has run._
 ## Already known, without a probe
 
 These are contradictions **inside this repository**, found while grounding the
-interrogation set's 18 ground-truth claims. They are not in the backlog table
+interrogation set's 19 ground-truth claims. They are not in the backlog table
 above — that table is reserved for what a live run observes — but several of
 them are almost certainly *causes* of the wrong answers a live run will find,
 and one of them is the cheapest fix in the programme:

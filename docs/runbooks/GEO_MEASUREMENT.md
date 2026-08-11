@@ -507,7 +507,7 @@ Two deliberately separate jobs:
 | | 3a — share of voice | 3b — interrogation |
 |---|---|---|
 | Question | Of the answers to buyer questions, what share name us? | When they name us, is what they say **true**? |
-| Prompts | 32, no brand named | 13, all brand-named, 18 ground-truth claims |
+| Prompts | 32, no brand named | 13, all brand-named, 19 ground-truth claims |
 | Event | `geo.sov.probed` | `geo.interrogation.probed` |
 | Output | a trend instrument | a concrete content backlog |
 
@@ -675,7 +675,7 @@ interrogation answer.
 
 | sweep | probe calls | judge calls |
 |---|---|---|
-| full, 4 engines, 3 reps | (32 + 13) × 4 × 3 = **540** | 18 × 4 × 3 = **216** |
+| full, 4 engines, 3 reps | (32 + 13) × 4 × 3 = **540** | 19 × 4 × 3 = **228** |
 | SOV only, 4 engines, 3 reps | 384 | 0 |
 | smoke (`--limit 5 --engine claude --repetitions 1`) | 5 | ~7 |
 
@@ -703,7 +703,7 @@ because nothing downstream can tell the difference.
 
 ## Ground-truth contradictions found while writing the probe set
 
-Grounding the 18 interrogation claims meant reading what this repository
+Grounding the 19 interrogation claims meant reading what this repository
 actually says, and it does not always agree with itself. These are findings
 about **us**, not about any model, and several expectations in
 `interrogation.toml` are deliberately written to accommodate them — a model that
