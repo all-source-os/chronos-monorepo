@@ -362,8 +362,26 @@ export const siteConfig = {
       links: [
         { href: "/platform/event-sourcing", text: "Event Store", icon: null },
         { href: "/platform/stream-processing", text: "Stream Processing", icon: null },
+        { href: "/platform/prime", text: "Prime (agent memory)", icon: null },
         { href: "/docs/mcp", text: "MCP Server", icon: null },
         { href: "/docs", text: "Documentation", icon: null },
+      ],
+    },
+    {
+      // GEO/AEO note: every /solutions/* page was an orphan — present in
+      // sitemap.ts, cross-linked between three of the pages, and reachable from
+      // no site-wide navigation at all. Sitemap presence alone is a weak
+      // discovery signal, and crawlers that follow links (including AI
+      // indexers) had no path to them. This column is that path.
+      title: "Solutions",
+      links: [
+        { href: "/solutions/agent-memory", text: "Agent Memory", icon: null },
+        { href: "/solutions/real-time-analytics", text: "Real-Time Analytics", icon: null },
+        { href: "/solutions/audit-compliance", text: "Audit & Compliance", icon: null },
+        { href: "/solutions/financial-services", text: "Financial Services", icon: null },
+        { href: "/solutions/multi-tenant-saas", text: "Multi-Tenant SaaS", icon: null },
+        { href: "/solutions/iot-telemetry", text: "IoT Telemetry", icon: null },
+        { href: "/solutions/quant-intelligence", text: "Quant Intelligence", icon: null },
       ],
     },
     {

@@ -20,6 +20,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import Footer from "@/components/sections/footer";
 import Header from "@/components/sections/header";
+import { faqPageSchema } from "@/lib/structured-data";
 
 const capabilities = [
   {
@@ -166,8 +167,19 @@ const architectureLayers = [
 ];
 
 export default function QuantIntelligencePage() {
+  // Built from the SAME `capabilities` array rendered below, so the schema can
+  // never claim an answer the page does not show.
+  const faqJsonLd = faqPageSchema(
+    capabilities.map((cap) => ({ question: cap.question, answer: cap.answer }))
+  );
+
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <Header />
 
       {/* Hero */}

@@ -20,6 +20,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import Footer from "@/components/sections/footer";
 import Header from "@/components/sections/header";
+import { faqPageSchema } from "@/lib/structured-data";
 
 const capabilities = [
   {
@@ -161,8 +162,21 @@ const useCases = [
 ];
 
 export default function AgentMemoryPage() {
+  // Built from the SAME `capabilities` array rendered below, so the schema can
+  // never claim an answer the page does not show. These are already written as
+  // self-contained question/answer pairs — exactly the shape an answer engine
+  // lifts — they were just not machine-readable until now.
+  const faqJsonLd = faqPageSchema(
+    capabilities.map((cap) => ({ question: cap.question, answer: cap.answer }))
+  );
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <Header />
       <main className="relative overflow-hidden">
         {/* Hero */}
