@@ -1,11 +1,13 @@
 # Runbook — GEO measurement
 
-**Status:** layers 1, 2 and 3 are built. `apps/web` emits
+**Status:** layers 1, 2, 3 and 4 are built. `apps/web` emits
 `geo.referral.observed` for arrivals from AI surfaces, `geo crawl` ingests
-verified AI-bot hits from the edge logs as `geo.crawl.observed`, and `geo probe`
-runs the frozen layer-3 probe set across the engines. **Layer 3 has not yet run
-live** — no provider API key exists in the environment it was built in, so its
-baseline documents are committed as empty templates. Layers 4 and 5 are stubs.
+verified AI-bot hits from the edge logs as `geo.crawl.observed`, `geo probe`
+runs the frozen layer-3 probe set across the engines, and both signup paths
+(the onboarding form and `POST /api/v1/onboard/start`) capture
+`geo.selfreport.captured`. **Layer 3 has not yet run live** — no provider API
+key exists in the environment it was built in, so its baseline documents are
+committed as empty templates. Layer 5 is a stub.
 
 **Scope:** how AllSource shows up in generative engines (ChatGPT, Claude,
 Perplexity, Gemini) — who arrives from them, which of their crawlers read the
@@ -30,7 +32,7 @@ guessing with a durable, queryable timeline in Core.
 | 2 — Crawl diagnostics | Which AI crawlers read the site, and did they get a 200? | `geo.crawl.observed` | **live** (prompt 024) |
 | 3a — Share of voice | Do the engines name us when asked our category question? | `geo.sov.probed` | **built** (prompt 025), awaiting a live sweep |
 | 3b — Interrogation | When they name us, is what they say true? | `geo.interrogation.probed` | **built** (prompt 025), awaiting a live sweep |
-| 4 — Self-report | What do people say sent them, when the referrer was stripped? | `geo.selfreport.captured` | not implemented (prompt 026) |
+| 4 — Self-report | What do people say sent them, when the referrer was stripped? | `geo.selfreport.captured` | **live** (prompt 026) |
 | 5 — Experiments | Did a change to a surface move any of the above? | `geo.experiment.started` / `.scored` | not implemented (prompt 027) |
 
 Layers 1 and 2 are observational and cheap. Layer 3 costs LLM calls. Layer 4 is
@@ -181,9 +183,10 @@ Practical consequences:
   2025 figures put OpenAI's crawl-to-referral ratio around 1,700:1 and
   Anthropic's around 73,000:1, versus Google's 14:1 — crawl volume moves months
   before referral volume does.
-- **Layer 4 (self-report, prompt 026)** is the only layer that sees through a
-  stripped referrer. Until it lands, treat layer 1 as a lower bound and nothing
-  more.
+- **Layer 4 (self-report)** is the only layer that sees through a stripped
+  referrer, and it is now live — read layer 1 next to it, never alone. The
+  report prints the two side by side over a shared denominator; see the layer-4
+  section at the bottom of this file.
 
 `geo report` prints this caveat under the layer 1 table so it cannot be read
 without it.
@@ -758,3 +761,204 @@ repeats one of these is quoting our own file:
 
 These are recorded here rather than in the remediation backlog because the
 backlog is reserved for what a *live* run observes.
+
+---
+
+# Layer 4 — self-report
+
+**Question:** what do people say sent them, when the referrer was stripped?
+
+Layer 4 is the correction for layer 1. It is the only layer that sees through
+a stripped referrer, the only one that connects an AI answer to a real human
+who signed up, and — uniquely — the only one that captures **the actual
+question they asked the model**. That free text is first-party buyer language;
+no probe harness can synthesise it, and it is what prompt 027 folds back into
+the SOV prompt set.
+
+## The gap is the finding
+
+The sharpest empirical result in this whole framework is that **self-reported
+attribution routinely lands in double digits while analytics attribution reads
+under 1%**. That is not two measurements disagreeing; it is one measurement
+(layer 1) being structurally blind. `geo report` therefore prints both numbers
+**on the same lines, over the same denominator**, because a gap between two
+differently-normalised percentages is an arithmetic accident, not a finding:
+
+```
+== LAYER 1 vs LAYER 4 — the attribution gap ========================
+
+   analytics (layer 1, referrer survived) :     0 of 1    0.0%
+   humans    (layer 4, they told us)      :     1 of 1  100.0%
+```
+
+The shared denominator is *signups that answered the question*. The two rows
+are still not the same measurement — the top counts sessions whose AI referrer
+survived **and** that were seen to convert; the bottom counts people who said
+so — and the report says that in words underneath, every time. Neither row is
+a channel size: the top is a floor, the bottom is a sample of the people who
+chose to answer an optional question.
+
+Where layer 4 captured signups from `POST /api/v1/onboard/start`, the report
+also prints the **web-only slice**. Layer 1 structurally cannot see the API
+path — an agent calling the endpoint never had a browser session to strip a
+referrer from — so including those rows on the top line would overstate the
+gap.
+
+## Both signup paths, or the number is a lie
+
+| path | where | capture-path id |
+|---|---|---|
+| web | first onboarding screen, `apps/web/src/components/geo-discovery-question.tsx` | `signup-form` |
+| API | optional fields on `POST /api/v1/onboard/start` | `onboard-api` |
+
+**The API path is not optional scope.** That endpoint is published in
+`apps/web/public/llms.txt` and agents sign up through it without ever loading
+the site. A capture that covered only the browser form would systematically
+miss exactly the AI-native users this whole programme exists to measure —
+while looking complete.
+
+### The web capture, and why it cannot cost a signup
+
+It is on the **first screen after signup**, not in the signup form. The account
+already exists by then, so the question cannot cost a conversion, and the
+tenant it attaches to already exists too. One click, skippable, no gate on
+continuing. A signup funnel that drops 5% to gain attribution is a bad trade.
+
+The free-text box ("what did you ask it?") only appears for the AI options.
+Asking someone who arrived from Hacker News what they "asked it" is nonsense,
+and a nonsense question costs completion rate on the one question we get.
+
+**Two beats, one entity.** The source is recorded the instant it is clicked, so
+a user who then walks away still counts; the free text follows and *replays the
+first answer's `observed_at`*, so it derives the same natural key and Core
+appends version 2 to the same entity. One signup, not two — the same mechanism
+layer 1 uses for a conversion. The route only honours a replayed timestamp
+within an hour.
+
+### The API capture
+
+```bash
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","name":"My Agent",
+       "discovery_source":"chatgpt",
+       "discovery_prompt":"what should I use to give my agent long-term memory?"}'
+```
+
+**Backward compatibility is non-negotiable and is pinned by a test.** Both
+fields are optional; a caller that omits them gets the same status, the same
+response keys and the same values as before, and no event is written. An
+unrecognised `discovery_source` is *ignored*, never rejected — the endpoint's
+job is to mint a tenant, and a typo in an optional telemetry field must not
+cost somebody their signup. See `TestOnboardRequestBindsWithoutTheGeoFields`
+and `TestBuildGeoSelfReport` in `apps/control-plane/geo_selfreport_test.go`.
+
+## One vocabulary, three languages
+
+The canonical discovery-source list is
+[`tooling/geo/geo-core/src/discovery.rs`](../../tooling/geo/geo-core/src/discovery.rs),
+serialised to
+[`docs/contracts/geo-events/discovery-sources.json`](../contracts/geo-events/discovery-sources.json).
+
+| side | file | its check |
+|---|---|---|
+| web form + route handler | `apps/web/src/lib/geo-discovery-sources.ts` | `src/__tests__/geo-discovery-sources.test.ts` |
+| `/onboard/start` validation | `apps/control-plane/geo_selfreport.go` | `TestDiscoverySourcesMatchTheContract` |
+| `geo report` | `geo-core` | `tests/discovery_contract.rs` |
+
+Three copies because the three cannot import each other — three languages, and
+the monorepo isolation rule. The failure this guards against is quiet: if the
+form wrote `"ChatGPT"` and the API path wrote `"chatgpt"`, the report would
+show two channels where there is one and the **AI-sourced share would be
+silently halved**. All three sides also derive the idempotency key with the
+same SHA-256-over-`0x1f`-joined-parts scheme, so one capture can never land as
+two entities.
+
+Regenerating after a vocabulary change:
+
+```bash
+cd tooling/geo && cargo test -p geo-core -- --ignored regenerate_discovery_contract
+# then mirror the diff into the .ts and .go files; their tests fail until you do
+```
+
+**An `id` is never renamed** — a rename splits a historical series in two with
+no way to stitch it back. Add entries; do not re-letter them. `other-ai` counts
+as AI on purpose: an assistant we have not named is still an assistant, and
+excluding it would bias the correction this layer *is*.
+
+An id this binary's vocabulary does not know is **never counted as AI**; the
+report names it under "discovery sources this binary's vocabulary does not
+know" instead. A newer producer must not retroactively inflate the AI share of
+an old window read by an old binary.
+
+## Revenue, not just traffic
+
+`tier` rides on the event, stored at capture rather than joined at read time —
+a tenant's tier moves, and "what tier did AI-sourced signups start on" is a
+question about the past. The report prints the AI-sourced share of **paid**
+signups, where paid means `indie | studio | scale | enterprise`. `trial` is not
+revenue and `self-host` is not billed, so neither counts. A capture with no
+tier is excluded from *both* sides of that split and reported separately —
+counting it as unpaid would understate the number, and inflating it is the one
+error here that would end up in a deck.
+
+## Privacy
+
+**Where it is stored.** In Core, as `geo.selfreport.captured` events under the
+`geo:selfreport:` entity namespace, in the GEO tenant — the same durable
+WAL + Parquet store as every other `geo.*` event. Not in PostgreSQL, and there
+is no CRM in this stack; Core is the system of record.
+
+**What is stored.** The selected option, the free text verbatim (bounded to 500
+characters), the tenant id, the tier at capture, the capture path, and the
+timestamp.
+
+**`contact_ref` is the tenant id and never an email address.** GEO telemetry is
+a trend timeline, not a place to accumulate PII. Do not extend the payload with
+identifying fields — the contract says so and a test asserts the canonical
+example has no `@` in it.
+
+**It is operator-visible, and we say so.** `verbatim` is user-submitted free
+text that our team reads — that is the entire point of collecting it. §2.3 of
+the privacy policy promises we do not read *your event data*; this is our own
+telemetry in our own tenant and is a different thing, so it gets its own
+clause rather than hiding under "usage data". `apps/web/src/app/(marketing)/privacy/page.tsx`
+**§2.5 "Attribution Answers You Choose to Give Us"** was added by this slice
+and covers: that both fields are optional, exactly what is retained, that it is
+read by us, that it is never sold or used for advertising, and that it is
+deleted on request. If you change what is captured, change §2.5 in the same
+commit.
+
+## Environment
+
+The web capture needs `ALLSOURCE_API_KEY` in the **Vercel** environment — the
+same key layer 1 already uses, one env-var scheme for the whole programme. The
+route refuses with 503 and logs loudly when it is missing rather than
+pretending to succeed. It reads the tenant from the httpOnly `auth_token`
+cookie and the tier from the Query Service (`QUERY_SERVICE_URL`); a tier lookup
+failure degrades to `tier: null`, never to a lost capture.
+
+The API capture needs nothing new — the Control Plane already holds a Core
+client.
+
+## Troubleshooting
+
+**Layer 4 is empty but people are signing up** — check in this order: the
+route returns 503 (no `ALLSOURCE_API_KEY` in Vercel); the route returns 401
+(the onboarding screen loaded without a session cookie); or nobody clicked. The
+report distinguishes none of these, so read the function logs.
+
+**Captures with `(unknown)` as the discovery source** — a producer wrote a
+`surface` this binary does not know. Rebuild `geo`; if it persists, something
+is writing outside the vocabulary and its check has been bypassed.
+
+**The count looks too high** — check `EVENTS` vs `ENTITIES` in the inventory
+table. The report folds self-reports by entity (last version wins), so a replay
+cannot inflate it, but a *different* natural key can: the key is
+`observed_at`(s) + capture path + source + tenant, so a user who answers twice
+more than an hour apart is genuinely two captures.
+
+**`discovery_source` was sent but no event appeared** — the value was not in
+the vocabulary and was silently ignored by design. Check it against
+`docs/contracts/geo-events/discovery-sources.json`; the ids are lowercase kebab
+(`x-twitter`, not `X/Twitter`).

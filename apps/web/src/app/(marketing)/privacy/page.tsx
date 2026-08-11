@@ -51,6 +51,33 @@ export default function PrivacyPolicy() {
             We automatically collect IP addresses, browser type, operating system, referring URLs,
             and device information when you interact with our web dashboard.
           </p>
+
+          {/*
+            Added for GEO layer 4 (docs/runbooks/GEO_MEASUREMENT.md). Section 2.3
+            promises we do not read your event data — this is OUR telemetry, in our
+            own tenant, and we DO read it, so it needs saying separately rather than
+            being quietly covered by 2.2 "usage data".
+          */}
+          <h3 className="text-lg font-medium text-foreground mt-4 mb-2">
+            2.5 Attribution Answers You Choose to Give Us
+          </h3>
+          <p className="text-muted-foreground leading-relaxed">
+            During onboarding we ask an optional question — &quot;how did you find us?&quot; — and,
+            if you say an AI assistant sent you, we offer an optional free-text box asking what you
+            asked it. Both are entirely optional and skipping them has no effect on your account. If
+            you answer, we store your answer (including the free text, verbatim, up to 500
+            characters), the option you selected, your tenant ID, your plan at the time, and the
+            timestamp. We never store your email address against these answers. The same two
+            optional fields are available on our self-service <code>/api/v1/onboard/start</code>{" "}
+            endpoint for programmatic signups.
+          </p>
+          <p className="text-muted-foreground leading-relaxed mt-2">
+            Unlike the event data described in 2.3, these answers are our own operational data and{" "}
+            <strong>are read by our team</strong>: we use them to work out which questions people
+            ask AI assistants before finding us, and what to write next. They are not used for
+            advertising, are not sold, and are not shared with third parties. Ask us and we will
+            delete yours — see the Contact section below.
+          </p>
         </section>
 
         <section>
