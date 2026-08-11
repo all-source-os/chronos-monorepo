@@ -80,6 +80,13 @@ impl EmbeddedCore {
     ///
     /// When `config.node_id` is set, HLC and CRDT resolver are initialized
     /// for bidirectional sync support.
+    // `EmbeddedCore::open(..).await` is the documented entry point of the
+    // embedded API — it appears in the crate docs, the examples and every
+    // downstream embedder. Dropping `async` would change that public signature
+    // and make Parquet hydration run eagerly at call time rather than at the
+    // first poll. Boot does durable work (WAL replay + Parquet hydration) and
+    // is expected to gain `.await` points as the sync handle grows.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn open(config: EmbeddedConfig) -> Result<Self> {
         let store_config = Self::build_store_config(&config);
         let store = Arc::new(EventStore::with_config(store_config));

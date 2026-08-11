@@ -4133,7 +4133,7 @@ mod tests {
 
         // Verify snapshot was created
         let snapshot = store.get_snapshot("entity-1").unwrap();
-        assert!(snapshot != serde_json::json!(null));
+        assert_ne!(snapshot, serde_json::json!(null));
     }
 
     #[test]

@@ -894,7 +894,7 @@ mod tests {
         let result = detector.analyze_event(&event).unwrap();
 
         // Should not be flagged as brute force (only login events trigger this)
-        assert!(result.anomaly_type != Some(AnomalyType::BruteForceAttack));
+        assert_ne!(result.anomaly_type, Some(AnomalyType::BruteForceAttack));
     }
 
     #[test]
@@ -972,6 +972,6 @@ mod tests {
         let result = detector.analyze_event(&event).unwrap();
 
         // Brute force detection is disabled, so should not be flagged as brute force
-        assert!(result.anomaly_type != Some(AnomalyType::BruteForceAttack));
+        assert_ne!(result.anomaly_type, Some(AnomalyType::BruteForceAttack));
     }
 }

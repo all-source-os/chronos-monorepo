@@ -127,7 +127,7 @@ pub fn build_heuristic_index(summary: &IndexRawSummary) -> String {
         let _ = writeln!(md, "## Domains\n");
 
         let mut sorted_domains = summary.domains.clone();
-        sorted_domains.sort_by(|a, b| b.node_count.cmp(&a.node_count));
+        sorted_domains.sort_by_key(|a| std::cmp::Reverse(a.node_count));
 
         for domain in &sorted_domains {
             let _ = writeln!(md, "### {}\n", domain.domain);

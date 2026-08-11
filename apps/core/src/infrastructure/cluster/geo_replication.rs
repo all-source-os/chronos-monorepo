@@ -60,9 +60,7 @@ impl Default for GeoReplicationConfig {
 impl GeoReplicationConfig {
     /// Load configuration from environment variables.
     pub fn from_env() -> Option<Self> {
-        let enabled = std::env::var("ALLSOURCE_GEO_REPLICATION_ENABLED")
-            .map(|v| v == "true")
-            .unwrap_or(false);
+        let enabled = std::env::var("ALLSOURCE_GEO_REPLICATION_ENABLED").is_ok_and(|v| v == "true");
 
         if !enabled {
             return None;

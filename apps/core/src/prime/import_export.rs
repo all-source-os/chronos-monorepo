@@ -75,6 +75,12 @@ pub async fn export_json(
                     stats.nodes += 1;
                 }
             }
+            // Not collapsed into a `EDGE_CREATED if exported_edges.insert(..)`
+            // pattern guard: `insert` mutates the dedup set, and hiding that
+            // side effect in a guard reads as a pure test. It would also break
+            // the deliberate symmetry with the NODE_CREATED arm above, which
+            // clippy cannot collapse (it is not the last non-wildcard arm).
+            #[allow(clippy::collapsible_match)]
             event_types::EDGE_CREATED => {
                 if exported_edges.insert(entity_id.clone()) {
                     let line = ExportLine {

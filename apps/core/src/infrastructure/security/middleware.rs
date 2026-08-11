@@ -82,9 +82,7 @@ pub fn should_skip_auth(path: &str) -> bool {
 /// **WARNING**: Never enable this in production environments! The feature
 /// grants admin context to any request that arrives without a token.
 fn env_flag_enabled(name: &str) -> bool {
-    std::env::var(name)
-        .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"))
-        .unwrap_or(false)
+    std::env::var(name).is_ok_and(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"))
 }
 
 static DEV_MODE_ENABLED: LazyLock<bool> = LazyLock::new(|| {
@@ -342,6 +340,11 @@ where
 {
     type Rejection = (StatusCode, &'static str);
 
+    // `async fn` is the signature axum declares for `FromRequestParts`; it is
+    // not ours to change. Extensions are already populated by the auth layer,
+    // so this particular extractor happens to need no `.await` — sibling
+    // extractors that hit the token store do. Keep the trait's shape.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
         _state: &S,
@@ -365,6 +368,8 @@ where
 {
     type Rejection = std::convert::Infallible;
 
+    // `async fn` is dictated by axum's `FromRequestParts` trait, not by this body.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
         _state: &S,
@@ -382,6 +387,8 @@ where
 {
     type Rejection = (StatusCode, &'static str);
 
+    // `async fn` is dictated by axum's `FromRequestParts` trait, not by this body.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
         _state: &S,

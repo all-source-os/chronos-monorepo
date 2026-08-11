@@ -104,10 +104,7 @@ pub struct RetentionConfig {
 impl Default for RetentionConfig {
     fn default() -> Self {
         let mut per_tenant_ttl = HashMap::new();
-        per_tenant_ttl.insert(
-            "system".to_string(),
-            Some(Duration::from_secs(30 * 24 * 3600)),
-        );
+        per_tenant_ttl.insert("system".to_string(), Some(Duration::from_hours(30 * 24)));
         Self {
             default_ttl: None,
             per_tenant_ttl,
@@ -646,7 +643,7 @@ impl CompactionManager {
             format_iso_basic(to)
         );
         let snapshot_path = storage.write_atomic_parquet(tenant_id, &file_stem, &events)?;
-        let bytes_after = fs::metadata(&snapshot_path).map(|m| m.len()).unwrap_or(0);
+        let bytes_after = fs::metadata(&snapshot_path).map_or(0, |m| m.len());
 
         // 4. Delete originals AFTER snapshot is durably renamed.
         // AC #6: a snapshot-write failure short-circuits via the
@@ -1339,7 +1336,7 @@ mod tests {
 
         // 30-day TTL for alice via per-tenant override.
         let mut retention = RetentionConfig::default();
-        retention.set("alice", Some(Duration::from_secs(30 * 24 * 3600)));
+        retention.set("alice", Some(Duration::from_hours(30 * 24)));
         let config = CompactionConfig {
             min_files_to_compact: 2,
             small_file_threshold: 100 * 1024 * 1024,
@@ -1452,7 +1449,7 @@ mod tests {
         storage.flush().unwrap();
 
         let mut retention = RetentionConfig::default();
-        retention.set("alice", Some(Duration::from_secs(7 * 24 * 3600)));
+        retention.set("alice", Some(Duration::from_hours(7 * 24)));
         let config = CompactionConfig {
             min_files_to_compact: 2,
             small_file_threshold: 100 * 1024 * 1024,
@@ -1543,7 +1540,7 @@ mod tests {
 
         // 30-day TTL + cold-tier archive.
         let mut retention = RetentionConfig::default();
-        retention.set("alice", Some(Duration::from_secs(30 * 24 * 3600)));
+        retention.set("alice", Some(Duration::from_hours(30 * 24)));
         let archive: Arc<dyn ArchiveTarget> =
             Arc::new(LocalFsArchive::new(archive_dir.path()).unwrap());
         let config = CompactionConfig {
@@ -1670,7 +1667,7 @@ mod tests {
         }
 
         let mut retention = RetentionConfig::default();
-        retention.set("alice", Some(Duration::from_secs(30 * 24 * 3600)));
+        retention.set("alice", Some(Duration::from_hours(30 * 24)));
         let config = CompactionConfig {
             min_files_to_compact: 2,
             small_file_threshold: 100 * 1024 * 1024,

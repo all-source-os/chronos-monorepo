@@ -238,6 +238,12 @@ impl ReplayManager {
     }
 
     /// Internal replay execution
+    // Kept `async`: this is the body of the `tokio::spawn`ed replay task and is
+    // awaited as such. Rewriting it to return `impl Future` would mean threading
+    // `std::future::ready(..)` through every early return in the replay loop —
+    // a real edit to replay control flow to satisfy a style lint. It has no
+    // `.await` only because the current batch loop is CPU-bound.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn run_replay(
         store: Arc<EventStore>,
         events: Vec<Event>,

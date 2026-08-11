@@ -807,7 +807,7 @@ pub async fn detect_duplicates(
         .collect();
 
     // Sort by count descending for consistent output
-    duplicate_groups.sort_by(|a, b| b.count.cmp(&a.count));
+    duplicate_groups.sort_by_key(|a| std::cmp::Reverse(a.count));
 
     let total = duplicate_groups.len();
 
@@ -940,7 +940,7 @@ pub async fn list_streams(
     let total = streams.len();
 
     // Sort by last_event_at descending (most recent first)
-    streams.sort_by(|a, b| b.last_event_at.cmp(&a.last_event_at));
+    streams.sort_by_key(|a| std::cmp::Reverse(a.last_event_at));
 
     // Apply pagination
     if let Some(offset) = params.offset {
@@ -1000,7 +1000,7 @@ pub async fn list_event_types(
     let total = event_types.len();
 
     // Sort by event_count descending (most used first)
-    event_types.sort_by(|a, b| b.event_count.cmp(&a.event_count));
+    event_types.sort_by_key(|a| std::cmp::Reverse(a.event_count));
 
     // Apply pagination
     if let Some(offset) = params.offset {

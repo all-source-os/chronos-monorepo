@@ -50,7 +50,7 @@ impl StressConfig {
     /// Full 7-day stress test configuration
     pub fn seven_days() -> Self {
         Self {
-            duration: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
+            duration: Duration::from_hours(7 * 24), // 7 days
             events_per_second: 10_000,
             num_workers: 8,
             verify_interval: 100_000,
@@ -61,7 +61,7 @@ impl StressConfig {
     /// Short stress test for CI/local testing (1 hour)
     pub fn one_hour() -> Self {
         Self {
-            duration: Duration::from_secs(60 * 60), // 1 hour
+            duration: Duration::from_hours(1), // 1 hour
             events_per_second: 1_000,
             num_workers: 4,
             verify_interval: 10_000,
@@ -72,7 +72,7 @@ impl StressConfig {
     /// Very short test for development (5 minutes)
     pub fn five_minutes() -> Self {
         Self {
-            duration: Duration::from_secs(5 * 60), // 5 minutes
+            duration: Duration::from_mins(5), // 5 minutes
             events_per_second: 100,
             num_workers: 2,
             verify_interval: 1_000,
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn test_stress_config_seven_days() {
         let config = StressConfig::seven_days();
-        assert_eq!(config.duration, Duration::from_secs(7 * 24 * 60 * 60));
+        assert_eq!(config.duration, Duration::from_hours(7 * 24));
         assert_eq!(config.events_per_second, 10_000);
         assert_eq!(config.num_workers, 8);
     }
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn test_stress_config_short() {
         let config = StressConfig::one_hour();
-        assert_eq!(config.duration, Duration::from_secs(60 * 60));
+        assert_eq!(config.duration, Duration::from_hours(1));
         assert!(config.events_per_second > 0);
     }
 

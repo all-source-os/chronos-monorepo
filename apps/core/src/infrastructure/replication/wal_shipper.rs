@@ -222,8 +222,12 @@ impl WalShipper {
                 return false;
             }
 
-            // Wait for next ACK notification, with remaining timeout
-            let remaining = timeout - elapsed;
+            // Wait for next ACK notification, with remaining timeout.
+            // `elapsed < timeout` is guaranteed by the early return above (and
+            // `elapsed` is the captured local, not a fresh reading), so this can
+            // never underflow. `saturating_sub` states that structurally instead
+            // of relying on a panic-on-underflow `-` in the replication ACK path.
+            let remaining = timeout.saturating_sub(elapsed);
             if tokio::time::timeout(remaining, self.ack_notify.notified())
                 .await
                 .is_err()

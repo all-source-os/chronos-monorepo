@@ -336,6 +336,12 @@ impl VectorSearchEngine {
     }
 
     /// Index an event with its embedding
+    // Public async API. Dropping `async` would change the returned type from a
+    // named future to `impl Future` and make the body run eagerly at call time,
+    // which is a breaking change for every downstream caller. The body is also
+    // cfg-dependent (`vector-search` pulls in the HNSW rebuild), so "no `.await`
+    // today" is a property of one feature combination, not of the API.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn index_event(
         &self,
         event_id: Uuid,

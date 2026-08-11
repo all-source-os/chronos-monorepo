@@ -68,9 +68,8 @@ async fn main() -> Result<()> {
 
     // Initialize WAL replication if this is a leader with replication enabled
     #[cfg(feature = "replication")]
-    let replication_enabled = std::env::var("ALLSOURCE_REPLICATION_ENABLED")
-        .map(|v| v == "true")
-        .unwrap_or(false);
+    let replication_enabled =
+        std::env::var("ALLSOURCE_REPLICATION_ENABLED").is_ok_and(|v| v == "true");
     #[cfg(feature = "replication")]
     let replication_port: u16 = std::env::var("ALLSOURCE_REPLICATION_PORT")
         .ok()
@@ -82,8 +81,9 @@ async fn main() -> Result<()> {
     // Read replication mode and ACK timeout
     #[cfg(feature = "replication")]
     let replication_mode = std::env::var("ALLSOURCE_REPLICATION_MODE")
-        .map(|v| ReplicationMode::from_str_value(&v))
-        .unwrap_or(ReplicationMode::Async);
+        .map_or(ReplicationMode::Async, |v| {
+            ReplicationMode::from_str_value(&v)
+        });
     #[cfg(feature = "replication")]
     let ack_timeout_ms: u64 = std::env::var("ALLSOURCE_REPLICATION_ACK_TIMEOUT_MS")
         .ok()
@@ -317,10 +317,7 @@ async fn main() -> Result<()> {
     }
 
     // Initialize cluster manager if cluster mode is enabled
-    let cluster_manager = if std::env::var("ALLSOURCE_CLUSTER_ENABLED")
-        .map(|v| v == "true")
-        .unwrap_or(false)
-    {
+    let cluster_manager = if std::env::var("ALLSOURCE_CLUSTER_ENABLED").is_ok_and(|v| v == "true") {
         let self_node_id: u32 = std::env::var("ALLSOURCE_NODE_ID")
             .ok()
             .and_then(|v| v.parse().ok())

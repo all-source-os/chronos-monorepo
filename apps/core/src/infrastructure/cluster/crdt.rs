@@ -180,7 +180,7 @@ impl CrdtResolver {
     pub fn with_strategies(strategies: Vec<(String, MergeStrategy)>) -> Self {
         let mut sorted = strategies;
         // Sort by prefix length descending for longest-match-first
-        sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        sorted.sort_by_key(|a| std::cmp::Reverse(a.0.len()));
         Self {
             version_vectors: DashMap::new(),
             seen_events: DashMap::new(),

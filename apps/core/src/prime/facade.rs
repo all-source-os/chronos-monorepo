@@ -1338,6 +1338,12 @@ impl Prime {
     ///
     /// Scoring: `similarity_weight * cosine + proximity_weight * 1/(1+depth) + recency_weight * exp_decay`
     #[cfg(feature = "prime-vectors")]
+    // Public async API, and one of a family of `pub async fn` methods on the
+    // Prime facade that the MCP/HTTP layers call uniformly. Dropping `async`
+    // here alone would break that symmetry and change the public signature;
+    // this variant reads from already-hydrated in-memory projections, so it
+    // happens to have no `.await` today.
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     pub async fn recall(
         &self,
         query: super::types::RecallQuery,

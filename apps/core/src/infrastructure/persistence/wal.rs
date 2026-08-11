@@ -133,7 +133,7 @@ impl WALFile {
             .open(&path)
             .map_err(|e| AllSourceError::StorageError(format!("Failed to open WAL file: {e}")))?;
 
-        let size = file.metadata().map(|m| m.len() as usize).unwrap_or(0);
+        let size = file.metadata().map_or(0, |m| m.len() as usize);
 
         Ok(Self {
             path,

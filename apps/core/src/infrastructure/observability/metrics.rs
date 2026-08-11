@@ -1765,7 +1765,7 @@ mod partition_tests {
         assert_eq!(stats.max_latency_ns, 300_000); // 300 microseconds in nanoseconds
 
         let avg = stats.avg_latency().unwrap();
-        assert_eq!(avg, Duration::from_nanos(200_000)); // Average: 200 microseconds
+        assert_eq!(avg, Duration::from_micros(200)); // Average: 200 microseconds
     }
 
     #[test]

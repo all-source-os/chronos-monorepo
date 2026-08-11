@@ -261,7 +261,7 @@ impl RecallEngine {
             };
 
             // Sort by updated_at descending, take most recent 20
-            candidate_nodes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            candidate_nodes.sort_by_key(|a| std::cmp::Reverse(a.updated_at));
             candidate_nodes.truncate(20);
 
             // Expand 1-hop outgoing edges from these nodes

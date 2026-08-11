@@ -385,7 +385,7 @@ async fn notify_query_service(
 ) {
     // Try to hit the query service config endpoint if it exists.
     // The query service can implement a POST /internal/update-leader endpoint.
-    let url = format!("{}/internal/update-leader", qs_url.trim_end_matches('/'),);
+    let url = format!("{}/internal/update-leader", qs_url.trim_end_matches('/'));
     let body = serde_json::json!({
         "new_leader_url": new_leader_url,
         "old_leader_url": old_leader_url,
