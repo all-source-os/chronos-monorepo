@@ -17,8 +17,12 @@ anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
 geo-core.workspace = true
+reqwest.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

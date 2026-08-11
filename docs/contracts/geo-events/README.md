@@ -86,7 +86,7 @@ Payloads keep full precision.
 | event | natural key |
 |---|---|
 | `geo.referral.observed` | `observed_at` (s) + `surface` + `landing_path` + `session_id` + `referrer_url` |
-| `geo.crawl.observed` | `observed_at` (s) + `bot` + `path` + `status` + `source` |
+| `geo.crawl.observed` | `observed_at` (s) + `bot` + `path` + `status` + `source` + `aggregation` + `request_id` + `window_end` (s) |
 | `geo.sov.probed` | `run_id` + `engine` + `prompt_id` |
 | `geo.interrogation.probed` | `run_id` + `engine` + `prompt_id` + `claim_id` |
 | `geo.selfreport.captured` | `observed_at` (s) + `source` + `surface` + `contact_ref` |
@@ -110,7 +110,7 @@ a timestamp with no offset at all.
 
 | event | entity_id | meaning | layer | produced by | example |
 |---|---|---|---|---|---|
-| `geo.referral.observed` | `geo:referral:<key>` | a human session arriving from an AI surface | 1 | prompt 026 | [ex](examples/geo.referral.observed.json) |
+| `geo.referral.observed` | `geo:referral:<key>` | a human session arriving from an AI surface | 1 | prompt 024 | [ex](examples/geo.referral.observed.json) |
 | `geo.crawl.observed` | `geo:crawl:<key>` | a verified AI bot hit | 2 | prompt 024 | [ex](examples/geo.crawl.observed.json) |
 | `geo.sov.probed` | `geo:sov:<key>` | one scored share-of-voice probe result | 3a | prompt 025 | [ex](examples/geo.sov.probed.json) |
 | `geo.interrogation.probed` | `geo:interrogation:<key>` | one scored brand-accuracy probe result | 3b | prompt 025 | [ex](examples/geo.interrogation.probed.json) |
@@ -133,11 +133,27 @@ A human session arriving from an AI surface.
 |---|---|---|---|
 | `schema_version` | integer | yes | `1` |
 | `observed_at` | string (RFC 3339, UTC) | yes | when the session was observed |
-| `surface` | string | yes | AI surface, free-form host-ish id (`"chatgpt.com"`). **Not** an enum — the surface taxonomy is the producing slice's job |
+| `surface` | string | yes | AI surface, free-form host-ish id (`"chatgpt.com"`). **Not** an enum — the surface map lives in [`apps/web/src/lib/geo-referrers.ts`](../../../apps/web/src/lib/geo-referrers.ts) |
 | `referrer_url` | string \| null | yes | full referrer when the surface sent one |
-| `landing_path` | string | yes | site-relative path landed on |
+| `landing_path` | string | yes | site-relative path landed on, query and fragment stripped |
 | `session_id` | string \| null | yes | opaque analytics session id |
 | `user_agent` | string \| null | yes | arriving browser's user agent |
+| `converted` | boolean | yes | whether this session was later seen to convert |
+| `conversion_kind` | string \| null | yes | what the conversion was (`"signup_started"`, `"api_key_minted"`); `null` while `converted` is false |
+
+**`converted` is not in the natural key, on purpose.** A conversion is the same
+arrival, later. The arrival is written the moment it happens with
+`converted: false` — waiting for a conversion that may never come would lose
+the arrival — and the conversion re-emits the *same* natural key, so Core
+appends version 2 to the same entity. Reading the entity's latest version gives
+current truth, and counting entities stays replay-safe.
+
+**Two producers write this event**, and their idempotency keys must agree
+byte-for-byte or one session would land as two entities:
+[`apps/web`](../../../apps/web/src/lib/geo-referrers.ts) (TypeScript, the live
+beacon) and `geo-core` (Rust). A vitest in
+`apps/web/src/__tests__/geo-referrers.test.ts` asserts the TypeScript envelope
+against the committed example below, which the Rust emitter generates.
 
 [`examples/geo.referral.observed.json`](examples/geo.referral.observed.json)
 
@@ -145,18 +161,36 @@ A human session arriving from an AI surface.
 
 ### `geo.crawl.observed` — layer 2
 
-One verified AI bot hit.
+One AI bot hit, or one aggregated bucket of them.
 
 | field | type | required | meaning |
 |---|---|---|---|
 | `schema_version` | integer | yes | `1` |
-| `observed_at` | string (RFC 3339, UTC) | yes | when the request hit the edge |
-| `bot` | string | yes | normalised bot id (`"gptbot"`). The bot **taxonomy** — families, owners, train-vs-retrieve — belongs to prompt 024, not here |
-| `verified` | boolean | yes | whether the claimed identity was verified (reverse DNS / IP range). The verification **method** belongs to prompt 024; this contract records only the verdict |
+| `observed_at` | string (RFC 3339, UTC) | yes | when the request hit the edge; for an aggregated row, the start of the bucket |
+| `bot` | string | yes | normalised bot id (`"gptbot"`) — the `id` of a [`BotSpec`](../../../tooling/geo/geo-core/src/bots.rs) |
+| `category` | string | yes | `"training_crawler"` \| `"search_indexer"` \| `"user_fetcher"`. Stored on the event, not re-derived at read time, so a historical count keeps the categorisation it was written with |
+| `taxonomy_version` | integer | yes | which `TAXONOMY_VERSION` categorised it |
+| `verified` | boolean | yes | whether the claimed identity was verified against the vendor's **published IP ranges**. `verified: false` rows must never be counted as AI crawl volume |
 | `user_agent` | string | yes | raw `User-Agent` header |
 | `path` | string | yes | site-relative path requested |
 | `status` | integer | yes | HTTP status served |
-| `source` | string | yes | which log/edge produced the line (`"vercel-log-drain"`) |
+| `source` | string | yes | which log/edge produced the line (`"vercel-log-drain"`, `"file:…"`, `"fly:…"`) |
+| `aggregation` | string | yes | `"hit"` \| `"hourly"` \| `"daily"` — how much this row stands for |
+| `hits` | integer | yes | raw log lines collapsed into this row; `1` at `"hit"` |
+| `window_end` | string \| null | yes | end of the bucket (exclusive) when aggregated; `null` at hit level |
+| `request_id` | string \| null | yes | the edge's request id when the log carried one |
+
+**Never blend the three categories.** They answer different questions —
+infrastructure readiness, citation eligibility, and live human demand — and
+their volumes differ by orders of magnitude. `geo report` prints them
+separately and has no all-bots total by design.
+
+**Aggregation is declared, not implied.** `aggregation` + `hits` + `window_end`
+mean a reader can never mistake one row for one hit, and record the exact
+grouping key, so re-running the ingest over the same raw logs at
+`--aggregate hit` recovers per-hit fidelity without disturbing the bucketed
+rows (their natural key includes `aggregation` and `window_end`, so the two
+never collide).
 
 [`examples/geo.crawl.observed.json`](examples/geo.crawl.observed.json)
 

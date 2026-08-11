@@ -125,26 +125,89 @@ pub struct ReferralObserved {
     pub session_id: Option<String>,
     /// Raw user agent of the arriving browser.
     pub user_agent: Option<String>,
+    /// Whether this session was later seen to convert.
+    ///
+    /// The arrival is written the moment it happens, with `converted: false` —
+    /// waiting for a conversion that may never come would lose the arrival.
+    /// A conversion re-emits the *same natural key*, so Core appends version 2
+    /// to the same entity with `converted: true`. Reading the entity's latest
+    /// version therefore gives current truth, and counting entities stays
+    /// replay-safe.
+    pub converted: bool,
+    /// What the conversion was (`"signup_started"`, `"api_key_minted"`).
+    /// `None` while `converted` is false.
+    pub conversion_kind: Option<String>,
 }
 
 // ───────────────────────────────────────────────────────────────────────────
 // Layer 2 — crawl
 // ───────────────────────────────────────────────────────────────────────────
 
-/// `geo.crawl.observed` — one verified AI bot hit.
+/// How many raw log lines one `geo.crawl.observed` event stands for.
+///
+/// The default is [`Aggregation::Hit`] — one event per bot hit. Core is a
+/// database (WAL + Parquet + DashMap, 469K events/sec); it is not the thing
+/// under strain here, and per-hit fidelity is what makes "which paths does
+/// `Claude-User` actually fetch" answerable later. The bucketed levels exist
+/// for a backfill over a wide window, where the reader wants a trend and not a
+/// million rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Aggregation {
+    /// One event per log line. Full fidelity.
+    Hit,
+    /// One event per (bot, path, status, hour).
+    Hourly,
+    /// One event per (bot, path, status, day).
+    Daily,
+}
+
+impl Aggregation {
+    /// Every level, coarsest last.
+    pub const ALL: [Self; 3] = [Self::Hit, Self::Hourly, Self::Daily];
+
+    /// The wire string stored in `geo.crawl.observed.aggregation`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Hit => "hit",
+            Self::Hourly => "hourly",
+            Self::Daily => "daily",
+        }
+    }
+
+    /// Parse a wire string. Unknown levels return `None`; a reader that cannot
+    /// tell how much a row stands for must not guess.
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|a| a.as_str() == s)
+    }
+}
+
+impl std::fmt::Display for Aggregation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// `geo.crawl.observed` — one AI bot hit, or one aggregated bucket of them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrawlObserved {
     /// Payload schema version.
     pub schema_version: u32,
-    /// When the request hit the edge (UTC).
+    /// When the request hit the edge (UTC). For an aggregated row, the start
+    /// of the bucket.
     pub observed_at: DateTime<Utc>,
-    /// Normalised bot identifier (`"gptbot"`, `"claudebot"`). The bot
-    /// *taxonomy* — families, owners, whether a bot trains or retrieves — is
-    /// owned by the crawl slice, not by this contract.
+    /// Normalised bot identifier (`"gptbot"`, `"claudebot"`) — the `id` of a
+    /// [`crate::bots::BotSpec`].
     pub bot: String,
-    /// Whether the claimed bot identity was verified (reverse DNS / IP range).
-    /// The verification *method* is the crawl slice's concern; this contract
-    /// only records the verdict.
+    /// The bot's category: `"training_crawler"`, `"search_indexer"` or
+    /// `"user_fetcher"`. Stored on the event rather than re-derived at read
+    /// time so a historical count keeps the categorisation it was written
+    /// with, even after the taxonomy moves a bot.
+    pub category: String,
+    /// Which taxonomy version categorised it.
+    pub taxonomy_version: u32,
+    /// Whether the claimed bot identity was verified against the vendor's
+    /// published IP ranges. A user agent is a string the client chose;
+    /// `verified: false` rows must never be counted as AI crawl volume.
     pub verified: bool,
     /// Raw `User-Agent` header.
     pub user_agent: String,
@@ -154,6 +217,21 @@ pub struct CrawlObserved {
     pub status: u16,
     /// Where the log line came from (`"vercel-log-drain"`).
     pub source: String,
+    /// How much this row stands for — see [`Aggregation`]. Always present, so
+    /// a reader can never mistake one aggregated row for one hit.
+    pub aggregation: String,
+    /// Raw log lines collapsed into this row. `1` at [`Aggregation::Hit`].
+    pub hits: u32,
+    /// End of the bucket (exclusive) when aggregated; `None` at hit level.
+    /// With `observed_at` this makes an aggregation *reversible in intent*:
+    /// the exact window and grouping key are recorded, so re-running the
+    /// ingest over the same raw logs at `--aggregate hit` recovers the
+    /// per-hit rows without disturbing these.
+    pub window_end: Option<DateTime<Utc>>,
+    /// The edge's request id when the log carried one. Part of the natural
+    /// key at hit level, so two genuinely distinct hits in the same second on
+    /// the same path do not collapse into one entity.
+    pub request_id: Option<String>,
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -332,6 +410,10 @@ impl GeoEvent {
     /// token, which is what makes a re-ingest safe.
     pub fn idempotency_key(&self) -> String {
         match self {
+            // `converted`/`conversion_kind` are deliberately NOT in the key:
+            // a conversion is the same arrival, later. Keeping them out is
+            // what lets the conversion re-emit append version 2 to the
+            // arrival's entity instead of inventing a second session.
             Self::Referral(p) => derive_key(&[
                 &key_ts(p.observed_at),
                 &p.surface,
@@ -339,12 +421,20 @@ impl GeoEvent {
                 p.session_id.as_deref().unwrap_or(""),
                 p.referrer_url.as_deref().unwrap_or(""),
             ]),
+            // `request_id` and `aggregation`/`window_end` are in the key
+            // because without them a re-ingest is only *approximately*
+            // idempotent: two distinct hits in the same second on the same
+            // path would collapse into one entity, and an hourly bucket would
+            // collide with the hit that opened it.
             Self::Crawl(p) => derive_key(&[
                 &key_ts(p.observed_at),
                 &p.bot,
                 &p.path,
                 &p.status.to_string(),
                 &p.source,
+                &p.aggregation,
+                p.request_id.as_deref().unwrap_or(""),
+                &p.window_end.map(key_ts).unwrap_or_default(),
             ]),
             Self::Sov(p) => derive_key(&[&p.run_id, &p.engine, &p.prompt_id]),
             Self::Interrogation(p) => {

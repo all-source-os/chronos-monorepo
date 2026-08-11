@@ -1,18 +1,24 @@
 {
   "event_type": "geo.crawl.observed",
-  "entity_id": "geo:crawl:5b33c7f0a872d249743d6cbf5533e0f8",
+  "entity_id": "geo:crawl:dc9d1e1313fe37dcae0feafdf902833b",
   "payload": {
+    "aggregation": "hit",
     "bot": "gptbot",
+    "category": "training_crawler",
+    "hits": 1,
     "observed_at": "2026-08-11T09:20:31Z",
     "path": "/llms.txt",
+    "request_id": "iad1::abcde-1754904031000-0f1e2d3c4b5a",
     "schema_version": 1,
     "source": "vercel-log-drain",
     "status": 200,
+    "taxonomy_version": 1,
     "user_agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
-    "verified": true
+    "verified": true,
+    "window_end": null
   },
   "metadata": {
     "emitter": "tooling/geo",
-    "idempotency_key": "5b33c7f0a872d249743d6cbf5533e0f8"
+    "idempotency_key": "dc9d1e1313fe37dcae0feafdf902833b"
   }
 }

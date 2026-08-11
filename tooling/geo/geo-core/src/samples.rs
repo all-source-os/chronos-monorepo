@@ -8,9 +8,12 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::events::{
-    CrawlObserved, ExperimentScored, ExperimentStarted, GeoEvent, GeoEventType,
-    InterrogationProbed, ReferralObserved, SCHEMA_VERSION, SelfReportCaptured, SovProbed,
+use crate::{
+    bots::{BotCategory, TAXONOMY_VERSION},
+    events::{
+        Aggregation, CrawlObserved, ExperimentScored, ExperimentStarted, GeoEvent, GeoEventType,
+        InterrogationProbed, ReferralObserved, SCHEMA_VERSION, SelfReportCaptured, SovProbed,
+    },
 };
 
 /// Parse a fixed RFC 3339 timestamp. Panics only on a malformed literal in
@@ -34,11 +37,15 @@ pub fn sample(event_type: GeoEventType) -> GeoEvent {
             user_agent: Some(
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36".to_string(),
             ),
+            converted: false,
+            conversion_kind: None,
         }),
         GeoEventType::CrawlObserved => GeoEvent::Crawl(CrawlObserved {
             schema_version: SCHEMA_VERSION,
             observed_at: ts("2026-08-11T09:20:31Z"),
             bot: "gptbot".to_string(),
+            category: BotCategory::TrainingCrawler.as_str().to_string(),
+            taxonomy_version: TAXONOMY_VERSION,
             verified: true,
             user_agent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); \
                          compatible; GPTBot/1.2; +https://openai.com/gptbot"
@@ -46,6 +53,10 @@ pub fn sample(event_type: GeoEventType) -> GeoEvent {
             path: "/llms.txt".to_string(),
             status: 200,
             source: "vercel-log-drain".to_string(),
+            aggregation: Aggregation::Hit.as_str().to_string(),
+            hits: 1,
+            window_end: None,
+            request_id: Some("iad1::abcde-1754904031000-0f1e2d3c4b5a".to_string()),
         }),
         GeoEventType::SovProbed => GeoEvent::Sov(SovProbed {
             schema_version: SCHEMA_VERSION,

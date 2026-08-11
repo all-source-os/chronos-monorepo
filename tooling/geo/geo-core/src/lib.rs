@@ -12,6 +12,9 @@
 //!
 //! - [`events`] — one struct per `geo.*` payload, plus the [`GeoEvent`] union
 //!   that knows each event's `entity_id` and idempotency key.
+//! - [`bots`] — the versioned AI-bot taxonomy (three categories that must
+//!   never be blended) and identity verification against the vendors' own
+//!   published IP ranges.
 //! - [`emitter`] — turns a [`GeoEvent`] into a Core ingest envelope and either
 //!   POSTs it through the Control Plane gateway or prints it (`--dry-run`).
 //! - [`config`] — `ALLSOURCE_API_URL` / `ALLSOURCE_API_KEY`.
@@ -22,9 +25,12 @@
 //!
 //! ## What is deliberately absent
 //!
-//! No bot taxonomy, no probe prompt set, no scoring formula, no notion of a
-//! measurement "layer". Those belong to the layer slices; the emitter stays
-//! transport-thin so those slices can be built independently.
+//! No probe prompt set, no scoring formula, no notion of a measurement
+//! "layer", and no log parsing. Those belong to the layer slices; the
+//! *emitter* stays transport-thin so those slices can be built independently.
+//! [`bots`] is the one exception and it earns its place: the taxonomy is a
+//! versioned reference table that both the ingest and the report must agree
+//! on, and duplicating it would let them drift.
 //!
 //! ## Writes go through the gateway
 //!
@@ -34,6 +40,7 @@
 //! Core is the database — the events written here are durable (WAL + Parquet)
 //! and survive restarts, which is what makes a 12-week trend window possible.
 
+pub mod bots;
 pub mod config;
 pub mod emitter;
 pub mod error;
@@ -41,14 +48,18 @@ pub mod events;
 pub mod idempotency;
 pub mod samples;
 
+pub use bots::{
+    BOTS, BotCategory, BotSpec, Cidr, PublishedPrefixes, RangeCatalog, TAXONOMY_VERSION,
+    Verdict, Verification,
+};
 pub use config::{DEFAULT_API_URL, ENV_API_KEY, ENV_API_URL, GeoConfig};
 pub use emitter::{
     EMITTER_NAME, EmitMode, EmitOutcome, GeoEmitter, IngestEnvelope, render_envelope,
 };
 pub use error::GeoError;
 pub use events::{
-    CrawlObserved, ENTITY_PREFIX, EVENT_TYPE_PREFIX, ExperimentScored, ExperimentStarted, GeoEvent,
-    GeoEventType, InterrogationProbed, ReferralObserved, SCHEMA_VERSION, SelfReportCaptured,
-    SovProbed,
+    Aggregation, CrawlObserved, ENTITY_PREFIX, EVENT_TYPE_PREFIX, ExperimentScored,
+    ExperimentStarted, GeoEvent, GeoEventType, InterrogationProbed, ReferralObserved,
+    SCHEMA_VERSION, SelfReportCaptured, SovProbed,
 };
 pub use idempotency::derive_key;

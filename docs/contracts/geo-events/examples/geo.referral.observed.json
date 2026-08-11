@@ -2,6 +2,8 @@
   "event_type": "geo.referral.observed",
   "entity_id": "geo:referral:a411ea90cb440cf33da03161da98ddfa",
   "payload": {
+    "conversion_kind": null,
+    "converted": false,
     "landing_path": "/pricing",
     "observed_at": "2026-08-11T09:15:00Z",
     "referrer_url": "https://chatgpt.com/",

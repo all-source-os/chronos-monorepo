@@ -1,3 +1,97 @@
+# robots.txt for www.all-source.xyz
+#
+# AI-BOT POLICY — decided on purpose, 2026-08-11 (GEO programme, prompt 024).
+#
+# Before this, the file said `User-agent: * / Allow: /` and named no AI bot at
+# all. Every AI crawler was allowed BY ACCIDENT. Blocking training crawlers is
+# a defensible business choice; allowing them without noticing is not. So each
+# of the three categories is named below, with the reason for its decision.
+#
+# The categories mean completely different things and are decided separately.
+# Machine-readable taxonomy: tooling/geo/geo-core/src/bots.rs
+# Rationale and how the traffic is measured: docs/runbooks/GEO_MEASUREMENT.md
+#
+# STRUCTURE NOTE — read before editing. A crawler obeys exactly ONE group: the
+# most specific one naming it. A named group does NOT inherit the rules of the
+# `User-agent: *` group. So the closed-area Disallow list is repeated verbatim
+# in every group below. If you add a path to one list, add it to all four, or
+# you will quietly open /dashboard/ to a named bot.
+
+# ── 1. TRAINING CRAWLERS — ALLOWED ────────────────────────────────────────
+# These collect pages into a training corpus. DECISION: allow.
+#
+# AllSource is bought by people who ask an assistant what to use for agent
+# memory. Absence from the corpus means the model cannot recommend us from its
+# own weights, which is the cheapest recommendation there is. We publish
+# documentation in order to be read, and excluding the largest readers of
+# documentation would be self-defeating. Everything crawlable here is marketing
+# copy and public docs — there is no proprietary data to protect by opting out.
+#
+# Google-Extended and Applebot-Extended are robots.txt opt-out TOKENS, not
+# crawlers: they never appear in an access log, they only gate whether
+# Gemini / Apple Intelligence may train on what Googlebot / Applebot already
+# fetched. Same decision, same reason.
+
+User-agent: GPTBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: meta-externalagent
+Allow: /
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /onboarding/
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
+
+# ── 2. SEARCH INDEXERS — ALLOWED ──────────────────────────────────────────
+# These build the retrieval index an assistant searches at answer time.
+# DECISION: allow, emphatically.
+#
+# This is the category that decides whether we are eligible to be cited at all.
+# Blocking it is the 2026 equivalent of blocking Googlebot in 2010: no upside,
+# and the cost is total invisibility in the surface where our buyers now ask
+# their questions.
+
+User-agent: OAI-SearchBot
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+User-agent: DuckAssistBot
+User-agent: Google-CloudVertexBot
+Allow: /
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /onboarding/
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
+
+# ── 3. USER-TRIGGERED FETCHERS — ALLOWED ──────────────────────────────────
+# These fetch a page because a human asked an assistant something RIGHT NOW.
+# DECISION: allow.
+#
+# A block here protects nothing. It serves a 403 to a real person who is
+# actively trying to read us, mid-question, with intent. In the whole crawl
+# taxonomy this is the category closest to a lead.
+
+User-agent: ChatGPT-User
+User-agent: Claude-User
+User-agent: Perplexity-User
+User-agent: meta-externalfetcher
+Allow: /
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /onboarding/
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
+
+# ── EVERYONE ELSE ─────────────────────────────────────────────────────────
+# Conventional search crawlers and anything unnamed above.
+
 User-agent: *
 Allow: /
 Disallow: /dashboard/
