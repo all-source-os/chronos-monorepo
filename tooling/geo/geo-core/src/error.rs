@@ -46,6 +46,17 @@ pub enum GeoError {
     #[error("gateway query failed: {0}")]
     Query(#[source] allsource::Error),
 
+    /// The compiled-in probe set is not a valid set.
+    ///
+    /// Always an authoring mistake in `tooling/geo/prompts/*.toml`: the set is
+    /// `include_str!`d, so this cannot be caused by anything on the machine
+    /// running the probe.
+    #[error("the {family} probe set is invalid: {reason}")]
+    PromptSet {
+        family: &'static str,
+        reason: String,
+    },
+
     /// The SDK client could not be constructed (bad base URL, TLS setup, ...).
     #[error("could not build an AllSource client for {api_url}: {source}")]
     Client {

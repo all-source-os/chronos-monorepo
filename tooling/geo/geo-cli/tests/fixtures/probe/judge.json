@@ -1,0 +1,34 @@
+{
+  "_note": "SYNTHETIC. Hand-written stand-ins for the LLM-as-judge's RAW REPLY TEXT (not for its parsed verdict) — so `geo probe --dry-run` exercises the real parser in geo-core/src/judge.rs, including the reject-an-unauditable-verdict paths. Used only by the dry run and the tests. NONE OF THESE VERDICTS IS A MEASUREMENT of any real model, and none of them may be copied into docs/marketing/geo-baseline-*.md or geo-remediation-backlog.md. Keys are '<engine>/<prompt_id>/<claim_id>', falling back to '<prompt_id>/<claim_id>', then to `default`. Every `excerpt` here is a verbatim substring of the matching engine fixture — a test asserts it.",
+
+  "default": "{\"verdict\": \"absent\", \"excerpt\": \"\", \"reasoning\": \"The answer does not address this claim at all.\"}",
+
+  "by_claim": {
+    "chatgpt/int-license/license.community-apache": "{\"verdict\": \"partially_accurate\", \"excerpt\": \"AllSource is released under the MIT License\", \"reasoning\": \"The community edition is Apache-2.0 at the repository root, so MIT is wrong for the project as a whole. It is graded partially rather than fully inaccurate because apps/core/LICENSE and the published SDK manifests do still say MIT, so the model is quoting a real file.\"}",
+    "chatgpt/int-license/license.enterprise-bsl": "{\"verdict\": \"absent\", \"excerpt\": \"\", \"reasoning\": \"The answer says nothing about enterprise features or the BSL split.\"}",
+
+    "chatgpt/int-pricing/pricing.tiers": "{\"verdict\": \"inaccurate\", \"excerpt\": \"a Pro plan at $29/month for 1 million events, and a Growth plan at $79/month\", \"reasoning\": \"Pro and Growth are retired tier names and those prices are wrong. The current tiers are Self-Host, Indie, Studio, Scale and Enterprise at roughly 19, 79 and 299.\"}",
+    "chatgpt/int-pricing/pricing.no-free-plan": "{\"verdict\": \"inaccurate\", \"excerpt\": \"AllSource offers a free tier with 100,000 events per month\", \"reasoning\": \"There is no free hosted plan; hosted use starts with a 14-day trial. The 100,000-event free tier is a claim our own llms.txt still publishes.\"}",
+    "chatgpt/int-pricing/pricing.currency": "{\"verdict\": \"inaccurate\", \"excerpt\": \"$29/month\", \"reasoning\": \"The charging currency is GBP and the entry price is 18.99; the answer quotes a dollar figure that matches no current tier.\"}",
+
+    "chatgpt/int-storage-and-durability/durability.wal-parquet": "{\"verdict\": \"inaccurate\", \"excerpt\": \"AllSource keeps events in memory for fast access\", \"reasoning\": \"Event data is durable: a CRC32-checksummed write-ahead log plus Parquet persistence, with the in-memory map serving reads only. Describing it as in-memory storage inverts the architecture.\"}",
+    "chatgpt/int-storage-and-durability/durability.no-postgres-in-event-path": "{\"verdict\": \"inaccurate\", \"excerpt\": \"pair it with PostgreSQL if you need the data to survive a restart\", \"reasoning\": \"There is no PostgreSQL in the event path at all; Postgres holds operational metadata only.\"}",
+
+    "claude/int-what-is-allsource/category.event-store": "{\"verdict\": \"accurate\", \"excerpt\": \"AllSource is an AI-native event store written in Rust\", \"reasoning\": \"Matches the stated category on both framings — event store, and memory for AI agents.\"}",
+    "claude/int-what-is-allsource/category.written-in-rust": "{\"verdict\": \"accurate\", \"excerpt\": \"written in Rust\", \"reasoning\": \"The core event store is Rust, which is what the claim asks about.\"}",
+
+    "claude/int-mcp-tools/mcp.tool-count": "{\"verdict\": \"partially_accurate\", \"excerpt\": \"it exposes 43 MCP tools for Claude and GPT clients\", \"reasoning\": \"An MCP server does exist, but 43 is stale: the real counts are 45 read-only, 55 read+write and 73 with control-plane and admin tiers. 43 is the number apps/web/public/llms.txt still publishes.\"}",
+
+    "claude/int-storage-and-durability/durability.wal-parquet": "{\"verdict\": \"accurate\", \"excerpt\": \"It writes a write-ahead log with CRC32 checksums and periodically persists to Parquet files\", \"reasoning\": \"Correctly describes the WAL plus Parquet persistence and the in-memory read path.\"}",
+    "claude/int-storage-and-durability/durability.no-postgres-in-event-path": "{\"verdict\": \"absent\", \"excerpt\": \"\", \"reasoning\": \"The answer never mentions Postgres either way.\"}",
+
+    "perplexity/int-performance/perf.throughput": "{\"verdict\": \"accurate\", \"excerpt\": \"469K events/sec ingestion\", \"reasoning\": \"469K events/sec is the published headline figure for the batch-processor ingestion path.\"}",
+    "perplexity/int-performance/perf.latency": "{\"verdict\": \"inaccurate\", \"excerpt\": \"sub-microsecond query latency\", \"reasoning\": \"The published figure is 11.9 microseconds at p99, which is sub-millisecond, not sub-microsecond — an order-of-magnitude overstatement. Two of our own surfaces make exactly this error, so the model is repeating our copy.\"}",
+
+    "perplexity/int-weaknesses/weaknesses.fair": "I'm sorry, I can't assess that claim.",
+
+    "gemini/int-pricing/pricing.tiers": "{\"verdict\": \"accurate\", \"excerpt\": \"starts at GBP 18.99 per month for the Indie tier, with Studio at GBP 78.99 and Scale at GBP 298.99\", \"reasoning\": \"Names the current tiers at the launch prices, and correctly notes self-hosting is free.\"}",
+    "gemini/int-pricing/pricing.currency": "{\"verdict\": \"accurate\", \"excerpt\": \"GBP 18.99 per month\", \"reasoning\": \"GBP is the settled charging currency and 18.99 is the Indie price.\"}",
+    "gemini/int-pricing/pricing.no-free-plan": "{\"verdict\": \"accurate\", \"excerpt\": \"there is no free hosted plan, only a 14-day trial\", \"reasoning\": \"Correct: self-hosting is free, hosted use starts with a 14-day trial.\"}"
+  }
+}

@@ -255,6 +255,15 @@ pub struct SovProbed {
     /// The prompt as sent, kept verbatim so a historical score stays readable
     /// after the probe set is edited.
     pub prompt_text: String,
+    /// Buyer-intent class (`"category"`, `"problem"`, `"comparison"`,
+    /// `"integration"`) — the [`crate::prompts::Intent`] this prompt carried
+    /// when it was probed.
+    ///
+    /// Stored rather than re-derived at read time, for the same reason
+    /// `geo.crawl.observed.category` is: SOV is reported per class and never
+    /// blended, so a historical row must keep the classification it was
+    /// scored under even after the probe set moves a prompt.
+    pub intent: String,
     /// Whether AllSource was named in the answer at all.
     pub mentioned: bool,
     /// 1-based position among named products, `null` when absent.
@@ -293,6 +302,17 @@ pub struct InterrogationProbed {
     /// Free-form verdict string. The allowed vocabulary is fixed by the probe
     /// slice, not here — this contract only guarantees the field exists.
     pub verdict: String,
+    /// The judge's own argument for the verdict, stored so a human can
+    /// overrule it.
+    ///
+    /// A verdict without its reasoning is a number nobody can audit, and this
+    /// stream feeds a content backlog that costs real work — so the reasoning
+    /// travels with the verdict rather than living in a log the reader does
+    /// not have.
+    pub reasoning: String,
+    /// Which model produced the verdict. Judge models change; an accuracy
+    /// trend that silently spans two of them is not a trend.
+    pub judge_model: String,
     /// The part of the answer the verdict was drawn from.
     pub answer_excerpt: String,
     /// URLs the engine cited.

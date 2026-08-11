@@ -87,7 +87,7 @@ Payloads keep full precision.
 |---|---|
 | `geo.referral.observed` | `observed_at` (s) + `surface` + `landing_path` + `session_id` + `referrer_url` |
 | `geo.crawl.observed` | `observed_at` (s) + `bot` + `path` + `status` + `source` + `aggregation` + `request_id` + `window_end` (s) |
-| `geo.sov.probed` | `run_id` + `engine` + `prompt_id` |
+| `geo.sov.probed` | `run_id` + `engine` + `prompt_id` (the `run_id` carries the prompt-set digest **and** the repetition — see below) |
 | `geo.interrogation.probed` | `run_id` + `engine` + `prompt_id` + `claim_id` |
 | `geo.selfreport.captured` | `observed_at` (s) + `source` + `surface` + `contact_ref` |
 | `geo.experiment.started` | `experiment_id` + `iteration` + `"started"` |
@@ -206,13 +206,31 @@ One scored share-of-voice probe result.
 | `observed_at` | string (RFC 3339, UTC) | yes | when the answer came back |
 | `run_id` | string | yes | groups every probe in one sweep |
 | `engine` | string | yes | `"chatgpt"`, `"claude"`, `"perplexity"`, `"gemini"` |
-| `prompt_id` | string | yes | stable id within the probe set. The **set** belongs to prompt 025 |
+| `prompt_id` | string | yes | stable id within the probe set. The **set** is [`tooling/geo/prompts/sov.toml`](../../../tooling/geo/prompts/sov.toml) |
 | `prompt_text` | string | yes | the prompt as sent, kept verbatim so a historical score stays readable after the set is edited |
+| `intent` | string | yes | buyer-intent class: `"category"` \| `"problem"` \| `"comparison"` \| `"integration"`. Stored, not re-derived — SOV is reported per class and never blended, so a historical row keeps the classification it was scored under |
 | `mentioned` | boolean | yes | was AllSource named at all |
 | `rank` | integer \| null | yes | 1-based position among named products; `null` when absent |
 | `competitors` | array of string | yes | other products named, in order of appearance |
 | `cited_urls` | array of string | yes | URLs the engine cited |
-| `score` | number | yes | normalised 0.0–1.0. The **formula** belongs to prompt 025; this contract reserves only the slot and the range |
+| `score` | number | yes | normalised 0.0–1.0. **Reciprocal rank** (`1/rank`, `0` when absent) — see `geo-core/src/scoring.rs`. Mention rate, not this score, is the headline |
+
+### `run_id` — `<family>-<YYYY-MM-DD>-<digest>#r<repetition>`
+
+Two parts carry meaning, and both exist to stop a silent lie:
+
+- **`<digest>`** is the SHA-256 (truncated) of the frozen probe-set TOML. Two
+  sweeps are comparable **iff** their run ids carry the same digest; an edited
+  set produces a visibly different id rather than a quietly incomparable
+  number.
+- **`#r<repetition>`** is the sample index within one sweep. It is in the
+  `run_id` because the natural key is `run_id + engine + prompt_id` — without
+  it, the N repetitions of one prompt would collapse into N *versions of one
+  entity*, and a reader folding by entity (which is what makes a re-ingest
+  safe) would see one sample where N were taken. The whole point of repeating
+  is to keep the distribution, so the repetitions must be distinct entities.
+
+Split on `#` to recover the sweep that groups them.
 
 [`examples/geo.sov.probed.json`](examples/geo.sov.probed.json)
 
@@ -231,9 +249,11 @@ whether what was said about us is true.
 | `engine` | string | yes | engine probed |
 | `prompt_id` | string | yes | stable id within the probe set |
 | `prompt_text` | string | yes | the prompt as sent |
-| `claim_id` | string | yes | which factual claim was under test (`"pricing"`, `"durability"`, `"license"`) |
-| `verdict` | string | yes | free-form verdict. The allowed vocabulary is fixed by prompt 025; this contract guarantees only that the field exists |
-| `answer_excerpt` | string | yes | the part of the answer the verdict was drawn from |
+| `claim_id` | string | yes | which factual claim was under test. Claims are declared in [`tooling/geo/prompts/interrogation.toml`](../../../tooling/geo/prompts/interrogation.toml), each with its ground truth and the repository file that defines it |
+| `verdict` | string | yes | one of `accurate` \| `partially_accurate` \| `inaccurate` \| `absent` \| `unscored`. `absent` (the model said nothing about the claim) is **not** wrongness, and `unscored` (the judge's reply could not be read) is excluded from every accuracy denominator |
+| `reasoning` | string | yes | the judge's own argument for the verdict, stored so a human can overrule it. A verdict without its reasoning is a number nobody can audit |
+| `judge_model` | string | yes | which model produced the verdict. An accuracy trend that silently spans two judge models is not a trend |
+| `answer_excerpt` | string | yes | the part of the answer the verdict was drawn from, verbatim. Empty only when the verdict is `absent` |
 | `cited_urls` | array of string | yes | URLs the engine cited |
 | `score` | number | yes | normalised 0.0–1.0 |
 

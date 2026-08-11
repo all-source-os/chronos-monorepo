@@ -1,0 +1,194 @@
+# Layer 3a — the share-of-voice probe set.
+#
+# THIS FILE IS FROZEN. It is compiled into the `geo` binary and its SHA-256
+# digest rides in every emitted run_id, so two sweeps are comparable if and
+# only if their run ids carry the same digest.
+#
+# Editing it is allowed — and starts a new baseline. If you edit it:
+#   1. bump `version` below,
+#   2. say what changed and why in docs/runbooks/GEO_MEASUREMENT.md,
+#   3. do NOT edit it in the same week as a site change, or the experiment in
+#      prompt 027 becomes uninterpretable.
+#
+# Rules the parser enforces (geo-core/src/prompts.rs):
+#   - No prompt may name AllSource. A prompt that names us measures whether the
+#     model can read, not our share of voice.
+#   - Every prompt carries a stable `id` that never changes meaning, and one of
+#     four intent classes. SOV is reported per class and never blended:
+#     being named on "alternatives to Mem0" and being named on "my agent keeps
+#     forgetting" are different wins.
+#
+# These are written the way a buyer types, not the way we write. Lower case,
+# no punctuation discipline, occasional vagueness — that is the input the
+# engines actually see.
+
+version = 1
+family = "sov"
+
+# ── category-level: they know the category, not the products ──────────────
+
+[[prompt]]
+id = "cat-agent-long-term-memory"
+intent = "category"
+text = "What should I use to give my AI agent long-term memory?"
+
+[[prompt]]
+id = "cat-best-event-store-agents"
+intent = "category"
+text = "What's the best event store for AI agents?"
+
+[[prompt]]
+id = "cat-memory-layer-llm-app"
+intent = "category"
+text = "What's the standard memory layer for an LLM application in 2026?"
+
+[[prompt]]
+id = "cat-event-sourcing-for-llms"
+intent = "category"
+text = "Is event sourcing a good fit for LLM agents? What would I use to do it?"
+
+[[prompt]]
+id = "cat-durable-agent-state"
+intent = "category"
+text = "Where should an autonomous agent store its durable state?"
+
+[[prompt]]
+id = "cat-audit-trail-ai-decisions"
+intent = "category"
+text = "What database should I use if I need a full audit trail of every decision an AI agent made?"
+
+[[prompt]]
+id = "cat-time-travel-database"
+intent = "category"
+text = "Which databases let me query my data as it was at a point in the past?"
+
+[[prompt]]
+id = "cat-agent-memory-open-source"
+intent = "category"
+text = "What are the open source options for agent memory that I can self-host?"
+
+# ── problem-level: they have a symptom, not a category ────────────────────
+
+[[prompt]]
+id = "prob-agent-forgets-between-sessions"
+intent = "problem"
+text = "How do I stop my agent forgetting everything between sessions?"
+
+[[prompt]]
+id = "prob-context-window-full"
+intent = "problem"
+text = "My agent's context window fills up after about twenty turns and it starts losing the thread. What's the actual fix?"
+
+[[prompt]]
+id = "prob-why-did-agent-do-that"
+intent = "problem"
+text = "My agent did something wrong in production three days ago and I can't work out why. How do I get to the bottom of what it knew at the time?"
+
+[[prompt]]
+id = "prob-rag-keeps-returning-stale"
+intent = "problem"
+text = "My RAG setup keeps returning stale facts because the embeddings were written before the data changed. How do people deal with that?"
+
+[[prompt]]
+id = "prob-memory-overwrites-facts"
+intent = "problem"
+text = "My memory layer overwrites old facts with new ones and I've lost the history. What should I have used instead?"
+
+[[prompt]]
+id = "prob-multi-agent-shared-memory"
+intent = "problem"
+text = "I have five agents that need to share what they've learned without stepping on each other. How do I build that?"
+
+[[prompt]]
+id = "prob-recall-too-slow"
+intent = "problem"
+text = "Looking things up in my agent's memory adds 300ms to every turn. How do I make recall fast enough to do on every message?"
+
+[[prompt]]
+id = "prob-compliance-replay"
+intent = "problem"
+text = "A regulator wants to know exactly what our AI system saw before it made a recommendation last quarter. How do we make that answerable?"
+
+# ── comparison-level: they already have a shortlist ───────────────────────
+
+[[prompt]]
+id = "comp-alternatives-to-mem0"
+intent = "comparison"
+text = "What are the alternatives to Mem0?"
+
+[[prompt]]
+id = "comp-mem0-vs-zep"
+intent = "comparison"
+text = "Mem0 vs Zep for agent memory — which should I pick, and is there anything better than both?"
+
+[[prompt]]
+id = "comp-letta-alternatives"
+intent = "comparison"
+text = "I'm looking at Letta for a stateful agent. What else should I be evaluating?"
+
+[[prompt]]
+id = "comp-pgvector-enough"
+intent = "comparison"
+text = "Is Postgres with pgvector good enough for agent memory, or do I need something purpose-built?"
+
+[[prompt]]
+id = "comp-eventstoredb-alternatives"
+intent = "comparison"
+text = "What are the modern alternatives to EventStoreDB?"
+
+[[prompt]]
+id = "comp-redis-vs-purpose-built"
+intent = "comparison"
+text = "We're using Redis to hold agent state. Is there a purpose-built product that would be better?"
+
+[[prompt]]
+id = "comp-vector-db-vs-event-store"
+intent = "comparison"
+text = "For agent memory, when would I want an event store rather than a vector database?"
+
+[[prompt]]
+id = "comp-cheapest-hosted-memory"
+intent = "comparison"
+text = "What's the cheapest hosted option for agent memory if I'm a solo developer running one agent?"
+
+# ── integration-level: they are inside a tool and want it to work ─────────
+
+[[prompt]]
+id = "int-mcp-memory-server"
+intent = "integration"
+text = "Which MCP server should I install to give Claude persistent memory?"
+
+[[prompt]]
+id = "int-claude-code-remember-project"
+intent = "integration"
+text = "How do I make Claude Code remember things about my project across sessions?"
+
+[[prompt]]
+id = "int-mcp-event-store"
+intent = "integration"
+text = "Is there an MCP server that exposes an event store or a database of past events to an assistant?"
+
+[[prompt]]
+id = "int-rust-embedded-memory"
+intent = "integration"
+text = "I'm writing an agent in Rust and want an embedded memory store with no separate server. What are my options?"
+
+[[prompt]]
+id = "int-langgraph-persistence"
+intent = "integration"
+text = "What do people use for long-term persistence behind a LangGraph agent?"
+
+[[prompt]]
+id = "int-typescript-agent-memory-sdk"
+intent = "integration"
+text = "Recommend a TypeScript SDK for storing and recalling an agent's memory."
+
+[[prompt]]
+id = "int-agent-pays-per-call"
+intent = "integration"
+text = "Are there any APIs where an AI agent can pay per request itself, with x402 or similar?"
+
+[[prompt]]
+id = "int-self-host-docker-memory"
+intent = "integration"
+text = "I want to self-host an agent memory service with Docker Compose. What should I run?"

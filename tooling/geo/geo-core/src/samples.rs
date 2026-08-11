@@ -61,10 +61,15 @@ pub fn sample(event_type: GeoEventType) -> GeoEvent {
         GeoEventType::SovProbed => GeoEvent::Sov(SovProbed {
             schema_version: SCHEMA_VERSION,
             observed_at: ts("2026-08-11T10:00:00Z"),
-            run_id: "sov-2026-08-11".to_string(),
+            // `<family>-<date>-<prompt-set digest>#r<repetition>`: the digest
+            // makes two sweeps comparable only if they used the same frozen
+            // set, and the repetition keeps the N samples of one prompt as N
+            // entities instead of N versions of one.
+            run_id: "sov-2026-08-11-9f2c41ab#r1".to_string(),
             engine: "chatgpt".to_string(),
-            prompt_id: "agent-memory-recommendation".to_string(),
+            prompt_id: "cat-agent-long-term-memory".to_string(),
             prompt_text: "What should I use to give my AI agent long-term memory?".to_string(),
+            intent: "category".to_string(),
             mentioned: true,
             rank: Some(3),
             competitors: vec!["mem0".to_string(), "zep".to_string()],
@@ -74,12 +79,18 @@ pub fn sample(event_type: GeoEventType) -> GeoEvent {
         GeoEventType::InterrogationProbed => GeoEvent::Interrogation(InterrogationProbed {
             schema_version: SCHEMA_VERSION,
             observed_at: ts("2026-08-11T10:05:00Z"),
-            run_id: "interrogation-2026-08-11".to_string(),
+            run_id: "interrogation-2026-08-11-4d81be07#r1".to_string(),
             engine: "claude".to_string(),
-            prompt_id: "what-is-allsource".to_string(),
-            prompt_text: "What is AllSource and how is its data stored?".to_string(),
-            claim_id: "durability".to_string(),
+            prompt_id: "int-storage-and-durability".to_string(),
+            prompt_text: "How does AllSource actually store data? Is it durable if the \
+                          process restarts?"
+                .to_string(),
+            claim_id: "durability.wal-parquet".to_string(),
             verdict: "accurate".to_string(),
+            reasoning: "Correctly describes the WAL plus Parquet persistence and the \
+                        in-memory read path."
+                .to_string(),
+            judge_model: "claude-opus-5".to_string(),
             answer_excerpt: "AllSource is an event store that persists events to a \
                              write-ahead log and Parquet files."
                 .to_string(),

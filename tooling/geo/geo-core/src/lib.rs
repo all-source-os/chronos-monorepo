@@ -15,6 +15,14 @@
 //! - [`bots`] — the versioned AI-bot taxonomy (three categories that must
 //!   never be blended) and identity verification against the vendors' own
 //!   published IP ranges.
+//! - [`prompts`] — the frozen, versioned layer-3 probe set, compiled into the
+//!   binary and digested into every `run_id`.
+//! - [`probe`] — the four generative engines, normalised to one answer type.
+//! - [`brand`] — who counts as us and who counts as a competitor.
+//! - [`scoring`] — share-of-voice scoring, Wilson intervals, source
+//!   attribution and observed-vocabulary extraction.
+//! - [`judge`] — the LLM-as-judge verdict vocabulary and its (auditable)
+//!   reply parsing.
 //! - [`emitter`] — turns a [`GeoEvent`] into a Core ingest envelope and either
 //!   POSTs it through the Control Plane gateway or prints it (`--dry-run`).
 //! - [`config`] — `ALLSOURCE_API_URL` / `ALLSOURCE_API_KEY`.
@@ -41,12 +49,23 @@
 //! and survive restarts, which is what makes a 12-week trend window possible.
 
 pub mod bots;
+pub mod brand;
 pub mod config;
 pub mod emitter;
 pub mod error;
 pub mod events;
 pub mod idempotency;
+pub mod judge;
+pub mod probe;
+pub mod prompts;
 pub mod samples;
+pub mod scoring;
+
+pub use brand::{COMPETITOR_SET_VERSION, COMPETITORS, CompetitorKind, CompetitorSpec};
+pub use judge::{Judgement, Verdict as JudgeVerdict};
+pub use probe::{Engine, EngineConfig, EngineStatus, LlmClient, ProbeAnswer, ProbeOutcome};
+pub use prompts::{Claim, Family, Intent, Prompt, PromptSet, Severity};
+pub use scoring::{RateEstimate, RateTally, SourceOwner, SovScore, TermCount};
 
 pub use bots::{
     BOTS, BotCategory, BotSpec, Cidr, PublishedPrefixes, RangeCatalog, TAXONOMY_VERSION,

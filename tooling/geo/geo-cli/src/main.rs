@@ -7,7 +7,10 @@
 //! slices have a home to land in, and fail loudly until they do.
 
 mod crawl;
+mod fixtures;
+mod layer3;
 mod logs;
+mod probe;
 mod ranges;
 mod report;
 
@@ -16,7 +19,7 @@ use std::path::PathBuf;
 use anyhow::{Result, bail};
 use chrono::{DateTime, Duration, Utc};
 use clap::{Parser, Subcommand};
-use geo_core::{Aggregation, EmitMode};
+use geo_core::{Aggregation, EmitMode, Engine, Family};
 
 use crate::{logs::LogFormat, report::Window};
 
@@ -55,7 +58,7 @@ enum Command {
     Crawl(Box<CrawlArgs>),
     /// Run share-of-voice and interrogation probes against the engines
     /// (layers 3a/3b).
-    Probe(NotImplementedArgs),
+    Probe(Box<ProbeArgs>),
     /// Count geo.* events per measurement layer over a window.
     Report(ReportArgs),
     /// Drive the optimization loop: open an experiment, score it, decide
@@ -102,6 +105,81 @@ struct ReportArgs {
     /// Events fetched per gateway request.
     #[arg(long, default_value_t = 500, value_parser = clap::value_parser!(u32).range(1..=1000))]
     page_size: u32,
+
+    /// Also write the layer-3 section to this path as Markdown — this is what
+    /// produces `docs/marketing/geo-baseline-<date>.md`.
+    #[arg(long, value_name = "PATH")]
+    markdown_out: Option<PathBuf>,
+}
+
+#[derive(clap::Args)]
+struct ProbeArgs {
+    /// Which probe family to sweep. Repeatable; defaults to both.
+    #[arg(long, value_enum)]
+    family: Vec<FamilyArg>,
+
+    /// Which engine to probe. Repeatable; defaults to all four. An engine with
+    /// no key is skipped with a loud warning, never counted as zero share.
+    #[arg(long, value_enum)]
+    engine: Vec<EngineArg>,
+
+    /// Samples per prompt per engine. Three is the floor: below that there is
+    /// no distribution to report and the confidence intervals are useless.
+    #[arg(long, default_value_t = probe::DEFAULT_REPETITIONS, value_parser = clap::value_parser!(u32).range(1..=25))]
+    repetitions: u32,
+
+    /// Stop after this many prompts per family — a cheap smoke run.
+    #[arg(long)]
+    limit: Option<usize>,
+
+    /// In-flight probes per engine.
+    #[arg(long, default_value_t = probe::DEFAULT_CONCURRENCY, value_parser = clap::value_parser!(u16).range(1..=16))]
+    concurrency: u16,
+
+    /// Write the Markdown report here as well as printing it.
+    #[arg(long, value_name = "PATH")]
+    markdown_out: Option<PathBuf>,
+
+    /// Skip the LLM-as-judge pass. Every claim comes back `unscored`; use it
+    /// for a 3a-only sweep or a no-spend rehearsal.
+    #[arg(long)]
+    no_judge: bool,
+}
+
+/// clap mirror of [`Family`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum FamilyArg {
+    Sov,
+    Interrogation,
+}
+
+impl From<FamilyArg> for Family {
+    fn from(arg: FamilyArg) -> Self {
+        match arg {
+            FamilyArg::Sov => Self::Sov,
+            FamilyArg::Interrogation => Self::Interrogation,
+        }
+    }
+}
+
+/// clap mirror of [`Engine`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum EngineArg {
+    Chatgpt,
+    Claude,
+    Perplexity,
+    Gemini,
+}
+
+impl From<EngineArg> for Engine {
+    fn from(arg: EngineArg) -> Self {
+        match arg {
+            EngineArg::Chatgpt => Self::Chatgpt,
+            EngineArg::Claude => Self::Claude,
+            EngineArg::Perplexity => Self::Perplexity,
+            EngineArg::Gemini => Self::Gemini,
+        }
+    }
 }
 
 #[derive(clap::Args)]
@@ -229,6 +307,10 @@ fn resolve_window(args: &WindowArgs, default_days: i64) -> Result<Window> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // One load site for `.env`, before any variable is read. Real process
+    // environment variables always win over it; a missing file is fine.
+    geo_core::config::init_env();
+
     let cli = Cli::parse();
     let mode = if cli.dry_run {
         EmitMode::DryRun
@@ -240,9 +322,15 @@ async fn main() -> Result<()> {
         Command::Report(args) => {
             let window = resolve_window(&args.window, args.days)?;
             if cli.dry_run {
-                report::run_dry_run(window)
+                report::run_dry_run(window, args.markdown_out.as_deref())
             } else {
-                report::run_live(window, args.max_events, args.page_size).await
+                report::run_live(
+                    window,
+                    args.max_events,
+                    args.page_size,
+                    args.markdown_out.as_deref(),
+                )
+                .await
             }
         }
         Command::Crawl(args) => {
@@ -263,8 +351,26 @@ async fn main() -> Result<()> {
             })
             .await
         }
-        Command::Probe(_) => {
-            not_implemented("geo probe", "025", "share-of-voice + interrogation probes")
+        Command::Probe(args) => {
+            probe::run(probe::ProbeOptions {
+                families: if args.family.is_empty() {
+                    Family::ALL.to_vec()
+                } else {
+                    args.family.iter().copied().map(Family::from).collect()
+                },
+                engines: if args.engine.is_empty() {
+                    Engine::ALL.to_vec()
+                } else {
+                    args.engine.iter().copied().map(Engine::from).collect()
+                },
+                repetitions: args.repetitions,
+                limit: args.limit,
+                concurrency: usize::from(args.concurrency),
+                mode,
+                markdown_out: args.markdown_out.clone(),
+                no_judge: args.no_judge,
+            })
+            .await
         }
         Command::Research(_) => not_implemented("geo research", "027", "the optimization loop"),
     }

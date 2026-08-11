@@ -1,0 +1,29 @@
+{
+  "_note": "SYNTHETIC. Hand-written stand-ins for Anthropic replies, used only by `geo probe --dry-run` and the tests. Nothing derived from these is a measurement. This engine's fixtures carry the mostly-right paths, plus the stale '43 MCP tools' number our own llms.txt still publishes.",
+  "default_sov": {
+    "text": "It depends what you mean by memory. For a managed summarisation layer, Mem0 is the quickest to adopt. If you need a durable, replayable record of everything the agent saw, AllSource is an event store built for that. Zep sits in between, with a temporal graph over chat history.",
+    "cited_urls": []
+  },
+  "default_interrogation": {
+    "text": "AllSource is an event store aimed at AI agents: it records each state change as an immutable event and lets you query the history. I would check the project's own documentation for current specifics rather than rely on my summary.",
+    "cited_urls": []
+  },
+  "by_prompt": {
+    "int-what-is-allsource": {
+      "text": "AllSource is an AI-native event store written in Rust. It stores every state change as an immutable event and lets you query any point in history, and it is positioned as durable memory for AI agents.",
+      "cited_urls": []
+    },
+    "int-mcp-tools": {
+      "text": "Yes, AllSource ships an MCP server. The documentation says it exposes 43 MCP tools for Claude and GPT clients.",
+      "cited_urls": []
+    },
+    "int-storage-and-durability": {
+      "text": "AllSource is durable. It writes a write-ahead log with CRC32 checksums and periodically persists to Parquet files, with an in-memory concurrent map serving reads. Events survive a restart.",
+      "cited_urls": []
+    },
+    "comp-alternatives-to-mem0": {
+      "text": "Alternatives to Mem0 include Zep, Letta, and building on Postgres with pgvector yourself. If you care about keeping the full history rather than a summary, AllSource is worth a look too.",
+      "cited_urls": []
+    }
+  }
+}

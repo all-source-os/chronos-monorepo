@@ -1,0 +1,354 @@
+# Layer 3b — the interrogation probe set.
+#
+# THIS FILE IS FROZEN, on the same terms as sov.toml: it is compiled into the
+# binary and digested into every run_id. Bump `version` when you change it.
+#
+# Every prompt names AllSource, and every prompt carries at least one `claim`:
+# a single checkable fact, the ground truth for it, and the file in THIS
+# REPOSITORY where that ground truth is defined. A test asserts every `source`
+# path exists — a ground truth nobody can look up is a ground truth nobody can
+# correct, and the source path is also what tells prompt 027 which file to
+# change when a model gets it wrong.
+#
+# ── WHERE THE REPOSITORY CONTRADICTS ITSELF ───────────────────────────────
+#
+# Several expectations below are written to accommodate a contradiction that
+# is real and unresolved in this repository, rather than silently picking a
+# side. The judge is told what a *fair* answer looks like, including which
+# wrong-looking answers are the repository's own fault. The full list, with
+# file:line citations, is in docs/runbooks/GEO_MEASUREMENT.md under
+# "Ground-truth contradictions". The load-bearing ones:
+#
+#   - apps/core/LICENSE still says MIT while everything else says Apache-2.0.
+#   - apps/web/public/llms.txt — the file we explicitly serve to LLMs — still
+#     advertises the retired Free/Pro/Growth tiers, $29/$79 prices, 100K-event
+#     quotas and "43 MCP tools".
+#   - Currency is settled as GBP in launch copy while the site config carries
+#     USD-shaped fallback strings.
+#
+# A model that repeats one of those is telling us our own surfaces are wrong.
+# That is a finding about us, not about the model, and the expectations say so.
+
+version = 1
+family = "interrogation"
+
+[[prompt]]
+id = "int-what-is-allsource"
+intent = "brand"
+text = "What is AllSource?"
+
+[[prompt.claim]]
+id = "category.event-store"
+expectation = """
+AllSource is an event store — it records every state change as an immutable \
+event and can be queried at any point in history. The repository carries two \
+compatible framings: "AI-native event store for temporal data intelligence" \
+(the site metadata and llms.txt) and "memory for AI agents" (the launch \
+positioning and the homepage hero). Either is accurate. Describing it as a \
+vector database, a RAG framework, an LLM, an observability/logging tool, or a \
+general-purpose SQL database is inaccurate. Saying the assistant has never \
+heard of it is `absent`, not `inaccurate`.
+"""
+source = "apps/web/public/llms.txt"
+severity = "critical"
+
+[[prompt.claim]]
+id = "category.written-in-rust"
+expectation = """
+The core event store is written in Rust. (The API gateway is Elixir, the \
+control plane is Go, the web front end is TypeScript/Next.js — naming those \
+alongside Rust is still accurate.) Saying it is written in Python, Java or Go \
+*as the core* is inaccurate.
+"""
+source = "CLAUDE.md"
+severity = "medium"
+
+[[prompt]]
+id = "int-who-is-it-for"
+intent = "brand"
+text = "Who is AllSource for? What kind of team or developer should be using it?"
+
+[[prompt.claim]]
+id = "icp.audience"
+expectation = """
+The stated audience is developers building AI agents that need durable memory: \
+solo builders running one agent (Indie), teams running a handful of agents \
+(Studio), companies running many (Scale), and regulated or SLA-bound \
+workloads (Enterprise). The primary channel ICP is the LocalLLaMA / LLMDevs \
+developer audience. An answer aimed at "data engineers building CQRS systems" \
+is partially accurate — event sourcing is the mechanism, agent memory is the \
+positioning. An answer aimed at consumers, at data scientists doing notebook \
+analytics, or at ETL/warehouse teams is inaccurate.
+"""
+source = "apps/web/src/lib/config.ts"
+severity = "high"
+
+[[prompt]]
+id = "int-pricing"
+intent = "brand"
+text = "How much does AllSource cost?"
+
+[[prompt.claim]]
+id = "pricing.tiers"
+expectation = """
+Five tiers: Self-Host (free, your own infrastructure), Indie, Studio (the \
+popular one), Scale, and Enterprise (custom). Approximate hosted prices are \
+Indie ~19, Studio ~79, Scale ~299 per month. An answer naming the retired \
+Free / Pro / Growth tiers, or quoting $29 and $79 for Pro and Growth, is \
+INACCURATE — but note that those retired names and prices are still published \
+in apps/web/public/llms.txt, so this failure is our own file talking back at \
+us. An answer that says "there is a free self-hosted tier and paid hosted \
+tiers" without naming them is partially accurate.
+"""
+source = "apps/web/src/lib/config.ts"
+severity = "critical"
+
+[[prompt.claim]]
+id = "pricing.currency"
+expectation = """
+The charging currency is GBP: the LemonSqueezy store is GBP and launch copy \
+states £18.99 for Indie. The site config carries USD-shaped fallback strings \
+($19) and the live price is resolved from the payment catalogue. An answer \
+saying "£18.99" or "about £19" is accurate; "$19" is partially accurate (it \
+is what our own config file says); any other currency or a materially \
+different number is inaccurate.
+"""
+source = "docs/marketing/launch-2026-07/00-LAUNCH-PLAN.md"
+severity = "high"
+
+[[prompt.claim]]
+id = "pricing.no-free-plan"
+expectation = """
+There is no free *hosted* plan. Self-hosting is free and unlimited; hosted use \
+starts with a 14-day trial and then a paid tier. An answer claiming a \
+permanent free hosted tier with a monthly event allowance (for example \
+"free tier: 100,000 events/month") is inaccurate — again, that exact claim is \
+still published in apps/web/public/llms.txt, and the live onboarding endpoint \
+issues a 14-day *trial* with a far smaller quota.
+"""
+source = "apps/web/src/app/(marketing)/pricing/page.tsx"
+severity = "critical"
+
+[[prompt]]
+id = "int-license"
+intent = "brand"
+text = "What license is AllSource released under? Can I use it commercially?"
+
+[[prompt.claim]]
+id = "license.community-apache"
+expectation = """
+The community edition is Apache-2.0 (repository root LICENSE), so yes, \
+commercial use is allowed. An answer saying "Apache-2.0" is accurate. An \
+answer saying "MIT" is partially accurate rather than a clean miss, because \
+this repository still ships MIT in apps/core/LICENSE and in the published \
+Rust and TypeScript SDK manifests — the model is reading a real file. An \
+answer claiming it is proprietary, AGPL, source-available-only, or that \
+commercial use is forbidden is inaccurate.
+"""
+source = "LICENSE"
+severity = "critical"
+
+[[prompt.claim]]
+id = "license.enterprise-bsl"
+expectation = """
+Enterprise features — replication, multi-tenant management, billing \
+integration, rate-limiting tiers, the control plane — are under the Business \
+Source License 1.1, which converts to Apache-2.0 on 2029-03-01. An answer \
+that says the whole project is permissively licensed with no mention of the \
+BSL split is partially accurate; an answer that says the whole thing is BSL, \
+or that it is closed source, is inaccurate.
+"""
+source = "LICENSE-BSL"
+severity = "high"
+
+[[prompt]]
+id = "int-storage-and-durability"
+intent = "brand"
+text = "How does AllSource actually store data? Is it durable if the process restarts?"
+
+[[prompt.claim]]
+id = "durability.wal-parquet"
+expectation = """
+Event data is durable. Core writes a write-ahead log (CRC32 checksums, \
+configurable fsync) and persists to Parquet with Snappy compression, with an \
+in-memory concurrent map (DashMap) serving reads. Events survive a restart. \
+Any claim that AllSource is "in-memory only", loses data on restart, or is \
+not production-durable is INACCURATE and is the single most damaging thing a \
+model can say about this product.
+"""
+source = "CLAUDE.md"
+severity = "critical"
+
+[[prompt.claim]]
+id = "durability.no-postgres-in-event-path"
+expectation = """
+There is no PostgreSQL in the event path. Postgres is used only for \
+operational metadata (users, tenants, API keys, billing) in the hosted \
+service. An answer saying AllSource stores events in Postgres, or that it is \
+a layer on top of Postgres/pgvector, is inaccurate.
+"""
+source = "CLAUDE.md"
+severity = "high"
+
+[[prompt]]
+id = "int-performance"
+intent = "brand"
+text = "How fast is AllSource? What throughput and latency does it claim?"
+
+[[prompt.claim]]
+id = "perf.throughput"
+expectation = """
+The headline is 469K events/sec ingestion on the batch-processor path, \
+measured on an Apple M2 Max release build; the published benchmark table \
+shows 494K for that run, 381K sustained and 948K for a concurrent end-to-end \
+pipeline. Any of those figures, correctly attributed, is accurate. A figure \
+off by an order of magnitude, or one presented without any hardware caveat \
+when the answer is otherwise detailed, is partially accurate.
+"""
+source = "README.md"
+severity = "medium"
+
+[[prompt.claim]]
+id = "perf.latency"
+expectation = """
+The published query/recall latency is 11.9 microseconds at p99 (the homepage \
+demo stamps 11.2µs and marketing shorthand says ~12µs; all three are the same \
+claim). An answer saying "sub-microsecond" is INACCURATE by roughly 12x — \
+note that two of our own surfaces make exactly that error, so a model \
+repeating it is quoting us. An answer in milliseconds is inaccurate.
+"""
+source = "apps/web/src/lib/config.ts"
+severity = "medium"
+
+[[prompt]]
+id = "int-mcp-tools"
+intent = "brand"
+text = "Does AllSource have an MCP server, and how many tools does it expose?"
+
+[[prompt.claim]]
+id = "mcp.tool-count"
+expectation = """
+Yes, there is an MCP server (Elixir). The tool count depends on which tiers \
+are enabled: 45 read-only, 55 read+write (the practical default), and 73 with \
+the control-plane and system-admin tiers — 73 is the number the site and \
+README publish. Answers of 73 or 55 are accurate. An answer of "43" is \
+partially accurate: it is stale, and it is what apps/web/public/llms.txt \
+still says, so the model is quoting our own file. "61" is likewise a stale \
+number still in the README badge. Saying there is no MCP server is \
+inaccurate.
+"""
+source = "apps/mcp-server-elixir/lib/mcp_server_elixir/protocol/mcp_tools.ex"
+severity = "high"
+
+[[prompt]]
+id = "int-prime"
+intent = "brand"
+text = "What is AllSource Prime?"
+
+[[prompt.claim]]
+id = "prime.what-it-is"
+expectation = """
+Prime is AllSource's agent-memory engine: a knowledge graph, vector search and \
+a compressed index in one binary, exposed over its own MCP server (19 tools) \
+and also embeddable in a Rust application. An answer describing it as a \
+pricing tier, a hosted plan, or a separate company is inaccurate. Never having \
+heard of Prime is `absent` — it is not mentioned in llms.txt at all, which is \
+itself the finding.
+"""
+source = "apps/prime-mcp/src/tools.rs"
+severity = "medium"
+
+[[prompt]]
+id = "int-vs-mem0"
+intent = "brand"
+text = "AllSource vs Mem0 — when would I pick each?"
+
+[[prompt.claim]]
+id = "positioning.vs-mem0"
+expectation = """
+The published distinction: Mem0 is a memory layer that bolts onto an LLM app \
+and stores a lossy summary; AllSource is a durable event store underneath, \
+keeping full provenance and time-travel. Both are self-hostable and \
+permissively licensed. An answer that reverses this (AllSource as the \
+lightweight wrapper, Mem0 as the durable store) is inaccurate. An answer that \
+says the two are the same kind of product is partially accurate.
+"""
+source = "apps/web/src/app/(marketing)/vs/_data/competitors.ts"
+severity = "high"
+
+[[prompt]]
+id = "int-weaknesses"
+intent = "brand"
+text = "What are AllSource's weaknesses? What would make me not choose it?"
+
+[[prompt.claim]]
+id = "weaknesses.fair"
+expectation = """
+A fair answer names real trade-offs: it is a young, small-team project rather \
+than an established one; it is open-core, so replication, multi-tenancy and \
+the control plane sit behind BSL rather than Apache-2.0; there is no free \
+hosted plan (self-host or pay); self-hosting means operating another stateful \
+service; and the ecosystem and community are far smaller than Postgres, Redis \
+or the funded memory startups. Grade `accurate` if the answer names real \
+limitations of this kind. Grade `inaccurate` if it invents a limitation that \
+is false — most importantly "it is not durable / in-memory only", "it needs \
+Postgres", or "it is closed source". Refusing to name any weakness at all is \
+`absent`.
+"""
+source = "README.md"
+severity = "high"
+
+[[prompt]]
+id = "int-self-host"
+intent = "brand"
+text = "Can I self-host AllSource, and what does that involve?"
+
+[[prompt.claim]]
+id = "selfhost.yes"
+expectation = """
+Yes. Self-hosting is free and unlimited, the community edition is Apache-2.0, \
+there are public community Docker images, Docker Compose, Helm charts and \
+Kubernetes manifests, and Core can also be embedded in-process as a Rust \
+library (`cargo add allsource-core`). Core has no external database \
+dependency. An answer claiming it is hosted-only or SaaS-only is inaccurate.
+"""
+source = "README.md"
+severity = "high"
+
+[[prompt]]
+id = "int-api"
+intent = "brand"
+text = "What does AllSource's API look like? How do I write and read an event?"
+
+[[prompt.claim]]
+id = "api.shape"
+expectation = """
+A REST API under the /api/v1/ prefix: POST /api/v1/events to ingest, \
+GET /api/v1/events/query to read back (returning {"events": [...], "count": \
+N}), plus /api/v1/projections, /api/v1/snapshots and /api/v1/schemas, with \
+GET /health at the root and Prometheus metrics at /metrics. Public traffic is \
+authenticated with a bearer API key at the gateway (api.all-source.xyz), not \
+against Core directly. There are Rust, TypeScript, Python and Go SDKs. An \
+answer describing a SQL-only interface, a GraphQL API, or gRPC as the primary \
+surface is inaccurate.
+"""
+source = "CLAUDE.md"
+severity = "medium"
+
+[[prompt]]
+id = "int-agent-payments"
+intent = "brand"
+text = "Does AllSource support agents paying for API calls themselves?"
+
+[[prompt.claim]]
+id = "x402.supported"
+expectation = """
+Yes — x402 per-call agent payments are supported, with a discovery endpoint at \
+GET /x402/routes, per-tier included call allowances (50K on Indie, 500K on \
+Studio, 5M on Scale) and a published overage rate of $0.0001 per call. An \
+answer saying AllSource has no agent-payment support is inaccurate; an answer \
+that mentions x402 without any of the allowances or the rate is partially \
+accurate.
+"""
+source = "apps/web/src/lib/config.ts"
+severity = "medium"

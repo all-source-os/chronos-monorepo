@@ -1,0 +1,21 @@
+{
+  "_note": "SYNTHETIC. Hand-written stand-ins for Gemini replies, used only by `geo probe --dry-run` and the tests. Nothing derived from these is a measurement. This engine's fixtures carry the knowledge-gap paths — hedged answers with no product named — plus one fully correct pricing answer so the accuracy table is not uniformly bad.",
+  "default_sov": {
+    "text": "I am not familiar with a single definitive standard here. Most teams combine a vector database such as Pinecone or Chroma with a retrieval step, and add summarisation when the context window fills up.",
+    "cited_urls": []
+  },
+  "default_interrogation": {
+    "text": "I am not aware of a product called AllSource in this space. It may be referring to something else, and I would rather not guess at specifics.",
+    "cited_urls": []
+  },
+  "by_prompt": {
+    "int-pricing": {
+      "text": "AllSource pricing starts at GBP 18.99 per month for the Indie tier, with Studio at GBP 78.99 and Scale at GBP 298.99. Self-hosting is free and unlimited; there is no free hosted plan, only a 14-day trial.",
+      "cited_urls": []
+    },
+    "cat-best-event-store-agents": {
+      "text": "EventStoreDB is the established option for event sourcing, and Kafka is often used for the streaming side. For agents specifically, most people end up on a vector database instead.",
+      "cited_urls": []
+    }
+  }
+}

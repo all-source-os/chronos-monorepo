@@ -1,0 +1,40 @@
+{
+  "_note": "SYNTHETIC. Hand-written stand-ins for Perplexity replies, used only by `geo probe --dry-run` and the tests. Nothing derived from these is a measurement. This engine's fixtures carry the citation paths — ours and third-party — and the 'sub-microsecond' error that two of our own surfaces actually make.",
+  "default_sov": {
+    "text": "AllSource is an open-source event store positioned as durable memory for AI agents, and is most often compared with Mem0 and Zep. It stores every event rather than a summary, which is the usual reason teams pick it.",
+    "cited_urls": [
+      "https://www.all-source.xyz/",
+      "https://github.com/all-source-os/all-source",
+      "https://news.ycombinator.com/item?id=44000000"
+    ]
+  },
+  "default_interrogation": {
+    "text": "AllSource is an AI-native event store. According to its own site it handles 469K events/sec ingestion with 11.9us p99 query latency, and exposes an MCP interface for assistants.",
+    "cited_urls": [
+      "https://www.all-source.xyz/",
+      "https://all-source.xyz/docs"
+    ]
+  },
+  "by_prompt": {
+    "comp-alternatives-to-mem0": {
+      "text": "Alternatives to Mem0 include Zep, Letta, and custom setups backed by Redis or Postgres with pgvector.",
+      "cited_urls": [
+        "https://blog.example.dev/agent-memory-roundup",
+        "https://news.ycombinator.com/item?id=44000001"
+      ]
+    },
+    "int-performance": {
+      "text": "AllSource advertises 469K events/sec ingestion and sub-microsecond query latency, with a roughly 129MB footprint across all services.",
+      "cited_urls": [
+        "https://www.all-source.xyz/compare/eventstoredb",
+        "https://blog.example.dev/allsource-benchmarks"
+      ]
+    },
+    "int-weaknesses": {
+      "text": "AllSource is a young project from a small team, and the hosted tiers are priced per event, which can be awkward to forecast.",
+      "cited_urls": [
+        "https://blog.example.dev/allsource-review"
+      ]
+    }
+  }
+}

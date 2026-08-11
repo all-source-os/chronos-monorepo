@@ -1,6 +1,6 @@
 {
   "event_type": "geo.sov.probed",
-  "entity_id": "geo:sov:a3a37a69cf0f564edd632c46b57a9fce",
+  "entity_id": "geo:sov:6a9fd026582603d33443f62f1fe7e8f8",
   "payload": {
     "cited_urls": [
       "https://www.all-source.xyz/"
@@ -10,17 +10,18 @@
       "zep"
     ],
     "engine": "chatgpt",
+    "intent": "category",
     "mentioned": true,
     "observed_at": "2026-08-11T10:00:00Z",
-    "prompt_id": "agent-memory-recommendation",
+    "prompt_id": "cat-agent-long-term-memory",
     "prompt_text": "What should I use to give my AI agent long-term memory?",
     "rank": 3,
-    "run_id": "sov-2026-08-11",
+    "run_id": "sov-2026-08-11-9f2c41ab#r1",
     "schema_version": 1,
     "score": 0.66
   },
   "metadata": {
     "emitter": "tooling/geo",
-    "idempotency_key": "a3a37a69cf0f564edd632c46b57a9fce"
+    "idempotency_key": "6a9fd026582603d33443f62f1fe7e8f8"
   }
 }

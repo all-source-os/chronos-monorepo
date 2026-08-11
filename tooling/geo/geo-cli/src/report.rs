@@ -11,10 +11,12 @@ use allsource::{QueryClient, QueryEventsParams};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Datelike, Duration, SecondsFormat, Utc};
 use geo_core::{
-    BotCategory, EVENT_TYPE_PREFIX, GeoConfig, GeoEventType, IngestEnvelope, TAXONOMY_VERSION,
-    samples,
+    BotCategory, EVENT_TYPE_PREFIX, GeoConfig, GeoEventType, IngestEnvelope, JudgeVerdict,
+    TAXONOMY_VERSION, samples,
 };
 use serde_json::Value;
+
+use crate::layer3::{InterrogationRow, Layer3, SovRow};
 
 /// One measurement layer: a named group of event types and the slice that
 /// produces them.
@@ -86,6 +88,7 @@ struct Tally {
     truncated: bool,
     crawl: CrawlTally,
     referral: ReferralTally,
+    layer3: Layer3,
 }
 
 impl Tally {
@@ -94,6 +97,10 @@ impl Tally {
         match GeoEventType::parse(event_type) {
             Some(GeoEventType::CrawlObserved) => self.crawl.record(entity_id, payload),
             Some(GeoEventType::ReferralObserved) => self.referral.record(entity_id, payload),
+            Some(GeoEventType::SovProbed) => record_sov(&mut self.layer3, payload),
+            Some(GeoEventType::InterrogationProbed) => {
+                record_interrogation(&mut self.layer3, payload);
+            }
             _ => {}
         }
     }
@@ -342,6 +349,127 @@ impl ReferralTally {
     }
 }
 
+/// Read one stored `geo.sov.probed` payload into the layer-3 aggregate.
+///
+/// Deliberately tolerant of missing fields: this stream outlives the binary
+/// reading it, and a row written by a newer producer must degrade to a
+/// partially-known row rather than take the report down.
+fn record_sov(layer: &mut Layer3, payload: &Value) {
+    let text = |key: &str| {
+        payload
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let urls = |key: &str| {
+        payload
+            .get(key)
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    layer.sov.push(SovRow {
+        engine: text("engine"),
+        prompt_id: text("prompt_id"),
+        // Older rows predate the stored intent; they are reported under
+        // "(unclassified)" rather than silently folded into a real class.
+        intent: payload
+            .get("intent")
+            .and_then(Value::as_str)
+            .unwrap_or("(unclassified)")
+            .to_string(),
+        mentioned: payload
+            .get("mentioned")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        rank: payload
+            .get("rank")
+            .and_then(Value::as_u64)
+            .and_then(|r| u32::try_from(r).ok()),
+        competitors: urls("competitors"),
+        cited_urls: urls("cited_urls"),
+        score: payload.get("score").and_then(Value::as_f64).unwrap_or(0.0),
+        // The stored payload carries no answer text, so a hedge cannot be
+        // re-derived at read time. Left None rather than guessed.
+        hedge: None,
+    });
+}
+
+/// Read one stored `geo.interrogation.probed` payload into the aggregate.
+fn record_interrogation(layer: &mut Layer3, payload: &Value) {
+    let text = |key: &str| {
+        payload
+            .get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    layer.interrogation.push(InterrogationRow {
+        engine: text("engine"),
+        prompt_id: text("prompt_id"),
+        claim_id: text("claim_id"),
+        // An unknown verdict string becomes `Unscored`, which is excluded from
+        // every accuracy denominator — never guessed into a neighbour.
+        verdict: JudgeVerdict::parse(&text("verdict")).unwrap_or(JudgeVerdict::Unscored),
+        excerpt: text("answer_excerpt"),
+        reasoning: text("reasoning"),
+        judge_model: text("judge_model"),
+        cited_urls: payload
+            .get("cited_urls")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    });
+}
+
+/// Layers 3a and 3b, rendered by the shared reporter.
+fn print_layer3_section(tally: &Tally, window: Window, markdown_out: Option<&std::path::Path>) {
+    println!();
+    println!("== LAYERS 3a/3b — what the engines say about us =====================");
+    if tally.layer3.is_empty() {
+        println!();
+        println!(
+            "No geo.sov.probed or geo.interrogation.probed events in this window. Run \
+             `geo probe` (see docs/runbooks/GEO_MEASUREMENT.md)."
+        );
+        return;
+    }
+    let mut layer = Layer3 {
+        provenance: format!(
+            "Read back from Core over {} → {}. Answer texts are not stored, so observed \
+             vocabulary is only available from a fresh `geo probe` sweep.",
+            window.since_str(),
+            window.until_str()
+        ),
+        ..Default::default()
+    };
+    layer.sov.clone_from(&tally.layer3.sov);
+    layer.interrogation.clone_from(&tally.layer3.interrogation);
+    let rendered = layer.render();
+    println!();
+    println!("{rendered}");
+    if let Some(path) = markdown_out {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        match std::fs::write(path, &rendered) {
+            Ok(()) => println!("wrote {}", path.display()),
+            Err(e) => eprintln!("WARNING: could not write {}: {e}", path.display()),
+        }
+    }
+}
+
 /// The window a report covers.
 #[derive(Clone, Copy)]
 pub struct Window {
@@ -362,7 +490,12 @@ impl Window {
 }
 
 /// Run a live report against the gateway.
-pub async fn run_live(window: Window, max_events: u64, page_size: u32) -> Result<()> {
+pub async fn run_live(
+    window: Window,
+    max_events: u64,
+    page_size: u32,
+    markdown_out: Option<&std::path::Path>,
+) -> Result<()> {
     let config = GeoConfig::from_env()?;
     let client = QueryClient::new(config.api_url(), config.api_key())
         .with_context(|| format!("could not build a gateway client for {}", config.api_url()))?;
@@ -400,6 +533,7 @@ pub async fn run_live(window: Window, max_events: u64, page_size: u32) -> Result
     print_table(&tally);
     print_referral_section(&tally.referral);
     print_crawl_section(&tally.crawl, window);
+    print_layer3_section(&tally, window, markdown_out);
     Ok(())
 }
 
@@ -409,7 +543,7 @@ pub async fn run_live(window: Window, max_events: u64, page_size: u32) -> Result
 /// dry-run path — the exact JSON a live emit would POST — then tallies those
 /// same events. That makes this a self-contained smoke test of contract →
 /// emitter → report with nothing to burn.
-pub fn run_dry_run(window: Window) -> Result<()> {
+pub fn run_dry_run(window: Window, markdown_out: Option<&std::path::Path>) -> Result<()> {
     println!("GEO report — DRY RUN (no gateway call, no API key needed)");
     println!(
         "would query: GET /api/v1/events/query?event_type_prefix={EVENT_TYPE_PREFIX}&since={}&until={}",
@@ -433,6 +567,7 @@ pub fn run_dry_run(window: Window) -> Result<()> {
     print_table(&tally);
     print_referral_section(&tally.referral);
     print_crawl_section(&tally.crawl, window);
+    print_layer3_section(&tally, window, markdown_out);
     Ok(())
 }
 

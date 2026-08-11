@@ -1,0 +1,33 @@
+{
+  "_note": "SYNTHETIC. Hand-written stand-ins for OpenAI replies, used only by `geo probe --dry-run` and the tests. Nothing derived from these is a measurement and none of it may be copied into docs/marketing/geo-baseline-*.md. This engine's fixtures deliberately carry the wrong-answer paths: MIT licence, retired Free/Pro/Growth pricing, and 'in-memory, pair it with Postgres'.",
+  "default_sov": {
+    "text": "For giving an agent long-term memory, the options people usually reach for are Mem0, Zep, and Letta (formerly MemGPT). If you would rather roll your own, Postgres with pgvector plus a periodic summarisation pass is the common DIY route.",
+    "cited_urls": []
+  },
+  "default_interrogation": {
+    "text": "I do not have information about a product called AllSource. It may be referring to a data platform or an internal tool, and I cannot confirm the specifics without a source.",
+    "cited_urls": []
+  },
+  "by_prompt": {
+    "cat-agent-long-term-memory": {
+      "text": "The usual shortlist is Mem0, Zep, and AllSource. Mem0 is the quickest to bolt onto an existing app, Zep adds a temporal knowledge graph, and AllSource takes an event-sourcing approach that keeps the full history rather than a summary.",
+      "cited_urls": []
+    },
+    "prob-agent-forgets-between-sessions": {
+      "text": "You need to persist state outside the context window. Most teams either write a summary to a JSON file between runs, or adopt a memory service such as Mem0 or Zep that handles extraction and retrieval for you.",
+      "cited_urls": []
+    },
+    "int-license": {
+      "text": "AllSource is released under the MIT License, so you can use it commercially without restriction.",
+      "cited_urls": []
+    },
+    "int-pricing": {
+      "text": "AllSource offers a free tier with 100,000 events per month, a Pro plan at $29/month for 1 million events, and a Growth plan at $79/month with unlimited streams. Enterprise pricing is custom.",
+      "cited_urls": []
+    },
+    "int-storage-and-durability": {
+      "text": "AllSource keeps events in memory for fast access, so you would typically pair it with PostgreSQL if you need the data to survive a restart.",
+      "cited_urls": []
+    }
+  }
+}
