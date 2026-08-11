@@ -46,6 +46,35 @@ pub struct EventPaginator {
     page_size: u32,
     offset: u32,
     exhausted: bool,
+    /// `id` of the first event on the page most recently returned. A server
+    /// that drops `offset` answers every request with page one, so comparing
+    /// the head of consecutive pages is how the walk notices — see
+    /// [`no_progress_error`].
+    last_page_head: Option<String>,
+}
+
+/// The error raised when a page repeats the previous page's first item.
+///
+/// Core's `GET /api/v1/events/query` did not implement `offset` until the fix
+/// for issue #250: the DTO never declared the field, `serde_urlencoded` ignores
+/// unknown query parameters, and `has_more` was computed without the offset —
+/// so every page came back as page one with `has_more: true` and a paginator
+/// looped forever, accumulating duplicates until it ran out of memory. A client
+/// that keeps asking cannot fix that; it can only refuse to spin, and say which
+/// parameter the server dropped.
+///
+/// The check needs a stable total order to be sound, which ascending paging
+/// gives. A descending walk of a stream still taking writes can shift under the
+/// window (see the module docs) and, in the pathological case of exactly one
+/// page of new events between two requests, would report this error instead of
+/// silently returning duplicates — which is still the more useful answer.
+fn no_progress_error(what: &str, offset: u32, head: &str) -> Error {
+    Error::Protocol(format!(
+        "server ignored `offset={offset}`: this page of {what} starts at `{head}` again, \
+         the same item the previous page started at. Core applies `offset` on the list \
+         endpoints since the fix for issue #250; an older Core drops it and serves page \
+         one forever. Upgrade Core, or narrow the query so one page covers it."
+    ))
 }
 
 impl EventPaginator {
@@ -57,6 +86,7 @@ impl EventPaginator {
             page_size: page_size.max(1),
             offset,
             exhausted: false,
+            last_page_head: None,
         }
     }
 
@@ -81,12 +111,23 @@ impl EventPaginator {
         if self.exhausted {
             return Ok(None);
         }
+        let requested_offset = self.offset;
         let params = self
             .params
             .clone()
             .limit(self.page_size)
-            .offset(self.offset);
+            .offset(requested_offset);
         let resp = self.client.query_events(params).await?;
+        let head = resp.events.first().map(|e| e.id.clone());
+        if requested_offset > 0 && head.is_some() && head == self.last_page_head {
+            self.exhausted = true;
+            return Err(no_progress_error(
+                "events",
+                requested_offset,
+                head.as_deref().unwrap_or_default(),
+            ));
+        }
+        self.last_page_head = head;
         let fetched = resp.events.len() as u32;
         self.offset += fetched;
         // Stop when the server says there is no more, or when a short page came
@@ -137,6 +178,9 @@ pub struct EntityPaginator {
     page_size: u32,
     offset: u32,
     exhausted: bool,
+    /// `entity_id` of the first entity on the page most recently returned.
+    /// Same non-progress guard as [`EventPaginator::last_page_head`].
+    last_page_head: Option<String>,
 }
 
 impl EntityPaginator {
@@ -148,6 +192,7 @@ impl EntityPaginator {
             page_size: page_size.max(1),
             offset,
             exhausted: false,
+            last_page_head: None,
         }
     }
 
@@ -172,12 +217,23 @@ impl EntityPaginator {
         if self.exhausted {
             return Ok(None);
         }
+        let requested_offset = self.offset;
         let params = self
             .params
             .clone()
             .limit(self.page_size)
-            .offset(self.offset);
+            .offset(requested_offset);
         let resp = self.client.list_entities(params).await?;
+        let head = resp.entities.first().map(|e| e.entity_id.clone());
+        if requested_offset > 0 && head.is_some() && head == self.last_page_head {
+            self.exhausted = true;
+            return Err(no_progress_error(
+                "entities",
+                requested_offset,
+                head.as_deref().unwrap_or_default(),
+            ));
+        }
+        self.last_page_head = head;
         let fetched = resp.entities.len() as u32;
         self.offset += fetched;
         if !resp.has_more || fetched < self.page_size {

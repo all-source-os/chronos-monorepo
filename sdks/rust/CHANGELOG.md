@@ -16,6 +16,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
   the SDK's retry loop and circuit breaker. Polling returns the new
   `ConsumerEvent` type (WAL `position` + `event`) to ack with `ack_consumer`.
   Resolves issue #246.
+- `Error::Protocol` — the server answered 2xx with a body that breaks the API
+  contract (currently: it ignored a pagination parameter). Distinct from
+  `Error::Json` (the body did not parse) and `Error::Api` (the server said no).
 
 ### Fixed
 
@@ -26,7 +29,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
   `put_projection_state` / `bulk_put_projection_state` reads back through the
   same endpoint — the "one worker computes, many stateless readers read" shape.
   The stale caveat predates the Core v0.19.1 fallback. Resolves issue #247.
->>>>>>> 9ebc707 (docs(sdk-rust): correct get_projection_state rustdoc — Core falls back to the projection state cache (Fixes #247))
+- `EventPaginator` and `EntityPaginator` no longer loop forever against a server
+  that ignores `offset`. Core's `/api/v1/events/query` dropped the parameter
+  until the fix for issue #250 — every page came back as page one with
+  `has_more: true`, so `collect_all()` spun and grew until it ran out of memory.
+  Both paginators now detect a page that repeats the previous page's first item
+  and return the new `Error::Protocol` naming the dropped parameter, instead of
+  spinning. A released SDK still meets older Core deployments, so the client
+  needs its own guard.
 
 ## [0.21.0] — 2026-05-16
 

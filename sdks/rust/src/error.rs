@@ -27,6 +27,14 @@ pub enum Error {
     #[error("circuit breaker open: backend unavailable, retry after {retry_after_secs}s")]
     CircuitOpen { retry_after_secs: u64 },
 
+    /// The server answered with a well-formed response that breaks the API
+    /// contract — e.g. it ignored a pagination parameter, so the client cannot
+    /// make progress. Distinct from [`Error::Json`] (the body did not parse)
+    /// and [`Error::Api`] (the server said no): here the server said yes and
+    /// meant something else.
+    #[error("server contract violation: {0}")]
+    Protocol(String),
+
     /// WebSocket transport error.
     #[cfg(feature = "ws")]
     #[error("WebSocket error: {0}")]
