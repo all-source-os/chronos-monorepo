@@ -682,6 +682,32 @@ interrogation answer.
 Use `--limit` and `--family` for a cheap smoke run before committing to a full
 sweep, and `--no-judge` to price 3a on its own.
 
+### Estimated cost of the first full baseline
+
+**Not measured — no live sweep has run.** Worked from the sweep sizes above and
+the only rate card this repository maintains. State the assumptions when you
+quote it:
+
+- Probe input ≈ 40 tokens/call (the prompts are one or two sentences).
+- Probe output ≈ 1,500 tokens/call on Claude (thinking is on by default on
+  Opus 5 and is billed as output), ≈ 600 on the others.
+- Judge input ≈ 1,300 tokens/call (instructions + question + the whole answer +
+  the expectation); judge output ≈ 750.
+- `MAX_OUTPUT_TOKENS` is 4,000, so the worst case is ~2.7x the estimate below.
+
+| line | calls | est. cost |
+|---|---|---|
+| `claude` engine (Opus 5, $5/$25 per MTok) | 135 | ~$5 |
+| judge (Opus 5, 19 claims × 4 engines × 3 reps) | 228 | ~$6 |
+| `chatgpt` / `gemini` / `perplexity` | 405 | **unpriced here** — roughly $8–12 at typical frontier list rates, but this repository has no maintained source for them and the tool will not guess |
+| **first full baseline** | 768 | **~$20–30** |
+
+A smoke run (`--limit 5 --engine claude --repetitions 1`) is under $0.20.
+Setting `GEO_CLAUDE_MODEL` and `GEO_JUDGE_MODEL` to `claude-haiku-4-5` cuts the
+Anthropic share roughly fivefold, but a cheaper judge is a worse judge — fine
+for rehearsing the pipeline, not for the baseline everything else is compared
+against.
+
 ## The first live baseline
 
 The three files under `docs/marketing/` that prompt 027 consumes are committed
