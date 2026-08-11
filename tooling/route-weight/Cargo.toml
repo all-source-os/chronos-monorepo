@@ -1,0 +1,15 @@
+[package]
+name = "route-weight"
+version = "0.1.0"
+edition = "2024"
+description = "Measures the client JS bytes a prerendered Next.js route pulls in"
+publish = false
+
+[[bin]]
+name = "route-weight"
+path = "src/main.rs"
+
+[dependencies]
+
+[lints.rust]
+unsafe_code = "forbid"

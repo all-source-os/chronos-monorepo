@@ -36,8 +36,9 @@ function KeyRow({
   };
 
   // Position the menu with fixed coords from the trigger AND portal it to
-  // <body>. Fixed coords alone aren't enough: an animating ancestor (motion /
-  // BlurFade) sets `transform`, which makes a `position: fixed` child resolve
+  // <body>. Fixed coords alone aren't enough: an animating ancestor (the
+  // FadeIn / animate-in wrapper) sets `transform`, which makes a
+  // `position: fixed` child resolve
   // against THAT ancestor instead of the viewport — so the table wrapper's
   // `overflow-hidden` clips it again (worse with a short 3-row table whose menu
   // overflows the card bottom). Portaling to <body> escapes the transformed +

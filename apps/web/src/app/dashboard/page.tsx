@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, BlurFade, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { AlertTriangle, ArrowRight, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import { LiveMetrics } from "@/components/dashboard/live-metrics";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentEvents } from "@/components/dashboard/recent-events";
 import { StatsCards } from "@/components/dashboard/stats-cards";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
@@ -101,7 +102,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1}>
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             {greeting()}, {user?.name?.split(" ")[0] || "there"}
@@ -110,15 +111,15 @@ export default function DashboardPage() {
             Here&apos;s what&apos;s happening with your event store today.
           </p>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Stats Cards */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2}>
         <StatsCards />
-      </BlurFade>
+      </FadeIn>
 
       {/* Current Plan & Quota */}
-      <BlurFade delay={0.25} inView>
+      <FadeIn delay={0.25}>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
@@ -207,10 +208,10 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Usage Charts - Daily Event Ingestion (30 days) */}
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3}>
         <div className="grid gap-6 md:grid-cols-2">
           {/* Real daily ingestion series from /api/tenants/me/analytics. The "used"
               figure here is the real 30-day event total, not the billing meter. */}
@@ -234,23 +235,23 @@ export default function DashboardPage() {
             emptyLabel="No query activity recorded in the last 30 days"
           />
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Main Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Live Metrics */}
-        <BlurFade delay={0.35} inView className="lg:col-span-2">
+        <FadeIn delay={0.35} className="lg:col-span-2">
           <LiveMetrics />
-        </BlurFade>
+        </FadeIn>
 
         {/* Quick Actions */}
-        <BlurFade delay={0.4} inView>
+        <FadeIn delay={0.4}>
           <QuickActions />
-        </BlurFade>
+        </FadeIn>
       </div>
 
       {/* API Keys Section */}
-      <BlurFade delay={0.45} inView>
+      <FadeIn delay={0.45}>
         <div className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -279,15 +280,15 @@ export default function DashboardPage() {
             onRevoke={handleRevoke}
           />
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Recent Events */}
-      <BlurFade delay={0.5} inView>
+      <FadeIn delay={0.5}>
         <RecentEvents />
-      </BlurFade>
+      </FadeIn>
 
       {/* Instance Stats Banner */}
-      <BlurFade delay={0.55} inView>
+      <FadeIn delay={0.55}>
         <div className="rounded-xl border border-border bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -296,9 +297,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex flex-wrap gap-6 text-center">
               <div>
-                <p className="text-2xl font-bold text-primary">
-                  {totalEvents.toLocaleString()}
-                </p>
+                <p className="text-2xl font-bold text-primary">{totalEvents.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">total events</p>
               </div>
               <div>
@@ -320,7 +319,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Create Key Dialog */}
       <CreateKeyDialog

@@ -1,9 +1,14 @@
 "use client";
 
-import { Button, Calendar as CalendarComponent, Popover, PopoverContent, PopoverTrigger } from "@allsource/ui";
+import {
+  Button,
+  Calendar as CalendarComponent,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { CalendarIcon, ChevronDown, Clock, History, RotateCcw, X } from "lucide-react";
-import { format } from "date-fns";
 import { useCallback, useEffect, useState } from "react";
 import {
   DEMO_PRESETS,
@@ -17,6 +22,23 @@ interface TimeTravelPickerProps {
   className?: string;
 }
 
+/**
+ * Local-calendar `YYYY-MM-DD`, replacing date-fns `format(date, "yyyy-MM-dd")`.
+ *
+ * date-fns entered the dashboard boot bundle for this single call (the header
+ * renders this picker on every dashboard route). This is the whole of what was
+ * used.
+ *
+ * NOT `toISOString().slice(0, 10)`: that converts to UTC first, so anyone east
+ * of Greenwich after 00:00 local — or west of it before 00:00 — gets the wrong
+ * calendar day, which on a time-travel control silently queries the wrong day.
+ */
+function toLocalYmd(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTravelPickerProps) {
   const { asOf, setAsOf, isHistorical, returnToPresent, formatAsOf } = useTimeTravel();
   const [isOpen, setIsOpen] = useState(false);
@@ -25,14 +47,17 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
 
   // Initialize custom inputs when panel opens
   useEffect(() => {
+    // Date and time must come from the SAME clock. These previously took the
+    // date from `toISOString()` (UTC) and the time from `toTimeString()`
+    // (local), so for any user not on UTC the two inputs disagreed for part of
+    // every day — and `handleCustomDateTimeApply` recombines them into one
+    // local `Date`, so the picker queried a point up to a day off.
     if (isOpen && asOf) {
-      const date = asOf.toISOString().split("T")[0] || "";
-      const time = asOf.toTimeString().slice(0, 5);
-      setCustomDate(date);
-      setCustomTime(time);
+      setCustomDate(toLocalYmd(asOf));
+      setCustomTime(asOf.toTimeString().slice(0, 5));
     } else if (isOpen) {
       const now = new Date();
-      setCustomDate(now.toISOString().split("T")[0] || "");
+      setCustomDate(toLocalYmd(now));
       setCustomTime(now.toTimeString().slice(0, 5));
     }
   }, [isOpen, asOf]);
@@ -192,7 +217,7 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
                         selected={customDate ? new Date(`${customDate}T00:00:00`) : undefined}
                         onSelect={(date) => {
                           if (date) {
-                            setCustomDate(format(date, "yyyy-MM-dd"));
+                            setCustomDate(toLocalYmd(date));
                           }
                         }}
                         autoFocus
