@@ -122,8 +122,14 @@ export default async function PricingPage() {
         </div>
       </Section>
 
-      {/* FAQ — includes the "Why no free plan?" entry + FAQPage JSON-LD. */}
-      <FAQ />
+      {/* Pricing-specific FAQ + its own FAQPage JSON-LD. Deliberately NOT the
+          site-wide set: emitting the homepage's FAQPage here too would put the
+          same graph on two URLs and split the citation signal. */}
+      <FAQ
+        items={siteConfig.pricingFaqs}
+        title="Pricing FAQ"
+        subtitle="What it costs, and what happens when you outgrow a tier"
+      />
     </div>
   );
 }

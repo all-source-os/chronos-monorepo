@@ -280,6 +280,45 @@ export const siteConfig = {
       isEnterprise: true,
     },
   ],
+  /**
+   * Pricing-page FAQ set.
+   *
+   * GEO/AEO note: kept separate from `faqs` so /pricing and / do not emit the
+   * SAME FAQPage graph on two URLs (duplicate schema splits the signal). Each
+   * answer is written to be extractable on its own — it names the product,
+   * carries the real number, and makes sense with no surrounding page context,
+   * because an answer engine lifts the answer, not the page.
+   *
+   * Every figure here must match `siteConfig.pricing` and the live catalog.
+   * Wrong prices in schema are worse than no schema: they get cited.
+   */
+  pricingFaqs: [
+    {
+      question: "How much does AllSource cost?",
+      answer:
+        "Hosted AllSource starts at $19/month for Indie (500K events/month, 14-day retention, 3 streams). Studio is $79/month (5M events, 90-day retention, unlimited streams) and Scale is $299/month (50M events, 365-day retention). Enterprise is negotiated. Annual billing drops each tier to $15, $63, and $239/month.",
+    },
+    {
+      question: "Does AllSource have a free tier?",
+      answer:
+        "No free hosted tier. AllSource is open source under Apache-2.0, so self-hosting is free forever on your own hardware with unlimited events and retention. Hosted plans start with a 14-day trial (1,000 events) and then require a paid tier — hosted pricing reflects what it costs to run the infrastructure for you.",
+    },
+    {
+      question: "What happens if I exceed my monthly event quota?",
+      answer:
+        "Each paid tier includes metered x402 micropayment credits: 50K calls on Indie, 500K on Studio, 5M on Scale. Beyond the included allowance, usage bills at $0.0001 per call. Events themselves are quota'd per tier, so sustained overage is a signal to move up rather than an open-ended bill.",
+    },
+    {
+      question: "Can I self-host AllSource instead of paying?",
+      answer:
+        "Yes. The core event store is Apache-2.0 licensed and runs anywhere Docker does, with unlimited events, forever retention, unlimited streams, and full MCP access on your own infrastructure. Some enterprise-specific features are licensed under BSL 1.1. Self-hosting is supported through GitHub rather than email or Slack.",
+    },
+    {
+      question: "Is AllSource priced per seat or per user?",
+      answer:
+        "Neither. AllSource prices on events written and retained, not on people. A team of one and a team of thirty pay the same for the same event volume, because the cost driver is agent throughput and retention window — not headcount. Streams and MCP access level vary by tier.",
+    },
+  ],
   faqs: [
     {
       question: "Why no free plan?",

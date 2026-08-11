@@ -90,6 +90,85 @@ export function faqPageSchema(items: FaqItem[]) {
   };
 }
 
+/**
+ * Parses a display price string ("$19", "Free", "Custom") into the numeric
+ * amount + ISO currency schema.org expects.
+ *
+ * Deliberately driven off the SAME `siteConfig.pricing` strings the pricing
+ * page renders: schema that disagrees with the visible page is a spam signal to
+ * answer engines and gets the whole graph discounted. Returns null for
+ * non-numeric tiers ("Custom") so they are omitted rather than guessed at.
+ */
+function parseDisplayPrice(price: string): { value: string; currency: string } | null {
+  if (/^free$/i.test(price.trim())) return { value: "0", currency: "USD" };
+  const match = price.trim().match(/^([$£€])\s*([\d.,]+)$/);
+  if (!match) return null;
+  const [, symbol, amount] = match;
+  if (!symbol || !amount) return null;
+  const currencyBySymbol: Record<string, string> = { $: "USD", "£": "GBP", "€": "EUR" };
+  return { value: amount.replace(/,/g, ""), currency: currencyBySymbol[symbol] ?? "USD" };
+}
+
+/**
+ * SoftwareApplication + Offer graph.
+ *
+ * GEO/AEO note: "what is X?" and "what does X cost?" are the two highest-intent
+ * questions an answer engine fields about a developer tool, and both were
+ * previously answerable only from prose. SoftwareApplication is the canonical
+ * entity type for this product — without it, models infer the category
+ * themselves, and the observed failure mode is landing on "in-memory cache" or
+ * "logging tool" rather than "event store".
+ *
+ * Every offer flows from `siteConfig.pricing`, so a tier change updates the
+ * schema and the page together. Tiers with non-numeric prices (Enterprise
+ * "Custom") are omitted from `offers` rather than invented.
+ */
+export function softwareApplicationSchema() {
+  const offers = siteConfig.pricing
+    // Self-Host and Enterprise are both excluded, for opposite reasons.
+    // Self-Host would emit a $0 Offer while /pricing deliberately advertises no
+    // free plan — schema contradicting the visible page is a spam signal, and
+    // the Apache-2.0 run-it-yourself story is told in prose in the FAQ instead.
+    // Enterprise has no numeric price to state.
+    .filter((tier) => !tier.isEnterprise && !tier.isSelfHost)
+    .map((tier) => {
+      const parsed = parseDisplayPrice(tier.price);
+      if (!parsed) return null;
+      return {
+        "@type": "Offer",
+        name: tier.name,
+        price: parsed.value,
+        priceCurrency: parsed.currency,
+        url: tier.href.startsWith("http") ? tier.href : `${siteConfig.url}${tier.href}`,
+        category: tier.isSelfHost ? "Self-hosted" : "SaaS",
+        ...(parsed.value !== "0" && {
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price: parsed.value,
+            priceCurrency: parsed.currency,
+            unitText: tier.period === "month" ? "MONTH" : tier.period,
+          },
+        }),
+      };
+    })
+    .filter((offer) => offer !== null);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "@id": `${siteConfig.url}/#software`,
+    name: siteConfig.name,
+    url: siteConfig.url,
+    applicationCategory: "DeveloperApplication",
+    applicationSubCategory: "Event store / agent memory",
+    operatingSystem: "Linux, macOS, Windows (Docker), or fully hosted",
+    description:
+      "AllSource is an AI-native event store: it records every state change as an immutable event and lets an agent query any point in its own history. Durable by design — a write-ahead log with CRC32 checksums, Parquet columnar persistence, and an in-memory concurrent map for reads.",
+    publisher: { "@id": ORG_ID },
+    offers,
+  };
+}
+
 export type BlogPostingInput = {
   title: string;
   description: string;

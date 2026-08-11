@@ -6,25 +6,32 @@ import {
   Section,
 } from "@allsource/ui";
 import { siteConfig } from "@/lib/config";
+import { type FaqItem, faqPageSchema } from "@/lib/structured-data";
 
-export default function FAQ() {
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: siteConfig.faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
-    })),
-  };
+type FaqProps = {
+  /** Defaults to the site-wide FAQ set. Pass a page-specific set to avoid
+   * emitting the same FAQPage graph on two different URLs — duplicate schema
+   * across URLs splits the signal instead of reinforcing it. */
+  items?: FaqItem[];
+  title?: string;
+  subtitle?: string;
+};
+
+export default function FAQ({
+  items = siteConfig.faqs,
+  title = "FAQ",
+  subtitle = "Frequently asked questions",
+}: FaqProps) {
+  // Built from the SAME array the accordion renders, so the schema and the
+  // visible text can never disagree — answer engines discount pages whose
+  // markup claims more than the page shows.
+  const faqJsonLd = faqPageSchema(items);
 
   return (
-    <Section title="FAQ" subtitle="Frequently asked questions">
+    <Section title={title} subtitle={subtitle}>
       <script
         type="application/ld+json"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
       <div className="mx-auto my-12 md:max-w-[800px]">
@@ -33,7 +40,7 @@ export default function FAQ() {
           collapsible
           className="flex w-full flex-col items-center justify-center space-y-2"
         >
-          {siteConfig.faqs.map((faq) => (
+          {items.map((faq) => (
             <AccordionItem
               key={faq.question}
               value={faq.question}
