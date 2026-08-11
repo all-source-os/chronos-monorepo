@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -43,9 +44,25 @@ func demoEnabled() bool {
 }
 
 // OnboardRequest represents a request to start onboarding.
+//
+// DiscoverySource/DiscoveryPrompt are the GEO layer-4 self-report capture
+// (see geo_selfreport.go). Both are OPTIONAL and the endpoint's behaviour is
+// unchanged when they are absent — same status, same response keys, same
+// values, no event written. That is not a nicety: this endpoint is published
+// in apps/web/public/llms.txt and live agents call it, so a required field
+// here would break callers in the wild. TestOnboardRequestBindsWithoutTheGeoFields
+// pins that.
 type OnboardRequest struct {
 	Email string `json:"email" binding:"required"`
 	Name  string `json:"name"`
+	// How the caller found AllSource — one of the ids in
+	// docs/contracts/geo-events/discovery-sources.json ("chatgpt", "search").
+	// An absent or unrecognised value is silently ignored, never an error.
+	DiscoverySource string `json:"discovery_source"`
+	// What they asked the assistant, verbatim. Only stored for the AI sources.
+	// This is the highest-value field in the layer: an agent's actual prompt is
+	// first-party buyer language no probe harness can synthesise.
+	DiscoveryPrompt string `json:"discovery_prompt"`
 }
 
 // OnboardHandler provisions a new tenant with an API key and sample events.
@@ -112,6 +129,21 @@ func (cp *ControlPlane) OnboardHandler(c *gin.Context) {
 			Post("/api/v1/events")
 		if postErr == nil && resp.StatusCode() < 400 {
 			ingestedCount++
+		}
+	}
+
+	// GEO layer 4 — record how this caller found us, if they told us.
+	//
+	// Written AFTER the tenant and key exist, and its failure is only logged:
+	// the endpoint's job is to mint a tenant, and losing an attribution row is
+	// vastly cheaper than failing a signup over telemetry. Nothing above this
+	// line depends on it.
+	if envelope, ok := buildGeoSelfReport(
+		tenantResp.ID, usecases.TrialTierName, req.DiscoverySource, req.DiscoveryPrompt, time.Now(),
+	); ok {
+		resp, postErr := cp.client.R().SetBody(envelope).Post("/api/v1/events")
+		if postErr != nil || resp.StatusCode() >= 400 {
+			log.Printf("[geo] geo.selfreport.captured not stored for %s: %v", tenantResp.ID, postErr)
 		}
 	}
 
