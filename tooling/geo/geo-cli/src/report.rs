@@ -89,6 +89,7 @@ struct Tally {
     crawl: CrawlTally,
     referral: ReferralTally,
     layer3: Layer3,
+    selfreport: SelfReportTally,
 }
 
 impl Tally {
@@ -101,6 +102,7 @@ impl Tally {
             Some(GeoEventType::InterrogationProbed) => {
                 record_interrogation(&mut self.layer3, payload);
             }
+            Some(GeoEventType::SelfReportCaptured) => self.selfreport.record(entity_id, payload),
             _ => {}
         }
     }
@@ -349,6 +351,173 @@ impl ReferralTally {
     }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Layer 4 — self-report
+// ───────────────────────────────────────────────────────────────────────────
+
+/// Tiers that mean money is changing hands.
+///
+/// `trial` and `self-host` are deliberately absent: a trial is not revenue and
+/// a self-host tenant is not billed. An unrecognised tier is counted as
+/// *unknown*, never as paid — inflating the paid share is the one error in
+/// this report that would be repeated in a deck.
+const PAID_TIERS: &[&str] = &["indie", "studio", "scale", "enterprise"];
+
+/// One self-report capture, folded to its latest version.
+#[derive(Clone, Default)]
+struct SelfReportRow {
+    /// Discovery-source id — what the human said sent them.
+    surface: String,
+    /// Capture-path id — which signup path collected the answer.
+    capture_path: String,
+    /// The buyer's literal prompt, when they gave one.
+    verbatim: Option<String>,
+    /// Tier at capture; `None` when the capturing path could not resolve one.
+    tier: Option<String>,
+}
+
+/// Layer 4 counters, read off `geo.selfreport.captured` payloads.
+///
+/// Folded by `entity_id`, last version wins — the same rule layer 1 uses, and
+/// for the same reason: a later re-emit (a tier correction, a re-submitted
+/// answer) is the same capture restated, not a second signup.
+#[derive(Default)]
+struct SelfReportTally {
+    rows: BTreeMap<String, SelfReportRow>,
+}
+
+impl SelfReportTally {
+    fn record(&mut self, entity_id: &str, payload: &Value) {
+        let text = |key: &str| {
+            payload
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+        };
+        self.rows.insert(
+            entity_id.to_string(),
+            SelfReportRow {
+                surface: text("surface").unwrap_or_else(|| "(unknown)".to_string()),
+                capture_path: text("source").unwrap_or_else(|| "(unknown)".to_string()),
+                verbatim: text("verbatim"),
+                tier: text("tier"),
+            },
+        );
+    }
+
+    fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    fn total(&self) -> u64 {
+        self.rows.len() as u64
+    }
+
+    /// Captures per discovery source, descending by count then id.
+    fn by_surface(&self) -> Vec<(String, u64)> {
+        let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
+        for row in self.rows.values() {
+            *counts.entry(row.surface.as_str()).or_default() += 1;
+        }
+        let mut ranked: Vec<(String, u64)> = counts
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+        ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        ranked
+    }
+
+    fn by_capture_path(&self) -> BTreeMap<&str, u64> {
+        let mut counts: BTreeMap<&str, u64> = BTreeMap::new();
+        for row in self.rows.values() {
+            *counts.entry(row.capture_path.as_str()).or_default() += 1;
+        }
+        counts
+    }
+
+    /// Captures whose discovery source counts as AI.
+    fn ai_sourced(&self) -> u64 {
+        self.rows
+            .values()
+            .filter(|r| geo_core::is_ai_source(&r.surface))
+            .count() as u64
+    }
+
+    /// Captures on one capture path.
+    fn on_path(&self, path: &str) -> u64 {
+        self.rows
+            .values()
+            .filter(|r| r.capture_path == path)
+            .count() as u64
+    }
+
+    /// AI-sourced captures on one capture path.
+    fn ai_on_path(&self, path: &str) -> u64 {
+        self.rows
+            .values()
+            .filter(|r| r.capture_path == path && geo_core::is_ai_source(&r.surface))
+            .count() as u64
+    }
+
+    /// `(paid captures, AI-sourced paid captures, captures with no tier recorded)`.
+    fn paid_split(&self) -> (u64, u64, u64) {
+        let mut paid = 0;
+        let mut ai_paid = 0;
+        let mut untiered = 0;
+        for row in self.rows.values() {
+            match row.tier.as_deref() {
+                None => untiered += 1,
+                Some(tier) if PAID_TIERS.contains(&tier) => {
+                    paid += 1;
+                    if geo_core::is_ai_source(&row.surface) {
+                        ai_paid += 1;
+                    }
+                }
+                Some(_) => {}
+            }
+        }
+        (paid, ai_paid, untiered)
+    }
+
+    /// Every free-text answer, with the source that framed it. These are the
+    /// raw material for the prompt set — they are printed verbatim, never
+    /// summarised.
+    fn verbatims(&self) -> Vec<(&str, &str)> {
+        let mut out: Vec<(&str, &str)> = self
+            .rows
+            .values()
+            .filter_map(|r| r.verbatim.as_deref().map(|v| (r.surface.as_str(), v)))
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
+    /// Discovery-source ids this build's vocabulary does not know.
+    fn unknown_sources(&self) -> BTreeMap<&str, u64> {
+        let mut out: BTreeMap<&str, u64> = BTreeMap::new();
+        for row in self.rows.values() {
+            if geo_core::discovery_source(&row.surface).is_none() {
+                *out.entry(row.surface.as_str()).or_default() += 1;
+            }
+        }
+        out
+    }
+}
+
+/// `n/d` as a percentage, or `None` when the denominator is zero.
+///
+/// Returning `None` rather than `0.0` is the point: "0% of nothing" reads as a
+/// measured zero and it is not one.
+fn percent(numerator: u64, denominator: u64) -> Option<f64> {
+    (denominator > 0).then(|| numerator as f64 * 100.0 / denominator as f64)
+}
+
+fn percent_str(numerator: u64, denominator: u64) -> String {
+    percent(numerator, denominator).map_or_else(|| "   n/a".to_string(), |p| format!("{p:5.1}%"))
+}
+
 /// Read one stored `geo.sov.probed` payload into the layer-3 aggregate.
 ///
 /// Deliberately tolerant of missing fields: this stream outlives the binary
@@ -534,6 +703,8 @@ pub async fn run_live(
     print_referral_section(&tally.referral);
     print_crawl_section(&tally.crawl, window);
     print_layer3_section(&tally, window, markdown_out);
+    print_selfreport_section(&tally.selfreport);
+    print_reconciliation(&tally.referral, &tally.selfreport);
     Ok(())
 }
 
@@ -568,6 +739,8 @@ pub fn run_dry_run(window: Window, markdown_out: Option<&std::path::Path>) -> Re
     print_referral_section(&tally.referral);
     print_crawl_section(&tally.crawl, window);
     print_layer3_section(&tally, window, markdown_out);
+    print_selfreport_section(&tally.selfreport);
+    print_reconciliation(&tally.referral, &tally.selfreport);
     Ok(())
 }
 
@@ -700,6 +873,210 @@ fn print_crawl_section(tally: &CrawlTally, window: Window) {
     }
 }
 
+/// Layer 4. The only layer that survives a stripped referrer.
+fn print_selfreport_section(tally: &SelfReportTally) {
+    println!();
+    println!("== LAYER 4 — self-report: what people say sent them =================");
+
+    if tally.is_empty() {
+        println!();
+        println!(
+            "No geo.selfreport.captured events in this window. Either nobody has signed up,\n\
+             or the capture is not wired: check the onboarding question in apps/web and the\n\
+             optional discovery_source field on POST /api/v1/onboard/start\n\
+             (see docs/runbooks/GEO_MEASUREMENT.md)."
+        );
+        return;
+    }
+
+    let total = tally.total();
+    let ai = tally.ai_sourced();
+
+    println!();
+    println!("{:<34} {:>8} {:>8}  AI?", "DISCOVERY SOURCE", "SIGNUPS", "SHARE");
+    println!("{}", "-".repeat(62));
+    for (surface, count) in tally.by_surface() {
+        println!(
+            "{:<34} {:>8} {:>8}  {}",
+            geo_core::discovery_label(&surface),
+            count,
+            percent_str(count, total),
+            if geo_core::is_ai_source(&surface) {
+                "AI"
+            } else {
+                ""
+            },
+        );
+    }
+    println!("{}", "-".repeat(62));
+    println!(
+        "{:<34} {:>8} {:>8}",
+        "AI-SOURCED",
+        ai,
+        percent_str(ai, total)
+    );
+    println!("{:<34} {:>8}", "captures in window", total);
+
+    // Which path collected them. Never blended into one number: the API path
+    // is the one that reaches agents and headless signups, and "is it
+    // capturing anything at all" is a question a blended total cannot answer.
+    println!();
+    println!("-- by capture path --");
+    let by_path = tally.by_capture_path();
+    for path in geo_core::capture_path::ALL {
+        let count = by_path.get(*path).copied().unwrap_or(0);
+        println!(
+            "   {:<32} {:>8} captures, {:>8} AI-sourced ({})",
+            geo_core::capture_path::label(path),
+            count,
+            tally.ai_on_path(path),
+            percent_str(tally.ai_on_path(path), count),
+        );
+    }
+    for (path, count) in &by_path {
+        if !geo_core::capture_path::ALL.contains(path) {
+            println!("   {path:<32} {count:>8} captures  (unknown capture path)");
+        }
+    }
+
+    // Paid conversions. This is the line that turns GEO from a traffic story
+    // into a revenue story, so it is reported with its denominator visible.
+    let (paid, ai_paid, untiered) = tally.paid_split();
+    println!();
+    println!("-- paid conversions by discovery source --");
+    if paid == 0 {
+        println!(
+            "   No capture in this window carries a paid tier ({}). Nothing to report —\n   \
+             this is not 0% AI-sourced revenue, it is no observed revenue.",
+            PAID_TIERS.join(" / ")
+        );
+    } else {
+        println!(
+            "   {ai_paid} of {paid} paid signups ({}) said an AI sent them.",
+            percent_str(ai_paid, paid).trim()
+        );
+    }
+    if untiered > 0 {
+        println!(
+            "   {untiered} capture(s) carry no tier and are excluded from both sides above."
+        );
+    }
+
+    // The free text. Printed whole, in the buyer's words, because this is the
+    // only first-party record of how buyers actually phrase the problem — and
+    // it is what prompt 027 folds into the probe set.
+    let verbatims = tally.verbatims();
+    println!();
+    println!("-- what they asked the assistant (verbatim) --");
+    if verbatims.is_empty() {
+        println!("   (nobody has filled the optional free-text field yet)");
+    } else {
+        for (surface, text) in &verbatims {
+            println!("   [{}] {text}", geo_core::discovery_label(surface));
+        }
+    }
+
+    let unknown = tally.unknown_sources();
+    if !unknown.is_empty() {
+        println!();
+        println!(
+            "discovery sources this binary's vocabulary does not know (a newer producer wrote\n\
+             them). They are NOT counted as AI-sourced above — rebuild rather than assume:"
+        );
+        for (id, count) in &unknown {
+            println!("  {id:<40} {count:>8}");
+        }
+    }
+}
+
+/// Layers 1 and 4 on the same line. The gap between them *is* the finding.
+fn print_reconciliation(referral: &ReferralTally, selfreport: &SelfReportTally) {
+    println!();
+    println!("== LAYER 1 vs LAYER 4 — the attribution gap ========================");
+
+    let answered = selfreport.total();
+    if answered == 0 {
+        println!();
+        println!(
+            "No self-reports in this window, so there is nothing to reconcile against.\n\
+             Layer 1 alone is a floor and must not be read as a channel size."
+        );
+        return;
+    }
+
+    // Both numbers are stated over the SAME denominator — the signups that
+    // answered the question — because a gap between two differently-normalised
+    // percentages is not a gap, it is an arithmetic accident.
+    let referred_conversions = referral.converted();
+    let ai_reported = selfreport.ai_sourced();
+
+    println!();
+    println!(
+        "   analytics (layer 1, referrer survived) : {:>5} of {answered}  {}",
+        referred_conversions,
+        percent_str(referred_conversions, answered)
+    );
+    println!(
+        "   humans    (layer 4, they told us)      : {:>5} of {answered}  {}",
+        ai_reported,
+        percent_str(ai_reported, answered)
+    );
+
+    match (
+        percent(referred_conversions, answered),
+        percent(ai_reported, answered),
+    ) {
+        (Some(analytics), Some(humans)) if analytics > 0.0 => {
+            println!();
+            println!(
+                "   Humans report {:.1}x what the referrer shows.",
+                humans / analytics
+            );
+        }
+        (Some(_), Some(humans)) if humans > 0.0 => {
+            println!();
+            println!(
+                "   The referrer survived ZERO times while {humans:.1}% of people said an AI\n   \
+                 sent them. That is the undercount at its most extreme, not an absence of\n   \
+                 AI traffic."
+            );
+        }
+        _ => {}
+    }
+
+    // The web-only slice, because layer 1 structurally cannot see the API path
+    // — an agent calling /onboard/start never had a browser session to strip a
+    // referrer from, so including it would overstate the gap.
+    let web = geo_core::capture_path::WEB;
+    let web_answered = selfreport.on_path(web);
+    if web_answered > 0 && web_answered != answered {
+        println!();
+        println!(
+            "   web-signup captures only            : {:>5} of {web_answered}  {} said an AI sent them",
+            selfreport.ai_on_path(web),
+            percent_str(selfreport.ai_on_path(web), web_answered)
+        );
+        println!(
+            "   (layer 1 cannot see the {} captures from {} — an agent\n   \
+             calling the API never had a browser session to strip a referrer from.)",
+            answered - web_answered,
+            geo_core::capture_path::label(geo_core::capture_path::API)
+        );
+    }
+
+    println!();
+    println!(
+        "HOW TO READ THIS. The two rows share a denominator (signups that answered the\n\
+         question) so they can sit on one line, but they are not the same measurement:\n\
+         the top row counts sessions whose AI referrer survived AND that were seen to\n\
+         convert; the bottom counts people who said so. The gap is the referrer\n\
+         undercount, and it is the reason layer 4 exists. Published work on this\n\
+         repeatedly finds self-report in double digits where analytics reports under 1%.\n\
+         Neither row is a channel size: the top is a floor, the bottom is a sample of\n\
+         the people who chose to answer an optional question."
+    );
+}
+
 fn print_table(tally: &Tally) {
     println!("-- event inventory (stored rows, not bot hits) ---------------------");
     println!(
@@ -788,6 +1165,107 @@ mod tests {
         tally.record("geo.crawl.observed", "geo:crawl:def");
         assert_eq!(tally.events_for(GeoEventType::CrawlObserved), 3);
         assert_eq!(tally.entities_for(GeoEventType::CrawlObserved), 2);
+    }
+
+    fn selfreport(surface: &str, path: &str, tier: Option<&str>, verbatim: Option<&str>) -> Value {
+        serde_json::json!({
+            "schema_version": 1,
+            "observed_at": "2026-08-11T11:30:00Z",
+            "source": path,
+            "surface": surface,
+            "verbatim": verbatim,
+            "contact_ref": "tenant-x",
+            "tier": tier,
+        })
+    }
+
+    #[test]
+    fn selfreport_folds_by_entity_so_a_restate_is_not_a_second_signup() {
+        let mut tally = SelfReportTally::default();
+        let web = geo_core::capture_path::WEB;
+        // Same entity twice: the second is a tier correction, not a new signup.
+        tally.record("geo:selfreport:a", &selfreport("chatgpt", web, Some("trial"), None));
+        tally.record("geo:selfreport:a", &selfreport("chatgpt", web, Some("indie"), None));
+        tally.record("geo:selfreport:b", &selfreport("github", web, Some("indie"), None));
+        assert_eq!(tally.total(), 2);
+        assert_eq!(tally.ai_sourced(), 1);
+        // Latest version wins, so the corrected tier is the one counted.
+        assert_eq!(tally.paid_split(), (2, 1, 0));
+    }
+
+    #[test]
+    fn an_unknown_discovery_source_is_never_counted_as_ai() {
+        let mut tally = SelfReportTally::default();
+        let web = geo_core::capture_path::WEB;
+        tally.record("geo:selfreport:a", &selfreport("chatgpt-6", web, None, None));
+        assert_eq!(tally.ai_sourced(), 0);
+        assert_eq!(tally.unknown_sources().get("chatgpt-6"), Some(&1));
+    }
+
+    #[test]
+    fn a_trial_tier_is_not_revenue_and_a_missing_tier_is_not_a_free_signup() {
+        let mut tally = SelfReportTally::default();
+        let web = geo_core::capture_path::WEB;
+        tally.record("geo:selfreport:a", &selfreport("chatgpt", web, Some("trial"), None));
+        tally.record("geo:selfreport:b", &selfreport("chatgpt", web, None, None));
+        tally.record("geo:selfreport:c", &selfreport("chatgpt", web, Some("scale"), None));
+        // 1 paid, 1 of them AI-sourced, 1 with no tier recorded at all.
+        assert_eq!(tally.paid_split(), (1, 1, 1));
+    }
+
+    #[test]
+    fn capture_paths_are_counted_separately() {
+        let mut tally = SelfReportTally::default();
+        tally.record(
+            "geo:selfreport:a",
+            &selfreport("chatgpt", geo_core::capture_path::WEB, None, None),
+        );
+        tally.record(
+            "geo:selfreport:b",
+            &selfreport("claude", geo_core::capture_path::API, None, None),
+        );
+        tally.record(
+            "geo:selfreport:c",
+            &selfreport("github", geo_core::capture_path::API, None, None),
+        );
+        assert_eq!(tally.on_path(geo_core::capture_path::WEB), 1);
+        assert_eq!(tally.on_path(geo_core::capture_path::API), 2);
+        assert_eq!(tally.ai_on_path(geo_core::capture_path::API), 1);
+    }
+
+    #[test]
+    fn verbatims_are_kept_whole() {
+        let mut tally = SelfReportTally::default();
+        let web = geo_core::capture_path::WEB;
+        tally.record(
+            "geo:selfreport:a",
+            &selfreport("chatgpt", web, None, Some("best event store for agent memory?")),
+        );
+        // An empty string is not an answer and must not render as a blank row.
+        tally.record("geo:selfreport:b", &selfreport("claude", web, None, Some("   ")));
+        assert_eq!(
+            tally.verbatims(),
+            vec![("chatgpt", "best event store for agent memory?")]
+        );
+    }
+
+    #[test]
+    fn a_zero_denominator_is_not_zero_percent() {
+        assert_eq!(percent(0, 0), None);
+        assert_eq!(percent_str(0, 0).trim(), "n/a");
+        assert_eq!(percent(1, 4), Some(25.0));
+    }
+
+    #[test]
+    fn the_selfreport_tally_is_fed_by_record_event() {
+        let mut tally = Tally::default();
+        tally.record_event(
+            "geo.selfreport.captured",
+            "geo:selfreport:a",
+            &selfreport("chatgpt", geo_core::capture_path::WEB, Some("trial"), None),
+        );
+        assert_eq!(tally.selfreport.total(), 1);
+        assert_eq!(tally.entities_for(GeoEventType::SelfReportCaptured), 1);
     }
 
     #[test]
