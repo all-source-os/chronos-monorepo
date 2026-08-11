@@ -120,17 +120,21 @@ defmodule QueryServiceExWeb.EventControllerCoreCompatTest do
       assert length(body["events"]) == 1
     end
 
-    test "omits metadata Core did not send instead of synthesizing it" do
-      # An older Core omits `has_more`; emitting a made-up `false` would stop a
-      # paginator early, so the key must simply be absent.
-      set_core_body(%{"events" => [@event], "count" => 1})
+    test "passes through the metadata Core sent and omits what it did not" do
+      # An older Core answers with `total_count` but no `has_more`. The present
+      # key must survive the hop (that is the #252 regression), and the absent
+      # one must NOT be synthesized — a made-up `has_more: false` would stop a
+      # paginator early, whereas a missing key leaves the client on its own
+      # short-page heuristic.
+      set_core_body(%{"events" => [@event], "count" => 1, "total_count" => 42})
 
       conn = call_query("limit=1")
       body = Jason.decode!(conn.resp_body)
 
       assert body["count"] == 1
+      assert body["total_count"] == 42
       refute Map.has_key?(body, "has_more")
-      refute Map.has_key?(body, "total_count")
+      refute Map.has_key?(body, "entity_version")
     end
   end
 

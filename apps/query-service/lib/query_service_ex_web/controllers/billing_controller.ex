@@ -48,11 +48,20 @@ defmodule QueryServiceExWeb.BillingController do
     end
   end
 
+  # Billing events are written by the Control Plane as `billing.<name>` —
+  # `billing.subscription_created`, `billing.trial.expired`, and the
+  # LemonSqueezy-derived names. Core's `event_type` filter is an EXACT match
+  # (apps/core/src/store.rs `query/1` uses the type index verbatim), so the old
+  # `event_type: "billing.*"` was not a glob — it matched nothing, and every
+  # tenant fell through to `default_billing_state/1` and read as free tier.
+  # Core also has no `sort` param; ordering is `order=asc|desc`, so `sort:
+  # "desc"` was silently discarded and `limit: 1` would have returned the
+  # OLDEST billing event, hiding every tier change after the first (#252).
   defp query_billing_state(tenant_id) do
     case RustCoreClient.query_events(tenant_id, %{
-           event_type: "billing.*",
+           event_type_prefix: "billing.",
            limit: 1,
-           sort: "desc"
+           order: "desc"
          }) do
       {:ok, [latest | _]} ->
         {:ok, derive_state(tenant_id, latest)}
