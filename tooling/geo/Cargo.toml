@@ -1,0 +1,74 @@
+[workspace]
+members = ["geo-cli", "geo-core"]
+resolver = "3"
+
+# Standalone workspace with its own Cargo.lock, excluded from the root
+# workspace (see the root Cargo.toml `exclude` list). GEO tooling reaches
+# AllSource through the Control Plane gateway via the `allsource` SDK; keeping
+# it out of the root workspace guarantees it can never grow a dependency on
+# apps/core and pull the event store into a tooling build.
+
+[workspace.package]
+edition = "2024"
+license = "Apache-2.0"
+publish = false
+rust-version = "1.92"
+version = "0.1.0"
+
+[workspace.dependencies]
+# Default features (rustls + projection-worker). The SDK's default set is the
+# one it is tested and shipped under; trimming it here only trades a small
+# binary saving for a dead-code warning in the SDK's own build.
+allsource = { path = "../../sdks/rust" }
+anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.6", features = ["derive"] }
+geo-core = { path = "geo-core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+tokio = { version = "1.52", features = ["macros", "rt-multi-thread"] }
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+# Same allow-list as the root workspace, so code moved between the two lints
+# identically.
+assigning_clones = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+default_trait_access = "allow"
+doc_markdown = "allow"
+float_cmp = "allow"
+format_push_string = "allow"
+items_after_statements = "allow"
+match_same_arms = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"
+struct_field_names = "allow"
+too_many_lines = "allow"
+trivially_copy_pass_by_ref = "allow"
+unnecessary_wraps = "allow"
+unreadable_literal = "allow"
+unused_self = "allow"
+wildcard_imports = "allow"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true

@@ -1,0 +1,54 @@
+//! # geo-core
+//!
+//! Typed `geo.*` event payloads and the transport that writes them to
+//! AllSource, for the GEO (Generative Engine Optimization) measurement
+//! program for `www.all-source.xyz`.
+//!
+//! The authority for the event family is
+//! `docs/contracts/geo-events/README.md`. Everything here is derived from it,
+//! and `tests/contract_examples.rs` fails the build if the two disagree.
+//!
+//! ## Shape
+//!
+//! - [`events`] — one struct per `geo.*` payload, plus the [`GeoEvent`] union
+//!   that knows each event's `entity_id` and idempotency key.
+//! - [`emitter`] — turns a [`GeoEvent`] into a Core ingest envelope and either
+//!   POSTs it through the Control Plane gateway or prints it (`--dry-run`).
+//! - [`config`] — `ALLSOURCE_API_URL` / `ALLSOURCE_API_KEY`.
+//! - [`idempotency`] — natural-key hashing, so a re-ingest of the same log
+//!   window does not double-count.
+//! - [`samples`] — the canonical example of every event, shared by the
+//!   contract doc, the tests and the CLI's dry-run.
+//!
+//! ## What is deliberately absent
+//!
+//! No bot taxonomy, no probe prompt set, no scoring formula, no notion of a
+//! measurement "layer". Those belong to the layer slices; the emitter stays
+//! transport-thin so those slices can be built independently.
+//!
+//! ## Writes go through the gateway
+//!
+//! GEO tooling talks to the Control Plane (`https://api.all-source.xyz`),
+//! which authenticates the key, injects `tenant_id` and forwards to Core.
+//! Core does not authenticate public traffic and is never addressed directly.
+//! Core is the database — the events written here are durable (WAL + Parquet)
+//! and survive restarts, which is what makes a 12-week trend window possible.
+
+pub mod config;
+pub mod emitter;
+pub mod error;
+pub mod events;
+pub mod idempotency;
+pub mod samples;
+
+pub use config::{DEFAULT_API_URL, ENV_API_KEY, ENV_API_URL, GeoConfig};
+pub use emitter::{
+    EMITTER_NAME, EmitMode, EmitOutcome, GeoEmitter, IngestEnvelope, render_envelope,
+};
+pub use error::GeoError;
+pub use events::{
+    CrawlObserved, ENTITY_PREFIX, EVENT_TYPE_PREFIX, ExperimentScored, ExperimentStarted, GeoEvent,
+    GeoEventType, InterrogationProbed, ReferralObserved, SCHEMA_VERSION, SelfReportCaptured,
+    SovProbed,
+};
+pub use idempotency::derive_key;

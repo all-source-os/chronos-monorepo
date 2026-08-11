@@ -22,6 +22,11 @@ exclude = [
     "crates/hound-extract",
     "tooling/allsource-inspect",
     "tooling/allsource-mcp",
+    # GEO measurement tooling. Its own workspace + Cargo.lock: it talks to the
+    # Control Plane gateway through the published `allsource` SDK only, so it
+    # must never pull apps/core into the build graph — see
+    # docs/contracts/geo-events/README.md.
+    "tooling/geo",
     "tooling/recall-bench",
 ]
 

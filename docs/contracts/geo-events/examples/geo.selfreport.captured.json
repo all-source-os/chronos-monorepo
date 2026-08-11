@@ -1,0 +1,16 @@
+{
+  "event_type": "geo.selfreport.captured",
+  "entity_id": "geo:selfreport:7d49a235390d4b19745d15ef6bdaa389",
+  "payload": {
+    "contact_ref": "tenant_01J8ZB4R7T",
+    "observed_at": "2026-08-11T11:30:00Z",
+    "schema_version": 1,
+    "source": "signup-form",
+    "surface": "ChatGPT",
+    "verbatim": "asked ChatGPT for an event store for agent memory"
+  },
+  "metadata": {
+    "emitter": "tooling/geo",
+    "idempotency_key": "7d49a235390d4b19745d15ef6bdaa389"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "event_type": "geo.crawl.observed",
+  "entity_id": "geo:crawl:5b33c7f0a872d249743d6cbf5533e0f8",
+  "payload": {
+    "bot": "gptbot",
+    "observed_at": "2026-08-11T09:20:31Z",
+    "path": "/llms.txt",
+    "schema_version": 1,
+    "source": "vercel-log-drain",
+    "status": 200,
+    "user_agent": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot",
+    "verified": true
+  },
+  "metadata": {
+    "emitter": "tooling/geo",
+    "idempotency_key": "5b33c7f0a872d249743d6cbf5533e0f8"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "event_type": "geo.experiment.scored",
+  "entity_id": "geo:experiment:exp-llms-txt-rewrite",
+  "payload": {
+    "experiment_id": "exp-llms-txt-rewrite",
+    "iteration": 1,
+    "metric": "sov.mention_rate",
+    "notes": "Two-week window; 4 engines, 12 prompts per sweep.",
+    "schema_version": 1,
+    "score": 0.58,
+    "scored_at": "2026-08-26T08:00:00Z",
+    "verdict": "promote",
+    "window_end": "2026-08-26T00:00:00Z",
+    "window_start": "2026-08-12T00:00:00Z"
+  },
+  "metadata": {
+    "emitter": "tooling/geo",
+    "idempotency_key": "23bab7d1e033fb06997ac6f443edc62e"
+  }
+}

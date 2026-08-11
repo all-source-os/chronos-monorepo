@@ -1,0 +1,23 @@
+{
+  "event_type": "geo.interrogation.probed",
+  "entity_id": "geo:interrogation:15585fa2412440dab7f73cd1831a4bc9",
+  "payload": {
+    "answer_excerpt": "AllSource is an event store that persists events to a write-ahead log and Parquet files.",
+    "cited_urls": [
+      "https://www.all-source.xyz/docs"
+    ],
+    "claim_id": "durability",
+    "engine": "claude",
+    "observed_at": "2026-08-11T10:05:00Z",
+    "prompt_id": "what-is-allsource",
+    "prompt_text": "What is AllSource and how is its data stored?",
+    "run_id": "interrogation-2026-08-11",
+    "schema_version": 1,
+    "score": 1.0,
+    "verdict": "accurate"
+  },
+  "metadata": {
+    "emitter": "tooling/geo",
+    "idempotency_key": "15585fa2412440dab7f73cd1831a4bc9"
+  }
+}

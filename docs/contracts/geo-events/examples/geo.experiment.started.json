@@ -1,0 +1,20 @@
+{
+  "event_type": "geo.experiment.started",
+  "entity_id": "geo:experiment:exp-llms-txt-rewrite",
+  "payload": {
+    "baseline_score": 0.42,
+    "changes": [
+      "apps/web/public/llms.txt"
+    ],
+    "experiment_id": "exp-llms-txt-rewrite",
+    "hypothesis": "Naming the agent-memory use case in llms.txt raises mention rate on agent-memory prompts.",
+    "iteration": 1,
+    "schema_version": 1,
+    "started_at": "2026-08-12T08:00:00Z",
+    "target_layer": "sov"
+  },
+  "metadata": {
+    "emitter": "tooling/geo",
+    "idempotency_key": "5ff77ffe59411dd57e8f6401b4c771c5"
+  }
+}
