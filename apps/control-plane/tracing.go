@@ -19,7 +19,7 @@ import (
 
 const (
 	serviceName    = "allsource-control-plane"
-	serviceVersion = "0.22.0"
+	serviceVersion = "0.23.0"
 )
 
 // TracingConfig holds OpenTelemetry configuration

@@ -6,6 +6,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-08-11
+
 ### Added
 
 - `CoreClient::get_projection_state_summary` (`GET /api/v1/projections/:name/state`),
