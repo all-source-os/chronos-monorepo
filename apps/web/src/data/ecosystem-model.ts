@@ -233,9 +233,9 @@ const appNodes: EcosystemNode[] = [
     type: "app",
     kind: "sdk",
     summary:
-      "Typed gateway clients for TypeScript, Python, and Go — distributed via the GitHub registry (NOT npm / PyPI), version-locked to the gateway.",
+      "Typed gateway clients for TypeScript, Python, and Go. TypeScript ships on npm as `@allsourcedev/client`; Python and Go are GitHub-registry only (NOT PyPI, NOT a Go proxy module), version-locked to the gateway.",
     agentGets:
-      "Ingest + query from JS/TS, Python, or Go agents. Honest channel: install straight from the GitHub monorepo, not a public npm/PyPI package.",
+      "Ingest + query from JS/TS, Python, or Go agents. `bun add @allsourcedev/client` for TypeScript; Python and Go install straight from the GitHub monorepo, not a public PyPI/proxy package.",
     snippets: [
       {
         label: "TypeScript (npm)",

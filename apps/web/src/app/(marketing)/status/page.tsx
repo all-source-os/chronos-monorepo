@@ -80,10 +80,6 @@ const SERVICE_METADATA: Record<string, { label: string; description: string }> =
     label: "Login (end-to-end)",
     description: "Session-token validation — the exact path the dashboard login uses",
   },
-  registry: {
-    label: "Registry",
-    description: "Package and SDK registry",
-  },
   web: {
     label: "Website",
     description: "Marketing site and dashboard (Vercel)",
@@ -201,9 +197,7 @@ export default function StatusPage() {
                         )}
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="text-xs text-muted-foreground">
-                          {svc.latency_ms}ms
-                        </span>
+                        <span className="text-xs text-muted-foreground">{svc.latency_ms}ms</span>
                         <span className="text-xs text-muted-foreground w-20 text-right">
                           {formatAge(svc.age_seconds)}
                         </span>
@@ -242,14 +236,21 @@ export default function StatusPage() {
                           {meta?.label ?? inc.service} {ongoing ? "outage (ongoing)" : "outage"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatTimestamp(inc.started_at)} · {formatDuration(inc.started_at, inc.resolved_at)}
-                          {inc.observed_ip_prefix ? ` · observed from ${inc.observed_ip_prefix}` : ""}
+                          {formatTimestamp(inc.started_at)} ·{" "}
+                          {formatDuration(inc.started_at, inc.resolved_at)}
+                          {inc.observed_ip_prefix
+                            ? ` · observed from ${inc.observed_ip_prefix}`
+                            : ""}
                         </p>
                       </div>
                       {ongoing ? (
-                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Ongoing</Badge>
+                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20">
+                          Ongoing
+                        </Badge>
                       ) : (
-                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Resolved</Badge>
+                        <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+                          Resolved
+                        </Badge>
                       )}
                     </div>
                   );

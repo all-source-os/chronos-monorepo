@@ -64,8 +64,8 @@ export default function ArchitecturePage() {
               Backend on Fly, web on Vercel
             </div>
             <p className="text-xs text-muted-foreground">
-              Six backend apps run on Fly.io (core, query, control-plane, auth, prime, registry).
-              The Next.js dashboard runs on Vercel at www.all-source.xyz.
+              Five backend apps run on Fly.io (core, query, control-plane, auth, prime). The Next.js
+              dashboard runs on Vercel at www.all-source.xyz.
             </p>
           </div>
         </div>
