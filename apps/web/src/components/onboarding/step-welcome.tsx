@@ -3,6 +3,7 @@
 import { Button, Icons } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { Brain, Clock, GitBranch, Sparkles } from "lucide-react";
+import { GeoDiscoveryQuestion } from "@/components/geo-discovery-question";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface StepWelcomeProps {
@@ -81,6 +82,14 @@ export function StepWelcome({ onNext }: StepWelcomeProps) {
           className="w-full"
         />
       </div>
+
+      {/*
+        GEO layer 4. Placed here — the first screen AFTER signup — rather than
+        in the signup form itself: the account already exists by this point, so
+        the question cannot cost a conversion, and the tenant it attaches to
+        already exists too. It never blocks the CTA below.
+      */}
+      <GeoDiscoveryQuestion className="mb-8 w-full max-w-lg" />
 
       {/* CTA */}
       <Button size="lg" onClick={onNext} className="px-8">
