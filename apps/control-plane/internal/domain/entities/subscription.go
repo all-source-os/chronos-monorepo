@@ -202,7 +202,7 @@ func TierRank(tier string) int { return tierRank(tier) }
 // HighestActiveTier returns the highest-ranked tier among active subscriptions
 // and the winning subscription id. Returns ("free", "") when none are active.
 func HighestActiveTier(subs map[string]SubscriptionRef) (tier, subscriptionID string) {
-	bestTier, bestID, bestRank := "free", "", -1
+	bestTier, bestID, bestRank := string(TierFree), "", -1
 	for id, s := range subs {
 		if !SubscriptionIsActive(s.Status) {
 			continue
