@@ -101,6 +101,9 @@ tasks
 .claude/plans/
 .claude/statsig/
 .claude/credentialCache/
+# Per-agent git worktrees created by parallel workflow runs — full checkouts,
+# tens of GB. Never commit these.
+.claude/worktrees/
 .mcp.json
 
 # bv (beads viewer) local config and caches

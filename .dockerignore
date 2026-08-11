@@ -27,6 +27,12 @@
 *.swo
 .cursor/
 
+# Agent tooling. `.claude/worktrees/` holds full checkouts (one per parallel
+# agent, each with its own target/ and _build/) and reached 35 GB during a
+# single session. Core builds with the repo ROOT as its context, so without
+# this every `fly deploy` uploads all of it.
+.claude/
+
 # Documentation (but keep content for blogs and changelog)
 *.md
 !README.md
