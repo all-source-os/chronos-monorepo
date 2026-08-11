@@ -35,6 +35,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -76,6 +77,32 @@ const (
 // bounds both abuse and how much user-submitted text we accumulate. Matches
 // MAX_VERBATIM in apps/web/src/app/api/geo/self-report/route.ts.
 const geoMaxVerbatim = 500
+
+// defaultGeoTenant is the tenant GEO telemetry is written to when
+// GEO_TENANT_ID is not set.
+//
+// It is deliberately NOT the signing-up tenant. This is OUR telemetry: writing
+// it into a customer's event stream would put our operational data in their
+// tenant, where they pay for it, see it, and can delete it — and would scatter
+// the geo.* family across every tenant that ever signed up, so `geo report`
+// (which reads one tenant, the one its API key belongs to) would see almost
+// none of it. The join back to the signup is `payload.contact_ref`, which is
+// exactly what that field is for.
+const defaultGeoTenant = "geo"
+
+// geoTenantID is the tenant GEO telemetry lands in.
+//
+// It MUST match the tenant that the ALLSOURCE_API_KEY used by `geo report` and
+// by apps/web's route handlers belongs to. If it does not, the web captures
+// and the API captures land in two different tenants and the report shows one
+// of them — which reads as "the API path captures nothing", a conclusion that
+// would be wrong and expensive.
+func geoTenantID() string {
+	if v := strings.TrimSpace(os.Getenv("GEO_TENANT_ID")); v != "" {
+		return v
+	}
+	return defaultGeoTenant
+}
 
 // geoDiscoverySourceIsKnown reports whether an id is in the vocabulary.
 func geoDiscoverySourceIsKnown(id string) bool {
@@ -119,10 +146,10 @@ func geoDeriveIdempotencyKey(parts ...string) string {
 
 // geoSelfReportEnvelope is the Core ingest body for one self-report.
 //
-// Core assigns id/timestamp/version; the gateway injects tenant_id. Neither is
-// ours to send. Note this is the Control Plane writing THROUGH itself to Core,
-// so the tenant_id is set explicitly here — the same way buildSampleEvents
-// does on this path.
+// Core assigns id/timestamp/version. tenant_id is normally injected by the
+// gateway from the caller's API key, but here the Control Plane IS the writer
+// and there is no caller key, so it sets the GEO telemetry tenant explicitly
+// (see geoTenantID) — never the signing-up tenant.
 type geoSelfReportEnvelope struct {
 	EventType string                 `json:"event_type"`
 	EntityID  string                 `json:"entity_id"`
@@ -177,7 +204,9 @@ func buildGeoSelfReport(
 	return geoSelfReportEnvelope{
 		EventType: "geo.selfreport.captured",
 		EntityID:  fmt.Sprintf("geo:selfreport:%s", key),
-		TenantID:  tenantID,
+		// OUR telemetry tenant, not the customer's. The join back to the
+		// signup is payload.contact_ref below.
+		TenantID: geoTenantID(),
 		Payload: map[string]interface{}{
 			"schema_version": 1,
 			"observed_at":    observed,

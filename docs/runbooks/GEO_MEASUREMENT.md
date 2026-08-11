@@ -938,8 +938,30 @@ pretending to succeed. It reads the tenant from the httpOnly `auth_token`
 cookie and the tier from the Query Service (`QUERY_SERVICE_URL`); a tier lookup
 failure degrades to `tier: null`, never to a lost capture.
 
-The API capture needs nothing new — the Control Plane already holds a Core
-client.
+The API capture writes through the Control Plane's own Core client, so it needs
+no key — but it **does** need one variable:
+
+| variable | where | default | why |
+|---|---|---|---|
+| `GEO_TENANT_ID` | Control Plane (Fly) | `geo` | The tenant GEO telemetry lands in |
+
+**This must be the same tenant the `ALLSOURCE_API_KEY` belongs to.** Everything
+else in the programme writes through the gateway, which injects the *key's*
+tenant. The Control Plane has no key, so it names the tenant explicitly. If the
+two disagree, web captures and API captures land in two different tenants and
+`geo report` — which reads the one tenant its key belongs to — shows one of
+them. That reads as "the API path captures nothing", which would be both wrong
+and expensive.
+
+It is emphatically **not** the signing-up tenant. Writing our telemetry into a
+customer's event stream would put our operational data in their tenant, where
+they pay for it, see it and can delete it, and would scatter the `geo.*` family
+across every tenant that ever signed up. The join back to the signup is
+`payload.contact_ref`, which is what that field is for.
+
+Deploying it: `fly deploy` for the Control Plane runs with build context
+`apps/control-plane`, **not** the repo root (Core is the one that builds from
+root). `apps/web` ships via Vercel and must never be `fly deploy`ed.
 
 ## Troubleshooting
 

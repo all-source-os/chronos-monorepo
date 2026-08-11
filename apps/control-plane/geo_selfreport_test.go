@@ -133,8 +133,14 @@ func TestBuildGeoSelfReport(t *testing.T) {
 		if env.EventType != "geo.selfreport.captured" {
 			t.Errorf("event_type = %q", env.EventType)
 		}
-		if env.TenantID != "t1" {
-			t.Errorf("tenant_id = %q", env.TenantID)
+		// The event lands in OUR telemetry tenant, never the customer's —
+		// otherwise our operational data sits in their stream and the geo.*
+		// family scatters across every tenant that ever signed up.
+		if env.TenantID != defaultGeoTenant {
+			t.Errorf("tenant_id = %q, want the GEO telemetry tenant %q", env.TenantID, defaultGeoTenant)
+		}
+		if env.TenantID == "t1" {
+			t.Error("telemetry was written into the signing-up tenant's own event stream")
 		}
 		// Truncated to whole seconds so sub-second jitter cannot split one
 		// capture into two entities.
@@ -178,6 +184,17 @@ func TestBuildGeoSelfReport(t *testing.T) {
 		got, _ := env.Payload["verbatim"].(string)
 		if len(got) != geoMaxVerbatim {
 			t.Errorf("verbatim length = %d, want %d", len(got), geoMaxVerbatim)
+		}
+	})
+
+	t.Run("the telemetry tenant is overridable", func(t *testing.T) {
+		// It must match the tenant the ALLSOURCE_API_KEY used by geo report
+		// and apps/web belongs to, or the web and API captures land in two
+		// tenants and the report shows one of them.
+		t.Setenv("GEO_TENANT_ID", "geo-telemetry")
+		env, _ := buildGeoSelfReport("t1", "trial", "chatgpt", "", at)
+		if env.TenantID != "geo-telemetry" {
+			t.Errorf("tenant_id = %q, want the override", env.TenantID)
 		}
 	})
 
