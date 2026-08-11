@@ -70,9 +70,6 @@
         "typescript": "^6.0.3",
       },
     },
-    "apps/registry": {
-      "name": "@allsource/registry",
-    },
     "apps/web": {
       "name": "@allsource/web",
       "version": "0.1.0",
@@ -223,8 +220,6 @@
     "@allsource/core": ["@allsource/core@workspace:apps/core"],
 
     "@allsource/e2e": ["@allsource/e2e@workspace:tooling/e2e"],
-
-    "@allsource/registry": ["@allsource/registry@workspace:apps/registry"],
 
     "@allsource/typescript-config": ["@allsource/typescript-config@workspace:tooling/typescript"],
 

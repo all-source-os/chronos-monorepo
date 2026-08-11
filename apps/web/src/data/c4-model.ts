@@ -12,9 +12,9 @@
 //     non-durable.
 //   • PostgreSQL is operational metadata ONLY (billing / subscription). It is
 //     NEVER on the event path.
-//   • The 6 Fly.io backends are: allsource-core, allsource-query,
-//     allsource-control-plane, allsource-auth, allsource-prime,
-//     allsource-registry. The web frontend is on Vercel (www.all-source.xyz).
+//   • The 5 Fly.io backends are: allsource-core, allsource-query,
+//     allsource-control-plane, allsource-auth, allsource-prime.
+//     The web frontend is on Vercel (www.all-source.xyz).
 //   • Topology: Clients → Query Service (gateway: auth, billing, routing) →
 //     Core. Control Plane owns public auth + billing.
 //
@@ -41,7 +41,7 @@ export interface C4Node {
   responsibilities?: string[];
   /** Part of the AI-agent product suite built on the event store. */
   agentSuite?: boolean;
-  /** Deployed as one of the 6 Fly.io backend apps. */
+  /** Deployed as one of the 5 Fly.io backend apps. */
   fly?: boolean;
   /** Deployed on Vercel. */
   vercel?: boolean;
@@ -136,7 +136,7 @@ const contextNodes: C4Node[] = [
     id: "fly",
     name: "Fly.io",
     type: "external",
-    description: "Hosts the six AllSource backend apps as deployed machines.",
+    description: "Hosts the five AllSource backend apps as deployed machines.",
   },
   {
     id: "vercel",
@@ -297,7 +297,7 @@ const containerNodes: C4Node[] = [
     agentSuite: true,
   },
 
-  // --- frontend + registry ---
+  // --- frontend ---
   {
     id: "web",
     name: "Web Dashboard",
@@ -310,15 +310,6 @@ const containerNodes: C4Node[] = [
       "Calls the Query Service for data; auth flows go through the Control Plane.",
     ],
     vercel: true,
-  },
-  {
-    id: "registry",
-    name: "Registry",
-    type: "container",
-    tech: "Rust",
-    description: "Standalone artifact / package registry service.",
-    responsibilities: ["Serves AllSource artifacts; built as a fully standalone Fly app."],
-    fly: true,
   },
 
   // --- datastores ---

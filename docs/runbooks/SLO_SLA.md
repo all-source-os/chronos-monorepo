@@ -13,7 +13,6 @@ Applies to the production deployments of:
 - `allsource-control-plane` (Fly) — public API gateway at `https://api.all-source.xyz`
 - `allsource-prime` (Fly)
 - `allsource-auth` (Fly)
-- `allsource-registry` (Fly)
 - Web frontend on Vercel (`https://all-source.xyz`)
 
 ### Custom domains

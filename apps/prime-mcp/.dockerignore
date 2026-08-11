@@ -5,7 +5,6 @@ apps/web/
 apps/control-plane/
 apps/query-service/
 apps/chronis/
-apps/registry/
 apps/admin/
 deploy/
 docs/

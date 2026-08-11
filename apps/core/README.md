@@ -138,8 +138,7 @@ AI-native interface for Claude Desktop or any MCP client.
 
 ### SDKs — [Rust](sdks/rust/) · [Go](sdks/go/) · [Python](sdks/python-client/) · [TypeScript](sdks/typescript/)
 
-- Self-hosted SDK registry (`apps/registry`) serving Cargo, Go, npm, and PyPI protocols
-- All SDKs distributed via `registry.all-source.xyz`
+- Rust SDK published to crates.io; TypeScript SDK to npm as `@allsourcedev/client`; Go and Python SDKs distributed via the GitHub registry
 
 ### What's Next
 

@@ -68,7 +68,7 @@ type probe struct {
 
 // probesFromEnv builds the probe list. Targets default to Fly internal
 // hostnames for the services on the internal network, and public URLs for
-// services that are publicly reachable (auth, registry, web).
+// services that are publicly reachable (auth, web).
 //
 // All backend URLs honor env overrides to keep this configurable without
 // a rebuild: CORE_HEALTH_URL, QUERY_HEALTH_URL, PRIME_HEALTH_URL,
@@ -102,7 +102,6 @@ func probesFromEnv(getEnv func(string) string) []probe {
 	// Publicly-reachable services (keep probing over public DNS so we catch
 	// cert/edge issues that internal routing would hide).
 	add("auth", "AUTH_HEALTH_URL", "https://allsource-auth.fly.dev/health", "")
-	add("registry", "REGISTRY_HEALTH_URL", "https://allsource-registry.fly.dev/health", "")
 	add("web", "WEB_HEALTH_URL", "https://all-source.xyz/", "")
 
 	return probes

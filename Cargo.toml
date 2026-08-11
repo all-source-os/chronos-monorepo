@@ -10,7 +10,6 @@ exclude = [
     # context without copying apps/core source — see issue #129.
     "apps/mcp-server-elixir/native/core_nif",
     "apps/prime-mcp",
-    "apps/registry",
     # Excluded so a plain `cargo build`/CI run never triggers its build-time
     # model download. Only pulled when a consumer enables the optional
     # `prime-bundled-model` feature on allsource-core.

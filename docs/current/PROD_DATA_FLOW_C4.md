@@ -73,7 +73,6 @@ C4Container
   Container(core, "Core", "Rust / Fly :3900", "Event store (WAL+Parquet+DashMap). Source of truth for events AND users/tenants/keys (event-sourced). prime feature NOT built.")
   Container(primeapp, "allsource-prime", "Rust / Fly :3905", "Prime engine in HTTP mode over its own /data volume. Built WITH prime-recall+prime-vectors.")
   Container(auth, "auth", "Rust / Fly :3903", "better-auth service. Existence-confirmed; prod wiring unconfirmed (see Open Q).")
-  Container(registry, "registry", "Rust / Fly", "Registry service (standalone).")
   ContainerDb(coredata, "allsource_data", "Fly volume", "Core WAL/Parquet incl. system store (tenants, keys) + synced prime.* events")
   ContainerDb(primedata, "prime_data", "Fly volume", "allsource-prime's own store — orphaned in prod (nothing syncs in)")
 
@@ -97,9 +96,7 @@ C4Container
 | **core** | `--features enterprise,analytics` (**no `prime`**) | 3900 | Event store; source of truth for events + system metadata | `apps/core/Dockerfile:112-114`, `Cargo.toml:44-72` |
 | **allsource-prime** | `allsource-core` w/ `prime-recall,prime-vectors` | 3905 | Hosted Prime engine, own `/data` | `apps/prime-mcp/Cargo.toml:27`, `fly.toml:10-24` |
 | **auth** | Rust `cargo build` | 3903 | better-auth; prod-active status unconfirmed | `apps/auth/Dockerfile:53` |
-| **registry** | Rust standalone | 3901¹ | Registry | `apps/registry/fly.toml:13` |
 
-¹ registry and control-plane both report `:3901` in their fly.tomls — different Fly apps so no clash, but worth a glance.
 
 ---
 

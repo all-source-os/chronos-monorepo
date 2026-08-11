@@ -1,7 +1,7 @@
 .PHONY: help install dev build clean clean-rust demo test lint check-versions \
-        core control web mcp registry \
+        core control web mcp \
         docker-build docker-test docker-test-quick docker-clean docker-purge \
-        docker-core docker-web docker-query docker-mcp docker-control docker-registry \
+        docker-core docker-web docker-query docker-mcp docker-control \
         ci quality-gates quality-rust quality-go quality-elixir quality-elixir-full quality-e2e \
         validate-workflows validate-workflows-quick \
         elixir-test elixir-test-failed elixir-test-watch elixir-test-report \
@@ -53,7 +53,6 @@ help:
 	@echo "  make control      - Run Go control plane only"
 	@echo "  make web          - Run Next.js web UI only"
 	@echo "  make mcp          - Run MCP server only"
-	@echo "  make registry     - Run SDK registry only"
 	@echo ""
 	@echo "Container Testing:"
 	@echo "  make docker-test       - Full container test suite (all services)"
@@ -68,7 +67,6 @@ help:
 	@echo "  make docker-query      - Build query-service container"
 	@echo "  make docker-mcp        - Build mcp-server container"
 	@echo "  make docker-control    - Build control-plane container"
-	@echo "  make docker-registry   - Build registry container"
 	@echo ""
 	@echo "Release:"
 	@echo "  make release           - Interactive release workflow (full)"
@@ -320,13 +318,6 @@ mcp:
 	@echo "🤖 Starting MCP server"
 	cd apps/mcp-server-elixir && mix phx.server
 
-registry:
-	@echo "📦 Starting SDK registry on :3901"
-	DEPLOY_TOKEN=dev REGISTRY_DATA_DIR=/tmp/allsource-registry cargo run -p allsource-registry
-
-# =============================================================================
-# Container Testing Commands
-# =============================================================================
 
 docker-test:
 	@echo "🐳 Running full container test suite..."
@@ -381,13 +372,6 @@ docker-control:
 	@echo "🐳 Building control-plane container..."
 	docker build -t allsource-control-plane:test apps/control-plane
 
-docker-registry:
-	@echo "🐳 Building registry container..."
-	docker build -t allsource-registry:test -f apps/registry/Dockerfile .
-
-# =============================================================================
-# Docker Compose Commands
-# =============================================================================
 
 up:
 	@echo "🚀 Starting all services with Docker Compose..."
