@@ -3110,10 +3110,26 @@ mod tests {
     // layer reveals that no code downstream reads them on this path.
     #[tokio::test]
     async fn query_events_honours_time_window_without_an_entity_or_type_filter() {
-        use chrono::SecondsFormat;
+        use chrono::{SecondsFormat, SubsecRound};
 
         let store = create_test_store();
-        let base = chrono::Utc::now() - chrono::Duration::hours(24);
+        // FIXED base, not `Utc::now()`, and truncated to whole seconds.
+        //
+        // This test previously seeded from `Utc::now()`, which made it depend on
+        // the host clock's resolution: Linux hands back nanoseconds, macOS does
+        // not. `SecondsFormat::Micros` truncates DOWNWARDS, so with a
+        // nanosecond-bearing base the string `until=<t>` names an instant
+        // fractionally BEFORE the event stamped at `t`, and an inclusive window
+        // silently drops its boundary event. It passed on every developer
+        // machine and failed only in CI — the worst kind of flake.
+        //
+        // The nanoseconds below are deliberate: they make the round-trip
+        // assertion in `at` fail loudly if the `trunc_subsecs(0)` is ever
+        // removed, on every platform rather than only on one.
+        let base = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00.123456789Z")
+            .unwrap()
+            .to_utc()
+            .trunc_subsecs(0);
         let mut ids = Vec::new();
         for i in 0..5i64 {
             let mut event = create_test_event(&format!("e-{i}"), "user.created");
@@ -3125,7 +3141,19 @@ mod tests {
         // `Z`-suffixed so the timestamp survives a query string — an offset of
         // `+00:00` would be decoded as a space.
         let at = |h: i64| {
-            (base + chrono::Duration::hours(h)).to_rfc3339_opts(SecondsFormat::Micros, true)
+            let t = base + chrono::Duration::hours(h);
+            let s = t.to_rfc3339_opts(SecondsFormat::Micros, true);
+            // Pin the invariant the whole test rests on: the formatted string
+            // must name the SAME instant the event carries. If a future edit
+            // drops the `trunc_subsecs(0)` above, this fails on every platform
+            // rather than only on the ones with a nanosecond clock.
+            assert_eq!(
+                chrono::DateTime::parse_from_rfc3339(&s).unwrap().to_utc(),
+                t,
+                "query-string timestamp must round-trip exactly, else the window \
+                 boundary silently excludes the event stamped at it"
+            );
+            s
         };
 
         for (qs, expected) in [
