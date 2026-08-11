@@ -1,8 +1,11 @@
 # Runbook — GEO measurement
 
-**Status:** layers 1 and 2 are live. `apps/web` emits `geo.referral.observed`
-for arrivals from AI surfaces, and `geo crawl` ingests verified AI-bot hits
-from the edge logs as `geo.crawl.observed`. Layers 3-5 are still stubs.
+**Status:** layers 1, 2 and 3 are built. `apps/web` emits
+`geo.referral.observed` for arrivals from AI surfaces, `geo crawl` ingests
+verified AI-bot hits from the edge logs as `geo.crawl.observed`, and `geo probe`
+runs the frozen layer-3 probe set across the engines. **Layer 3 has not yet run
+live** — no provider API key exists in the environment it was built in, so its
+baseline documents are committed as empty templates. Layers 4 and 5 are stubs.
 
 **Scope:** how AllSource shows up in generative engines (ChatGPT, Claude,
 Perplexity, Gemini) — who arrives from them, which of their crawlers read the
@@ -25,13 +28,15 @@ guessing with a durable, queryable timeline in Core.
 |---|---|---|---|
 | 1 — Referral attribution | Who arrived here from an AI surface? | `geo.referral.observed` | **live** (prompt 024) |
 | 2 — Crawl diagnostics | Which AI crawlers read the site, and did they get a 200? | `geo.crawl.observed` | **live** (prompt 024) |
-| 3a — Share of voice | Do the engines name us when asked our category question? | `geo.sov.probed` | not implemented (prompt 025) |
-| 3b — Interrogation | When they name us, is what they say true? | `geo.interrogation.probed` | not implemented (prompt 025) |
+| 3a — Share of voice | Do the engines name us when asked our category question? | `geo.sov.probed` | **built** (prompt 025), awaiting a live sweep |
+| 3b — Interrogation | When they name us, is what they say true? | `geo.interrogation.probed` | **built** (prompt 025), awaiting a live sweep |
 | 4 — Self-report | What do people say sent them, when the referrer was stripped? | `geo.selfreport.captured` | not implemented (prompt 026) |
 | 5 — Experiments | Did a change to a surface move any of the above? | `geo.experiment.started` / `.scored` | not implemented (prompt 027) |
 
 Layers 1 and 2 are observational and cheap. Layer 3 costs LLM calls. Layer 4 is
 the only one that survives a stripped referrer. Layer 5 closes the loop.
+
+The layer-3 section is at the bottom of this file.
 
 ## Getting an API key
 
@@ -479,3 +484,251 @@ run prints.
 Vendors update these irregularly; a months-old `creationTime` is normal, but a
 sudden jump in `rejected` right after a vendor rotates ranges is not a spoofing
 wave — refresh `--ranges-dir`.
+
+---
+
+# Layer 3 — what the engines say about us
+
+**Status:** the harness is complete and fully exercised offline. **No live
+sweep has run yet**, because no provider API key exists in the environment this
+was built in. `docs/marketing/geo-baseline-<date>.md`, `geo-key-terms.md` and
+`geo-remediation-backlog.md` are committed as empty templates for exactly that
+reason — see "The first live baseline" below for the one command that fills
+them.
+
+Layer 3 is the keystone. Layers 1 and 2 tell you about traffic and crawlers;
+layer 3 is the only layer that tells you **what the machine actually says about
+you**, and it produces the scored metric that prompt 027's optimization loop
+optimises against. Without a stable, reproducible score here, 027 is a loop with
+no objective function.
+
+Two deliberately separate jobs:
+
+| | 3a — share of voice | 3b — interrogation |
+|---|---|---|
+| Question | Of the answers to buyer questions, what share name us? | When they name us, is what they say **true**? |
+| Prompts | 32, no brand named | 13, all brand-named, 18 ground-truth claims |
+| Event | `geo.sov.probed` | `geo.interrogation.probed` |
+| Output | a trend instrument | a concrete content backlog |
+
+## Read this before you read the number
+
+**Share of voice alone is a vanity metric.** It tells you whether you are
+appearing in answers, not whether anyone is buying anything. It is an *input*
+to layer 5 and a trend instrument — never the KPI, never a number to put in a
+deck on its own. Read it next to layer 1 (arrivals) and layer 4 (self-report).
+
+The report prints that warning above the tables, on purpose: a warning that
+lives only in a runbook is a warning nobody reads.
+
+## The prompt set is frozen, and that is the whole point
+
+`tooling/geo/prompts/sov.toml` and `interrogation.toml` are compiled into the
+`geo` binary (`include_str!`) and their SHA-256 digest rides in every emitted
+`run_id`:
+
+```
+sov-2026-08-11-507348cd#r1
+└f┘ └── date ──┘ └digest┘ └repetition
+```
+
+Two sweeps are comparable **if and only if** their run ids carry the same
+digest. Prompt 027 will change the *site*; if the prompt set drifts at the same
+time, the experiment is uninterpretable. Freezing the set is what makes the
+metric a metric.
+
+**Editing the set is allowed and starts a new baseline.** If you edit it: bump
+`version` in the file, note what changed and why in this runbook, and do not
+edit it in the same week as a site change.
+
+The `#r<n>` suffix is load-bearing too. The contract's natural key for a probe
+is `run_id + engine + prompt_id`, so without the repetition in the id, the N
+samples of one prompt would collapse into N *versions of one entity* — and a
+reader folding by entity (which is what makes a re-ingest safe) would see one
+sample where N were taken. The whole point of repeating is to keep the
+distribution.
+
+## Sample size and confidence
+
+- **Minimum 3 repetitions per prompt per engine** (`--repetitions`, default 3).
+  Below three there is no distribution and the intervals are useless. Raise it
+  once you know what a sweep costs.
+- **Every rate is a 95% Wilson score interval**, never a point estimate. The
+  type has no "just the percentage" accessor. Wilson rather than the normal
+  approximation because our n is small and our p is near zero — exactly where
+  the normal approximation gives a zero-width interval at 0/n. A 0-of-12 run is
+  not "0% ± 0", it is "0%, and anything up to ~24% is consistent with what we
+  saw".
+- **Overlapping intervals have not moved.** Two cells whose intervals overlap
+  are not different, however different their percentages look.
+- **Minimum observation window before publishing a claimed relationship between
+  a change and a score: 12 weeks.** Anything shorter is noise with a slope.
+- **SOV is reported per intent class and never blended.** Being named on
+  "alternatives to Mem0" and on "my agent keeps forgetting" are different wins.
+
+## Scoring
+
+- `payload.score` on a SOV probe is **reciprocal rank**: `1/rank` among every
+  product named, `0` when we are absent. Rank 1 → 1.0, rank 4 → 0.25.
+- **Mention rate, not that score, is the headline.** A single score that folds
+  presence and position together is convenient and unfalsifiable; the report
+  prints both and 027 optimises against mention rate.
+- **Competitor share uses the same denominator**, so share of voice is relative
+  rather than absolute. "Plain files" is in the competitor table on purpose: the
+  most common answer to "how do I give my agent memory" is often a JSON file,
+  and counting only funded products makes the category look far more contested,
+  and far more commercial, than it is.
+
+## Accuracy, and why the judge's reasoning is stored
+
+Accuracy cannot be string-matched — "£18.99/month" and "about nineteen pounds a
+month" are the same answer. So an LLM-as-judge grades one claim at a time
+against a ground-truth expectation extracted from this repository, and returns
+one of:
+
+| verdict | means | counts as |
+|---|---|---|
+| `accurate` | states the claim correctly | 1.0 |
+| `partially_accurate` | right in substance, wrong in a detail a buyer notices | 0.5 |
+| `inaccurate` | states something false | 0.0, goes in the backlog |
+| `absent` | does not address the claim, or says it does not know | 0.0, reported separately — **silence is not wrongness**, and the fix is different (write the page, versus correct the page) |
+| `unscored` | the judge's own reply could not be read | excluded from every denominator |
+
+**Every verdict is stored with the judge's reasoning and a verbatim excerpt**
+(`payload.reasoning`, `payload.answer_excerpt`) so a human can overrule it. The
+parser *refuses* a verdict with no reasoning, or a non-`absent` verdict that
+quotes nothing — a verdict nobody can audit must never enter an accuracy rate.
+
+**Known conflict of interest:** the judge runs on Claude and one of the probed
+engines is Claude. Sanity-check the `claude` column by hand.
+
+## Running it
+
+```bash
+cd tooling/geo && cargo build --release
+GEO=./target/release/geo
+
+# No key, no network, no spend — the CI path. Exercises scoring, the judge
+# parser, event construction and idempotency against committed fixtures.
+$GEO probe --dry-run
+
+# Cheap live smoke: 5 prompts, one engine, one sample each.
+$GEO probe --family interrogation --limit 5 --engine claude --repetitions 1
+
+# The real baseline sweep.
+$GEO probe --repetitions 3 --markdown-out docs/marketing/geo-baseline-$(date -u +%F).md
+
+# Read the stored stream back (any window), and write the same section out.
+$GEO report --since 30d --markdown-out docs/marketing/geo-baseline-$(date -u +%F).md
+```
+
+Useful flags: `--family sov|interrogation`, `--engine <id>` (repeatable),
+`--limit N`, `--repetitions N`, `--concurrency N` (per engine), `--no-judge`
+(3a-only, no judge spend).
+
+## Environment variables, and the `.env` file
+
+The `geo` CLI loads a `.env` through `dotenvy`, searching **upward from the
+working directory**, so the repository-root `.env` is found whether you run from
+the repo root or from `tooling/geo`.
+
+**Real process environment variables always win over `.env`.** The loader is
+non-overriding (`dotenvy::dotenv()`, one call site, asserted by a test), so
+`ANTHROPIC_API_KEY=sk-... geo probe` beats whatever is in the file. Getting that
+backwards would let a stale `.env` silently shadow a deliberate inline override
+during a live sweep. A missing `.env` is not an error.
+
+`.env` is gitignored (`.gitignore:22`). `.env.example` at the repository root
+lists every variable with empty values.
+
+| variable | needed for | notes |
+|---|---|---|
+| `ALLSOURCE_API_KEY` | any write or read of `geo.*` events | not needed for `--dry-run` |
+| `ALLSOURCE_API_URL` | — | optional, defaults to `https://api.all-source.xyz` |
+| `OPENAI_API_KEY` | the `chatgpt` engine | missing ⇒ engine skipped loudly |
+| `ANTHROPIC_API_KEY` | the `claude` engine **and the layer-3b judge** | missing ⇒ every claim comes back `unscored` |
+| `GEMINI_API_KEY` | the `gemini` engine | |
+| `PERPLEXITY_API_KEY` | the `perplexity` engine | |
+| `GEO_CHATGPT_MODEL` etc. | overriding a model id | see below |
+| `GEO_JUDGE_MODEL` | overriding the judge | defaults to `claude-opus-5` |
+
+**A missing key is a loud skip, never a zero.** A silently skipped engine reads
+downstream as "we lost all our share on Gemini" and would send prompt 027
+chasing a phantom. The run prints the skip, and the report carries an "Engines
+skipped" section saying in words that absence is not zero share.
+
+**Verify the model ids before the first live sweep.** Vendor model names churn
+faster than this repository does; the defaults are a starting point, not a
+guarantee. `geo probe` prints the model it will call for each engine before it
+calls anything.
+
+## Cost
+
+The run prints a spend table. **Only Anthropic's rates are claimed** — that is
+the one rate card this repository has a maintained source for (the `claude-api`
+skill: Opus 5 at $5/$25 per MTok, as of 2026-06-24). Every other engine reports
+token counts and the literal word `unpriced`. A fabricated price on a spend
+report is worse than no price.
+
+Sweep size: `prompts × engines × repetitions`, plus one judge call per claim per
+interrogation answer.
+
+| sweep | probe calls | judge calls |
+|---|---|---|
+| full, 4 engines, 3 reps | (32 + 13) × 4 × 3 = **540** | 18 × 4 × 3 = **216** |
+| SOV only, 4 engines, 3 reps | 384 | 0 |
+| smoke (`--limit 5 --engine claude --repetitions 1`) | 5 | ~7 |
+
+Use `--limit` and `--family` for a cheap smoke run before committing to a full
+sweep, and `--no-judge` to price 3a on its own.
+
+## The first live baseline
+
+The three files under `docs/marketing/` that prompt 027 consumes are committed
+as **empty labelled templates**. They are filled by one command:
+
+```bash
+export OPENAI_API_KEY=... ANTHROPIC_API_KEY=... GEMINI_API_KEY=... PERPLEXITY_API_KEY=...
+export ALLSOURCE_API_KEY=...
+cd tooling/geo && cargo build --release
+./target/release/geo probe --repetitions 3 \
+  --markdown-out ../../docs/marketing/geo-baseline-$(date -u +%F).md
+```
+
+Then copy the "Observed vocabulary" table into `geo-key-terms.md` and the
+"Remediation backlog" table into `geo-remediation-backlog.md`, both with the run
+id and date. **Do not hand-write any of it.** Those files are 027's experiment
+queue; a plausible-looking invented row there is worse than an empty file,
+because nothing downstream can tell the difference.
+
+## Ground-truth contradictions found while writing the probe set
+
+Grounding the 18 interrogation claims meant reading what this repository
+actually says, and it does not always agree with itself. These are findings
+about **us**, not about any model, and several expectations in
+`interrogation.toml` are deliberately written to accommodate them — a model that
+repeats one of these is quoting our own file:
+
+1. **Licence.** The repository root `LICENSE` is Apache-2.0 and `LICENSE-BSL`
+   covers enterprise features, but `apps/core/LICENSE` still says MIT (a
+   deliberate carve-out per `MEMORY.md`), as do the published Rust and
+   TypeScript SDK manifests. A model answering "MIT" is reading a real file, so
+   the claim grades that as `partially_accurate` rather than a clean miss.
+2. **`apps/web/public/llms.txt` — the file we serve *specifically to LLMs* — is
+   the single most out-of-date surface we have.** It still advertises the
+   retired Free/Pro/Growth tiers, `$29`/`$79` prices, a 100,000-events free
+   tier, and "43 MCP tools". Every one of those is wrong, and it is the file
+   most likely to be read by the things we are measuring. This is the highest-
+   value fix in the whole programme and it costs one commit.
+3. **MCP tool count.** 45 read-only / 55 read+write / 73 with the control-plane
+   and admin tiers. The site and README publish 73; the README badge still says
+   61; llms.txt says 43.
+4. **Currency.** Launch copy settles on GBP (£18.99 Indie) while
+   `apps/web/src/lib/config.ts` carries USD-shaped fallback strings ($19) and
+   the live price comes from the LemonSqueezy catalogue.
+5. **Latency.** The published figure is 11.9µs p99, but at least two of our own
+   surfaces say "sub-microsecond" — an order-of-magnitude overstatement we would
+   otherwise blame a model for repeating.
+
+These are recorded here rather than in the remediation backlog because the
+backlog is reserved for what a *live* run observes.

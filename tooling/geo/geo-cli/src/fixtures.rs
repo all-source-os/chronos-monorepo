@@ -207,6 +207,41 @@ mod tests {
     }
 
     #[test]
+    fn every_recorded_judge_excerpt_is_verbatim_from_the_matching_answer() {
+        // A judge fixture that quotes text the engine never said would make the
+        // dry run demonstrate something the real pipeline cannot do: the live
+        // judge is told to quote the answer, and `parse_verdict` refuses a
+        // non-`absent` verdict that quotes nothing. This keeps the fixtures
+        // honest about the shape of a real finding.
+        let bank = FixtureBank::load().expect("fixtures load");
+        for (key, reply) in &bank.judge.by_claim {
+            let parts: Vec<&str> = key.split('/').collect();
+            let [engine_name, prompt_id, _claim_id] = parts.as_slice() else {
+                continue; // a `<prompt>/<claim>` key has no engine to check against
+            };
+            let Some(engine) = Engine::parse(engine_name) else {
+                panic!("judge fixture key {key} names an unknown engine");
+            };
+            let judged = parse_verdict(reply);
+            if judged.excerpt.is_empty() {
+                continue;
+            }
+            let answer = bank
+                .answer(engine, Family::Interrogation, prompt_id)
+                .answer()
+                .expect("engine fixture")
+                .text
+                .clone();
+            assert!(
+                answer.contains(&judged.excerpt),
+                "{key}: the judge fixture quotes {:?}, which does not appear in the \
+                 {engine} fixture answer for {prompt_id}",
+                judged.excerpt
+            );
+        }
+    }
+
+    #[test]
     fn the_judge_falls_back_to_a_default_for_unknown_claims() {
         let bank = FixtureBank::load().expect("fixtures load");
         let judged = parse_verdict(&bank.judge_reply(Engine::Gemini, "nope", "nope"));
