@@ -408,9 +408,21 @@ degrade to a `-32603` error instead of a process exit — including
 client-controlled shape errors such as `"arguments"` arriving as a JSON string
 rather than an object. That matters because the supervisor's default
 `max_restarts: 3` in 5s means four fatal requests in five seconds would take the
-whole application down, not just the session. If it recurs, capture the
-connector's **stderr** — that is where the server logs — and check that no
-library you added writes to stdout.
+whole application down, not just the session.
+
+A third cause was found later, on the *quiet* side of the same stream: the
+server answered JSON-RPC **notifications**. `JsonRpc.normalize_request/1` always
+puts an `:id` key in the request map (nil when the client sent none), so the
+"unknown notification — no response needed" clause in `process_request/2` was
+unreachable and every notification drew a frame with `"id": null` onto stdout.
+MCP clients send `notifications/cancelled` and `notifications/progress` as a
+matter of course, so cancelling one tool call was enough: the client gets a
+response it cannot correlate, which the MCP SDK reports as "a response for an
+unknown message ID". Notifications are now silent end to end (success, tool
+error and crash paths alike) — see `Server.respond/2`.
+
+If it recurs, capture the connector's **stderr** — that is where the server
+logs — and check that no library you added writes to stdout.
 
 ## Resources
 

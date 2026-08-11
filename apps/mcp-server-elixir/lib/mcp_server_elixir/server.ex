@@ -214,7 +214,7 @@ defmodule McpServerElixir.Server do
       }
     }
 
-    send_response(response)
+    respond(id, response)
     {:noreply, state}
   end
 
@@ -235,7 +235,7 @@ defmodule McpServerElixir.Server do
       }
     }
 
-    send_response(response)
+    respond(id, response)
     {:noreply, state}
   end
 
@@ -251,14 +251,14 @@ defmodule McpServerElixir.Server do
           result: result
         }
 
-        send_response(response)
+        respond(id, response)
 
       {:error, reason} ->
         # Put the reason in `message`, not only in `data`. Clients surface
         # `message` and routinely drop `data`, so a bare "Internal error" told
         # the caller nothing about whether the tool was broken, the server was
         # down, or the store was wrong (#229).
-        send_error(id, -32_603, error_message(tool_name, reason), reason)
+        respond_error(id, -32_603, error_message(tool_name, reason), reason)
     end
 
     {:noreply, state}
@@ -269,17 +269,40 @@ defmodule McpServerElixir.Server do
     {:noreply, state}
   end
 
-  defp process_request(%{method: method, id: id}, state) when is_binary(method) do
+  defp process_request(%{method: method, id: id}, state)
+       when is_binary(method) and not is_nil(id) do
     Logger.warning("Unknown method: #{method}")
     send_error(id, -32_601, "Method not found", nil)
     {:noreply, state}
   end
 
   defp process_request(%{method: method}, state) when is_binary(method) do
-    # Unknown notification (no id = no response needed)
+    # Unknown notification (no id = no response needed).
+    #
+    # This clause used to be unreachable: `JsonRpc.normalize_request/1` always
+    # puts an `:id` key in the map (nil when the client sent none), so the
+    # clause above matched every notification too and answered -32601 with
+    # `"id": null` on stdout. MCP clients send `notifications/cancelled` and
+    # `notifications/progress` as a matter of course, so a routine cancel put an
+    # uncorrelatable error frame on the one stream the client has — the MCP SDK
+    # reports that as "a response for an unknown message ID" (#229). Hence the
+    # `not is_nil(id)` guard above.
     Logger.debug("Ignoring unknown notification: #{method}")
     {:noreply, state}
   end
+
+  # JSON-RPC 2.0: "The Server MUST NOT reply to a Notification." MCP goes
+  # further and forbids a null request id outright, so a nil id here can only
+  # mean a notification — there is no client waiting on a correlation id, and
+  # anything written would be unsolicited bytes on the protocol channel.
+  #
+  # `guarded_process/2`'s `fail_request/2` already honoured this for the crash
+  # path; these two keep the success and tool-error paths consistent with it.
+  defp respond(nil, _response), do: :ok
+  defp respond(_id, response), do: send_response(response)
+
+  defp respond_error(nil, _code, _message, _data), do: :ok
+  defp respond_error(id, code, message, data), do: send_error(id, code, message, data)
 
   @doc false
   # Coerce an error reason into something Jason can encode. A raw reason is often
