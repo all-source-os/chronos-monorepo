@@ -337,10 +337,27 @@ pub struct SelfReportCaptured {
     /// What the human said sent them, verbatim-ish (`"ChatGPT"`).
     pub surface: String,
     /// The full free-text answer, when the question allowed one.
+    ///
+    /// On the signup capture this is the buyer's *literal prompt* — what they
+    /// typed into the assistant that led them here. It is the highest-value
+    /// field in the layer and the only first-party source of real buyer
+    /// vocabulary; no probe harness can synthesise it.
     pub verbatim: Option<String>,
     /// Opaque reference back to the person (tenant id, hashed handle). Never a
     /// raw email address — GEO telemetry is not a place to accumulate PII.
     pub contact_ref: Option<String>,
+    /// The tenant's subscription tier at the moment of capture (`"trial"`,
+    /// `"indie"`). `None` when the capturing path could not resolve one.
+    ///
+    /// Stored on the event rather than joined at read time: a tenant's tier
+    /// moves, and "what tier did AI-sourced signups start on" is a question
+    /// about the past. Without it, layer 4 can only report traffic; with it,
+    /// the AI-sourced share of *paid* conversions is computable, which is what
+    /// turns GEO from a traffic story into a revenue story.
+    ///
+    /// Not part of the natural key — a later tier change is the same capture,
+    /// re-stated, and must append a version rather than mint a second entity.
+    pub tier: Option<String>,
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,69 @@
+{
+  "$comment": "GENERATED from tooling/geo/geo-core/src/discovery.rs. Do not edit by hand — run: cargo test -p geo-core -- --ignored regenerate_discovery_contract",
+  "capture_paths": [
+    "signup-form",
+    "onboard-api"
+  ],
+  "sources": [
+    {
+      "ai": true,
+      "id": "chatgpt",
+      "label": "ChatGPT"
+    },
+    {
+      "ai": true,
+      "id": "claude",
+      "label": "Claude"
+    },
+    {
+      "ai": true,
+      "id": "perplexity",
+      "label": "Perplexity"
+    },
+    {
+      "ai": true,
+      "id": "gemini",
+      "label": "Gemini"
+    },
+    {
+      "ai": true,
+      "id": "copilot",
+      "label": "Microsoft Copilot"
+    },
+    {
+      "ai": true,
+      "id": "other-ai",
+      "label": "Another AI assistant"
+    },
+    {
+      "ai": false,
+      "id": "search",
+      "label": "Google or another search engine"
+    },
+    {
+      "ai": false,
+      "id": "x-twitter",
+      "label": "X / Twitter"
+    },
+    {
+      "ai": false,
+      "id": "hn-reddit",
+      "label": "Hacker News or Reddit"
+    },
+    {
+      "ai": false,
+      "id": "github",
+      "label": "GitHub"
+    },
+    {
+      "ai": false,
+      "id": "word-of-mouth",
+      "label": "Someone told me"
+    },
+    {
+      "ai": false,
+      "id": "other",
+      "label": "Something else"
+    }
+  ]
+}

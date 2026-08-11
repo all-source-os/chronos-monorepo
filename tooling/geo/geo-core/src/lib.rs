@@ -19,6 +19,8 @@
 //!   binary and digested into every `run_id`.
 //! - [`probe`] — the four generative engines, normalised to one answer type.
 //! - [`brand`] — who counts as us and who counts as a competitor.
+//! - [`discovery`] — the canonical layer-4 "how did you find us?" vocabulary,
+//!   which the web form and the Control Plane both mirror.
 //! - [`scoring`] — share-of-voice scoring, Wilson intervals, source
 //!   attribution and observed-vocabulary extraction.
 //! - [`judge`] — the LLM-as-judge verdict vocabulary and its (auditable)
@@ -51,6 +53,7 @@
 pub mod bots;
 pub mod brand;
 pub mod config;
+pub mod discovery;
 pub mod emitter;
 pub mod error;
 pub mod events;
@@ -72,6 +75,10 @@ pub use bots::{
     Verdict, Verification,
 };
 pub use config::{DEFAULT_API_URL, ENV_API_KEY, ENV_API_URL, GeoConfig};
+pub use discovery::{
+    DISCOVERY_SOURCES, DiscoverySource, capture_path, discovery_label, discovery_source,
+    is_ai_source,
+};
 pub use emitter::{
     EMITTER_NAME, EmitMode, EmitOutcome, GeoEmitter, IngestEnvelope, render_envelope,
 };

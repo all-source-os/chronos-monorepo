@@ -270,14 +270,52 @@ being stripped.
 |---|---|---|---|
 | `schema_version` | integer | yes | `1` |
 | `observed_at` | string (RFC 3339, UTC) | yes | when the human told us |
-| `source` | string | yes | where the answer was collected (`"signup-form"`) |
-| `surface` | string | yes | what the human said sent them (`"ChatGPT"`) |
-| `verbatim` | string \| null | yes | full free-text answer when the question allowed one |
+| `source` | string | yes | **which signup path collected the answer** — a `capture_paths` id: `"signup-form"` (web) or `"onboard-api"` (`POST /api/v1/onboard/start`) |
+| `surface` | string | yes | **what the human said sent them** — a `sources` id from [`discovery-sources.json`](discovery-sources.json) (`"chatgpt"`, `"hn-reddit"`). Lowercase kebab id, never a display label |
+| `verbatim` | string \| null | yes | full free-text answer when the question allowed one. On the signup capture this is the buyer's **literal prompt** — the highest-value field in the layer, and the only first-party source of real buyer vocabulary |
 | `contact_ref` | string \| null | yes | opaque reference back to the person (tenant id, hashed handle) |
+| `tier` | string \| null | yes | the tenant's subscription tier at capture (`"trial"`, `"indie"`). `null` when the capturing path could not resolve one. Stored, not joined at read time — a tenant's tier moves, and "what tier did AI-sourced signups start on" is a question about the past |
 
-**Privacy:** `contact_ref` is never a raw email address. GEO telemetry is a
-trend timeline, not a place to accumulate PII. Do not extend this payload with
-identifying fields.
+`source` and `surface` are two different questions and are never blended: one
+is *how we asked*, the other is *what they answered*. The API path is the one
+that captures the AI-native users this programme is about, so a report that
+could not separate the paths could not tell whether it is capturing anything.
+
+**`tier` is not in the natural key.** A later tier change is the same capture,
+re-stated: re-emitting appends a version to the same entity rather than minting
+a second one, exactly as a layer-1 conversion does.
+
+### The discovery-source vocabulary
+
+[`discovery-sources.json`](discovery-sources.json) is **generated** from
+[`tooling/geo/geo-core/src/discovery.rs`](../../../tooling/geo/geo-core/src/discovery.rs)
+and is the authority for both `source` and `surface`. Three sides speak it and
+none of them can import the others:
+
+| side | file |
+|---|---|
+| web form + its route handler | [`apps/web/src/lib/geo-discovery-sources.ts`](../../../apps/web/src/lib/geo-discovery-sources.ts) |
+| `/api/v1/onboard/start` validation | [`apps/control-plane/geo_selfreport.go`](../../../apps/control-plane/geo_selfreport.go) |
+| `geo report` layer 4 | `geo-core` |
+
+Each asserts against the committed JSON in its own test suite. The failure this
+prevents is quiet: if one side wrote `"ChatGPT"` and another `"chatgpt"`, the
+report would show two channels where there is one and the AI-sourced share —
+the headline number of the layer — would be silently halved.
+
+```bash
+cd tooling/geo && cargo test -p geo-core -- --ignored regenerate_discovery_contract
+```
+
+**An `id` is never renamed.** A rename splits a historical series in two with
+no way to stitch it back. Add entries; do not re-letter them. `ai: true` marks
+the entries that count toward the AI-sourced share — including `other-ai`, on
+purpose, because an assistant we have not named is still an assistant.
+
+**Privacy:** `contact_ref` is never a raw email address, and `verbatim` is
+user-submitted free text — see the privacy note in the layer-4 section of
+`docs/runbooks/GEO_MEASUREMENT.md`. GEO telemetry is a trend timeline, not a
+place to accumulate PII. Do not extend this payload with identifying fields.
 
 [`examples/geo.selfreport.captured.json`](examples/geo.selfreport.captured.json)
 

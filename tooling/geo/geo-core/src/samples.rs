@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 
 use crate::{
     bots::{BotCategory, TAXONOMY_VERSION},
+    discovery::capture_path,
     events::{
         Aggregation, CrawlObserved, ExperimentScored, ExperimentStarted, GeoEvent, GeoEventType,
         InterrogationProbed, ReferralObserved, SCHEMA_VERSION, SelfReportCaptured, SovProbed,
@@ -100,10 +101,15 @@ pub fn sample(event_type: GeoEventType) -> GeoEvent {
         GeoEventType::SelfReportCaptured => GeoEvent::SelfReport(SelfReportCaptured {
             schema_version: SCHEMA_VERSION,
             observed_at: ts("2026-08-11T11:30:00Z"),
-            source: "signup-form".to_string(),
-            surface: "ChatGPT".to_string(),
+            // Both fields are closed vocabularies from `geo_core::discovery`:
+            // `source` is a capture path, `surface` a discovery-source id.
+            // The id is lowercase and stable — a display label here would be
+            // exactly the drift the vocabulary exists to prevent.
+            source: capture_path::WEB.to_string(),
+            surface: "chatgpt".to_string(),
             verbatim: Some("asked ChatGPT for an event store for agent memory".to_string()),
             contact_ref: Some("tenant_01J8ZB4R7T".to_string()),
+            tier: Some("trial".to_string()),
         }),
         GeoEventType::ExperimentStarted => GeoEvent::ExperimentStarted(ExperimentStarted {
             schema_version: SCHEMA_VERSION,
