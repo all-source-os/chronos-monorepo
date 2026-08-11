@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
+	"github.com/allsource/control-plane/internal/logsafe"
 	"net/http"
 	"net/url"
 	"os"
@@ -187,7 +189,7 @@ func (cp *ControlPlane) OAuthAuthorize(c *gin.Context) {
 
 	cfg := getOAuthConfig(provider)
 	if cfg == nil {
-		log.Printf("[OAuth] Provider %s not configured", provider)
+		log.Printf("[OAuth] Provider %s not configured", logsafe.String(provider))
 		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
 		return
 	}
@@ -260,7 +262,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 
 	// Handle provider errors
 	if errParam := c.Query("error"); errParam != "" {
-		log.Printf("[OAuth] Provider %s returned error: %s", provider, errParam)
+		log.Printf("[OAuth] Provider %s returned error: %s", logsafe.String(provider), logsafe.String(errParam))
 		errorCode := "auth_failed"
 		if errParam == "access_denied" {
 			errorCode = "access_denied"
@@ -280,7 +282,7 @@ func (cp *ControlPlane) OAuthCallback(c *gin.Context) {
 	cookieState, err := c.Cookie(oauthStateCookieName)
 	if err != nil || cookieState == "" || returnedState == "" || returnedState != cookieState {
 		log.Printf("[OAuth] State mismatch for %s (cookie present: %t, param present: %t)",
-			provider, cookieState != "", returnedState != "")
+			logsafe.String(provider), cookieState != "", returnedState != "")
 		c.Redirect(http.StatusFound, frontendURL+"/login?error=auth_failed")
 		return
 	}

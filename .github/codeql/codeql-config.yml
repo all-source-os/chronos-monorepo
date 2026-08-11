@@ -1,0 +1,35 @@
+name: "AllSource CodeQL config"
+
+# Why this file exists
+# -------------------
+# CodeQL was running with `language: [go]` only. JavaScript/TypeScript analysis
+# had been dropped, which left ~89 JS alerts from 2026-01-29 permanently "open":
+# nothing re-analysed those files, so CodeQL could never mark them fixed. Most
+# pointed at files that no longer exist (deleted demo components) or at a
+# generated Playwright report that is not even tracked in git.
+#
+# Re-enabling JS analysis lets those zombie alerts close. This config stops us
+# re-importing the same noise, by keeping build output and vendored code out of
+# the analysis entirely.
+
+paths-ignore:
+  # Generated test reports — 78 of the 89 zombie alerts came from one bundled,
+  # minified Playwright report. It is gitignored and untracked; scanning it
+  # only ever produced style findings about generated code.
+  - "tooling/e2e/playwright-report/**"
+  - "tooling/e2e/test-results/**"
+  - "**/playwright-report/**"
+
+  # Build output — analysing compiled/bundled artefacts reports issues in code
+  # we did not write and cannot fix at the source.
+  - "**/.next/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/target/**"
+  - "**/node_modules/**"
+  - "**/_build/**"
+  - "**/deps/**"
+
+  # Elixir/Phoenix static assets are vendored, minified third-party bundles.
+  - "apps/query-service/priv/static/**"
+  - "apps/mcp-server-elixir/priv/static/**"

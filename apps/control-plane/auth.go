@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+
+	"github.com/allsource/control-plane/internal/logsafe"
 	"net/http"
 	"os"
 	"strings"
@@ -510,7 +512,7 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 			tenantID := invite.TenantID
 			coreAPIKey, provErr := cp.provisionCoreAPIKey(context.Background(), tenantID, userID)
 			if provErr != nil {
-				log.Printf("warn: provisionCoreAPIKey failed for tenant %s user %s: %v", tenantID, userID, provErr)
+				log.Printf("warn: provisionCoreAPIKey failed for tenant %s user %s: %v", logsafe.String(tenantID), logsafe.String(userID), provErr)
 			}
 
 			// Record the user as a member of this team.
@@ -521,12 +523,12 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 				Role:     invite.Role,
 				JoinedAt: time.Now().UTC().Format(time.RFC3339),
 			}, invite.InvitedBy); addErr != nil {
-				log.Printf("warn: AddTeamMember failed for tenant %s user %s: %v", tenantID, userID, addErr)
+				log.Printf("warn: AddTeamMember failed for tenant %s user %s: %v", logsafe.String(tenantID), logsafe.String(userID), addErr)
 			}
 
 			// Mark invite as accepted by deleting it from config.
 			if delErr := cp.coreClient.DeleteConfig(context.Background(), teamInviteConfigKey(inviteToken)); delErr != nil {
-				log.Printf("warn: failed to delete invite token %s: %v", inviteToken, delErr)
+				log.Printf("warn: failed to delete invite token %s: %v", logsafe.String(inviteToken), delErr)
 			}
 
 			// Sign JWT for this user in the existing tenant.
@@ -625,7 +627,7 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 	coreAPIKey, keyErr := cp.provisionCoreAPIKey(context.Background(), tenantID, userID)
 	if keyErr != nil {
 		// Log and continue — the user can still log in; they just won't get the sync key yet.
-		fmt.Printf("warn: failed to provision Core API key for %s: %v\n", userID, keyErr)
+		fmt.Printf("warn: failed to provision Core API key for %s: %v\n", logsafe.String(userID), keyErr)
 	}
 
 	// Sign JWT
@@ -967,7 +969,7 @@ func (cp *ControlPlane) RegisterHandler(c *gin.Context) {
 	// Create tenant (same pattern as OAuth)
 	result, err := cp.findOrCreateOAuthUser("email", userID, req.Email, req.Name, "")
 	if err != nil {
-		log.Printf("Register: findOrCreateOAuthUser failed for %s: %v", req.Email, err)
+		log.Printf("Register: findOrCreateOAuthUser failed for %s: %v", logsafe.String(req.Email), err)
 		c.JSON(500, gin.H{"error": "internal_error", "message": "failed to create account", "detail": err.Error()})
 		return
 	}

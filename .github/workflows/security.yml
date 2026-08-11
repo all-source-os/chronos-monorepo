@@ -72,7 +72,7 @@ jobs:
         if: matrix.name == 'go'
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26.3"
+          go-version: "1.26.5"
           cache-dependency-path: apps/control-plane/go.sum
 
       - name: Go vulnerability check
@@ -111,7 +111,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [go]
+        # javascript-typescript was previously absent, which left ~89 JS
+        # alerts from 2026-01-29 permanently open — nothing re-analysed those
+        # files, so CodeQL could never mark them fixed. Generated/build output
+        # is excluded via .github/codeql/codeql-config.yml.
+        language: [go, javascript-typescript]
 
     steps:
       - name: Checkout
@@ -122,12 +126,13 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Set up Go
         if: matrix.language == 'go'
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26.3"
+          go-version: "1.26.5"
           cache-dependency-path: apps/control-plane/go.sum
 
       - name: Build Go
@@ -209,7 +214,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.26.3"
+          go-version: "1.26.5"
           cache-dependency-path: apps/control-plane/go.sum
 
       - name: Install go-licenses

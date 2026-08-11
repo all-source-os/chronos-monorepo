@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"log"
+
+	"github.com/allsource/control-plane/internal/logsafe"
 	"net/http"
 	"strings"
 
@@ -113,7 +115,7 @@ func (h *ResendWebhookHandler) Events(c *gin.Context) {
 
 	status, err := h.engagement.RecordEngagement(c.Request.Context(), note.Data.EmailID, note.Type, note.CreatedAt, note.Data.Click.Link)
 	if err != nil {
-		log.Printf("resend engagement: record failed type=%s id=%s: %v", note.Type, note.Data.EmailID, err)
+		log.Printf("resend engagement: record failed type=%s id=%s: %v", logsafe.String(note.Type), logsafe.String(note.Data.EmailID), err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "record engagement failed"})
 		return
 	}
@@ -181,7 +183,7 @@ func (h *ResendWebhookHandler) Inbound(c *gin.Context) {
 
 	msg, err := h.provider.FetchMessage(ctx, addr, note.Data.EmailID)
 	if err != nil {
-		log.Printf("resend inbound: fetch failed email_id=%s: %v", note.Data.EmailID, err)
+		log.Printf("resend inbound: fetch failed email_id=%s: %v", logsafe.String(note.Data.EmailID), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "fetch message failed"})
 		return
 	}

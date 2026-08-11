@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/allsource/control-plane/internal/logsafe"
+
 	"github.com/allsource/control-plane/internal/domain/entities"
 	"github.com/allsource/control-plane/internal/domain/repositories"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
@@ -225,7 +227,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) writeBillingEvent(ctx context.Conte
 		Payload:   payload,
 	})
 	if err != nil {
-		log.Printf("[billing] failed to write %s event for tenant %s to Core: %v", eventType, tenantID, err)
+		log.Printf("[billing] failed to write %s event for tenant %s to Core: %v", logsafe.String(eventType), logsafe.String(tenantID), err)
 	}
 }
 
@@ -291,7 +293,7 @@ func (uc *ProcessLemonSqueezyWebhookUseCase) resolveTier(variantName string, var
 	if tier != defaultPlan {
 		log.Printf("resolveTier: variant_id %d not in LEMON_SQUEEZY_VARIANT_MAP; "+
 			"resolved tier %q from variant_name %q (manual replay or config gap)",
-			variantID, tier, variantName)
+			variantID, logsafe.String(tier), logsafe.String(variantName))
 	}
 	return entities.MapRetiredTier(tier)
 }
