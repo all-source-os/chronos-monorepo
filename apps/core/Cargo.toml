@@ -228,3 +228,27 @@ required-features = ["embedded-projections"]
 name = "toon_format"
 path = "tests/toon_format.rs"
 required-features = ["embedded-toon"]
+
+# Examples that touch feature-gated modules need the same required-features
+# treatment as the tests above. Without these, `cargo build --examples` and
+# `cargo test --workspace` (which builds examples) fail on a default-feature
+# build with "could not find `embedded`/`prime` in `allsource_core`".
+[[example]]
+name = "embedded_quickstart"
+path = "examples/embedded_quickstart.rs"
+required-features = ["embedded"]
+
+[[example]]
+name = "prime_graph"
+path = "examples/prime_graph.rs"
+required-features = ["prime"]
+
+[[example]]
+name = "prime_vectors"
+path = "examples/prime_vectors.rs"
+required-features = ["prime-vectors"]
+
+[[example]]
+name = "prime_recall"
+path = "examples/prime_recall.rs"
+required-features = ["prime-recall"]
