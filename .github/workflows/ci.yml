@@ -32,7 +32,12 @@ jobs:
         run: |
           # Download actionlint from GitHub releases
           ACTIONLINT_VERSION="1.7.7"
-          curl -sLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          # -f: treat an HTTP error as a failure instead of saving the error
+          # page as a tarball. --retry: a dropped connection to the releases
+          # CDN used to red the whole build (curl exit 56), which is a poor
+          # reason to block a release.
+          curl -sSLf --retry 3 --retry-all-errors --retry-delay 2 -O \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           tar xzf "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           chmod +x actionlint
 
