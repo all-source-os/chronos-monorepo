@@ -10,5 +10,12 @@
   # WebSocket client no_return (expected — reconnection loops)
   ~r/core_websocket_client\.ex.*no_return/,
   # Mint.WebSocket.new can return {:ok, conn, ws} but Dialyzer infers only error from typespecs
-  ~r/core_websocket_worker\.ex.*pattern_match/
+  ~r/core_websocket_worker\.ex.*pattern_match/,
+  # `Mint.WebSocket.upgrade/4` takes the `Mint.HTTP.t()` handed back by
+  # `Mint.HTTP.connect/4` — exactly what the library documents. Newer
+  # mint_web_socket declares that parameter against a tightened opaque type, so
+  # Dialyzer reports "call with opaque term" for correct usage: the opaque
+  # struct crosses a module boundary and it cannot see inside. There is no
+  # source change that fixes this without abandoning Mint's public API.
+  ~r/core_websocket_worker\.ex.*call_with_opaque/
 ]
