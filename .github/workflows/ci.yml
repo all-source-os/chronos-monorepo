@@ -408,6 +408,15 @@ jobs:
       - name: Run Dialyzer
         run: mix dialyzer --format github
 
+      # Diagnostic: names any .dialyzer_ignore.exs pattern that matches nothing.
+      # Dialyzer findings differ across OTP/Elixir versions, so a filter that
+      # looks stale on a developer's machine can be load-bearing on CI's
+      # toolchain — this reports the answer for the version CI actually runs.
+      # continue-on-error: stale filters are hygiene, not a build failure.
+      - name: List unused Dialyzer filters (diagnostic)
+        continue-on-error: true
+        run: mix dialyzer --list-unused-filters --format short
+
       # Then tests
       - name: Run tests
         run: mix test
