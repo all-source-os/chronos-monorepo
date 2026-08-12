@@ -52,7 +52,7 @@ defmodule QueryServiceEx.MixProject do
     [
       # HTTP Client for Rust Core
       {:tesla, "~> 1.11"},
-      {:hackney, "~> 1.20"},
+      {:hackney, "~> 4.7"},
       {:jason, "~> 1.4"},
       {:req, "~> 0.5"},
 
