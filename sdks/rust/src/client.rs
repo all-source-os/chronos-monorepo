@@ -241,6 +241,23 @@ impl HttpTransport {
                 })
                 .unwrap_or("Unknown error")
                 .to_string();
+            // A compare-and-swap rejection is a distinct outcome, not a
+            // transport failure: the caller has to re-read and recompute, and
+            // must NOT blindly retry. Core answers 409 with
+            // {"error":"version_conflict","expected_version":N,"current_version":M},
+            // so surface it as a typed variant carrying both versions.
+            if status == 409 {
+                if let Some(body) = body.as_ref() {
+                    if body.get("error").and_then(|e| e.as_str()) == Some("version_conflict") {
+                        let field = |name: &str| body.get(name).and_then(serde_json::Value::as_u64);
+                        if let (Some(expected), Some(current)) =
+                            (field("expected_version"), field("current_version"))
+                        {
+                            return Err(Error::VersionConflict { expected, current });
+                        }
+                    }
+                }
+            }
             return Err(Error::Api {
                 status,
                 message,
@@ -499,12 +516,18 @@ impl QueryClient {
 ///
 /// # async fn run() -> Result<(), allsource::Error> {
 /// let core = CoreClient::new("http://localhost:3900", "ask_...")?;
-/// core.ingest_event(IngestEventInput {
-///     event_type: "order.placed".into(),
-///     entity_id: "order-42".into(),
-///     payload: json!({"total_usd": 19.99}),
-///     metadata: None,
-/// }).await?;
+/// core.ingest_event(IngestEventInput::new(
+///     "order.placed",
+///     "order-42",
+///     json!({"total_usd": 19.99}),
+/// )).await?;
+///
+/// // Compare-and-swap: only append if the entity is still at version 3.
+/// // A mismatch fails with `Error::VersionConflict { expected, current }`.
+/// core.ingest_event(
+///     IngestEventInput::new("order.shipped", "order-42", json!({}))
+///         .with_expected_version(3),
+/// ).await?;
 /// # Ok(()) }
 /// ```
 #[derive(Debug, Clone)]
@@ -544,6 +567,12 @@ impl CoreClient {
     ///
     /// Event types are automatically normalized to AllSource's `lowercase.dot.separated`
     /// convention. For example, `VerificationCreated` becomes `verification.created`.
+    ///
+    /// [`IngestEventInput::expected_version`] is honoured **per item** — Core
+    /// reads the field off each event, not off the request — so a batch can mix
+    /// compare-and-swap and unconditional writes. Note that items are applied in
+    /// order and a conflict fails that item, so a partially-applied batch is
+    /// possible; do not treat a batch as atomic.
     pub async fn ingest_batch(
         &self,
         mut events: Vec<IngestEventInput>,

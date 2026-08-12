@@ -62,12 +62,11 @@ impl IngestEnvelope {
 
 impl From<IngestEnvelope> for IngestEventInput {
     fn from(env: IngestEnvelope) -> Self {
-        Self {
-            event_type: env.event_type,
-            entity_id: env.entity_id,
-            payload: env.payload,
-            metadata: Some(env.metadata),
-        }
+        // Builders rather than a struct literal: the SDK gained
+        // `expected_version` in 0.24.0 and a literal has to name every field,
+        // so this would break again on the next addition.
+        IngestEventInput::new(env.event_type, env.entity_id, env.payload)
+            .with_metadata(env.metadata)
     }
 }
 

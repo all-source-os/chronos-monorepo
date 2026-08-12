@@ -6,6 +6,54 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versio
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-08-12
+
+### Added
+
+- `IngestEventInput::expected_version` — compare-and-swap ingest. Core has read
+  and enforced this field since 0.23.0 (`api.rs:286`, `store.rs:503`), but the
+  SDK's input type had no way to express it, so any consumer needing a versioned
+  write stood up a second `reqwest::Client` beside the SDK — forfeiting the retry
+  loop and circuit breaker, and duplicating auth. Honoured by single ingest and
+  by every item of a batch, matching Core, which reads the field per event rather
+  than per request. Resolves issue #257.
+- `Error::VersionConflict { expected, current }` — Core answers a CAS rejection
+  with `409 {"error":"version_conflict",...}`; the SDK now surfaces that as its
+  own variant carrying both versions instead of an opaque `Error::Api`. It is
+  deliberately **not** retryable: an unchanged retry either fails identically or
+  lands on a version the caller never inspected. (Note Core classifies the same
+  error `is_retryable()` server-side; that is Core's internal storage-retry
+  notion, not a licence for a client to replay a rejected CAS.)
+- `IngestResponse::version` — the entity's version after the append. Core has
+  always returned it; the SDK dropped it, which forced a re-read between chained
+  CAS writes. Feed it straight into the next `with_expected_version`.
+- `IngestEventInput::new` / `with_metadata` / `with_expected_version` builders,
+  so future field additions stop breaking construction.
+- `CoreClient::get_projection_state_summary_paged` with
+  `ProjectionStateSummaryParams` (`limit` / `offset` / `entity_id_prefix`) and
+  `ProjectionStateSummaryPage` (`states` / `total` / `has_more`). Core shipped
+  this pagination for issue #249; the SDK sent none of the parameters and
+  discarded `total`/`has_more`, so from Rust the feature did not exist. This is
+  the only endpoint that can *enumerate* a projection —
+  `bulk_get_projection_states` needs the ids up front — so a projection with one
+  entry per tenant was unusable without pulling every tenant in one unbounded
+  response. Resolves issue #256.
+
+### Changed
+
+- **Breaking:** `IngestEventInput` gained a public field, so struct-literal
+  construction must add `..Default::default()` or move to
+  `IngestEventInput::new(..)`. No wire change: the field is skipped when unset,
+  so requests from callers that do not opt in are byte-identical.
+- `get_projection_state_summary_paged` returns `Error::Protocol` when the server
+  answers with more states than `limit` allows. Core's extractor drops unknown
+  query parameters silently, so against a pre-#249 Core the request *looks*
+  accepted and quietly returns the whole projection. Failing loudly is the
+  point — issue #250 was this exact shape, an ignored `offset` that turned a
+  paginator into an infinite loop of duplicate pages while CI stayed green.
+  `get_projection_state_summary` (unbounded) is unchanged and still works
+  against an older Core.
+
 ## [0.23.0] — 2026-08-11
 
 ### Added

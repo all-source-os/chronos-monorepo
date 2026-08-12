@@ -105,6 +105,7 @@ async fn test_ingest_and_query_single_event() {
             entity_id: entity.clone(),
             payload: json!({"test": true, "value": 42}),
             metadata: Some(json!({"source": "rust-sdk-integration-test"})),
+            ..Default::default()
         })
         .await
         .expect("ingest failed");
@@ -137,6 +138,7 @@ async fn test_ingest_with_no_metadata() {
             entity_id: entity,
             payload: json!({}),
             metadata: None,
+            ..Default::default()
         })
         .await
         .expect("ingest with no metadata failed");
@@ -161,6 +163,7 @@ async fn test_batch_ingest() {
             entity_id: entity.clone(),
             payload: json!({"index": i}),
             metadata: None,
+            ..Default::default()
         })
         .collect();
 
@@ -204,6 +207,7 @@ async fn test_query_by_event_type() {
             entity_id: entity.clone(),
             payload: json!({"seq": i}),
             metadata: None,
+            ..Default::default()
         })
         .await
         .expect("ingest failed");
@@ -236,6 +240,7 @@ async fn test_query_with_limit() {
             entity_id: entity.clone(),
             payload: json!({"seq": i}),
             metadata: None,
+            ..Default::default()
         })
         .await
         .expect("ingest failed");
@@ -347,6 +352,7 @@ async fn test_query_and_fold() {
             entity_id: entity.clone(),
             payload,
             metadata: None,
+            ..Default::default()
         })
         .await
         .unwrap();
@@ -470,6 +476,7 @@ async fn test_concurrent_ingestion() {
                 entity_id: entity,
                 payload: json!({"worker": i}),
                 metadata: None,
+                ..Default::default()
             })
             .await
         }));
@@ -518,6 +525,7 @@ async fn test_payload_fidelity() {
         entity_id: entity.clone(),
         payload: complex_payload.clone(),
         metadata: None,
+        ..Default::default()
     })
     .await
     .expect("ingest failed");
@@ -552,6 +560,7 @@ async fn test_metadata_preserved() {
         entity_id: entity.clone(),
         payload: json!({"data": 1}),
         metadata: Some(metadata),
+        ..Default::default()
     })
     .await
     .expect("ingest failed");
@@ -581,6 +590,7 @@ async fn test_events_ordered_chronologically() {
             entity_id: entity.clone(),
             payload: json!({"seq": i}),
             metadata: None,
+            ..Default::default()
         })
         .await
         .expect("ingest failed");

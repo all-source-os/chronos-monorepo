@@ -75,12 +75,96 @@ impl CoreClient {
         &self,
         name: &str,
     ) -> Result<Vec<(String, T)>, Error> {
+        let page = self
+            .get_projection_state_summary_paged::<T>(name, &ProjectionStateSummaryParams::new())
+            .await?;
+        Ok(page.states)
+    }
+
+    /// Read a bounded page of a projection's entity states.
+    ///
+    /// The paginating counterpart of [`Self::get_projection_state_summary`],
+    /// which returns every entity in one unbounded response. This is the only
+    /// endpoint that can *enumerate* a projection — [`Self::bulk_get_projection_states`]
+    /// needs the ids up front — so a projection with one entry per tenant needs
+    /// this to be usable at all.
+    ///
+    /// Entities are ordered by `entity_id`, so `offset` paging is stable across
+    /// requests. The returned [`ProjectionStateSummaryPage`] carries `total`
+    /// (the full match set, ignoring `limit`/`offset`) and `has_more`, so a
+    /// caller can drive a loop to completion.
+    ///
+    /// ```no_run
+    /// # use allsource::{CoreClient, ProjectionStateSummaryParams};
+    /// # async fn f(client: CoreClient) -> Result<(), allsource::Error> {
+    /// let mut offset = 0;
+    /// loop {
+    ///     let page = client
+    ///         .get_projection_state_summary_paged::<serde_json::Value>(
+    ///             "tenant_usage",
+    ///             &ProjectionStateSummaryParams::new().limit(500).offset(offset),
+    ///         )
+    ///         .await?;
+    ///     offset += page.states.len();
+    ///     if !page.has_more {
+    ///         break;
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Protocol`] when the server ignores `limit` and answers
+    /// with more states than were asked for. Core versions before issue #249
+    /// did not implement these parameters, and Core's extractor drops unknown
+    /// query fields silently rather than rejecting them — so against an older
+    /// Core the request looks accepted and quietly returns the whole
+    /// projection. Failing loudly is the point: issue #250 was exactly this
+    /// shape, an ignored `offset` that turned a paginator into an infinite
+    /// loop of duplicate pages.
+    pub async fn get_projection_state_summary_paged<T: DeserializeOwned>(
+        &self,
+        name: &str,
+        params: &ProjectionStateSummaryParams,
+    ) -> Result<ProjectionStateSummaryPage<T>, Error> {
         let path = format!("/api/v1/projections/{}/state", urlencode(name));
-        let resp: ProjectionStateSummaryResponse = self.transport().get(&path).await?;
-        resp.states
+        let query = params.to_query();
+        let resp: ProjectionStateSummaryResponse = if query.is_empty() {
+            self.transport().get(&path).await?
+        } else {
+            self.transport().get_with_query(&path, &query).await?
+        };
+
+        if let Some(limit) = params.limit {
+            if resp.states.len() > limit {
+                return Err(Error::Protocol(format!(
+                    "projection state summary for {name:?}: asked for at most {limit} states, \
+                     got {}. The server ignored `limit` — it predates issue #249, and Core \
+                     drops unknown query parameters silently, so paging cannot make progress.",
+                    resp.states.len()
+                )));
+            }
+        }
+
+        let states = resp
+            .states
             .into_iter()
             .map(|item| Ok((item.entity_id, serde_json::from_value(item.state)?)))
-            .collect()
+            .collect::<Result<Vec<_>, Error>>()?;
+
+        // `total`/`has_more` are absent on a pre-#249 Core. With no `limit` set
+        // the whole projection came back, so the honest fallback is "this is
+        // everything": total = what we hold, nothing more to fetch.
+        let total = resp.total.unwrap_or(states.len());
+        let has_more = resp.has_more.unwrap_or(false);
+
+        Ok(ProjectionStateSummaryPage {
+            states,
+            total,
+            has_more,
+        })
     }
 
     /// Read many entities' states in a single request.
@@ -237,10 +321,86 @@ struct ProjectionStateResponse {
     found: bool,
 }
 
+/// Bounds for [`CoreClient::get_projection_state_summary_paged`].
+///
+/// All fields are optional; sending none is identical to the unbounded
+/// [`CoreClient::get_projection_state_summary`].
+#[derive(Debug, Clone, Default)]
+pub struct ProjectionStateSummaryParams {
+    /// Maximum number of entity states to return. Unbounded when absent.
+    pub limit: Option<usize>,
+    /// Number of matching states to skip before applying `limit`.
+    pub offset: Option<usize>,
+    /// Return only entities whose id starts with this prefix — lets a caller
+    /// walk one shard of the keyspace without enumerating the whole projection.
+    pub entity_id_prefix: Option<String>,
+}
+
+impl ProjectionStateSummaryParams {
+    /// Unbounded params; add constraints with the builders.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Return at most `limit` states.
+    #[must_use]
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Skip `offset` matching states before applying `limit`.
+    #[must_use]
+    pub fn offset(mut self, offset: usize) -> Self {
+        self.offset = Some(offset);
+        self
+    }
+
+    /// Restrict to entities whose id starts with `prefix`.
+    #[must_use]
+    pub fn entity_id_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.entity_id_prefix = Some(prefix.into());
+        self
+    }
+
+    /// Only the fields that are set, so an empty params object sends a bare URL
+    /// and stays byte-identical to the pre-pagination request.
+    fn to_query(&self) -> Vec<(&'static str, String)> {
+        let mut query = Vec::new();
+        if let Some(limit) = self.limit {
+            query.push(("limit", limit.to_string()));
+        }
+        if let Some(offset) = self.offset {
+            query.push(("offset", offset.to_string()));
+        }
+        if let Some(prefix) = &self.entity_id_prefix {
+            query.push(("entity_id_prefix", prefix.clone()));
+        }
+        query
+    }
+}
+
+/// One page of a projection's entity states.
+#[derive(Debug, Clone)]
+pub struct ProjectionStateSummaryPage<T> {
+    /// The states in this page, ordered by `entity_id`.
+    pub states: Vec<(String, T)>,
+    /// Total number of matching entities, ignoring `limit`/`offset`.
+    pub total: usize,
+    /// Whether further entities remain beyond this page.
+    pub has_more: bool,
+}
+
 #[derive(Debug, serde::Deserialize)]
 struct ProjectionStateSummaryResponse {
     #[serde(default)]
     states: Vec<SummaryStateItem>,
+    /// Absent on a Core predating issue #249.
+    #[serde(default)]
+    total: Option<usize>,
+    /// Absent on a Core predating issue #249.
+    #[serde(default)]
+    has_more: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize)]

@@ -75,6 +75,7 @@ async fn ingest_n_events(core: &CoreClient, entity_prefix: &str, n: u64) -> u64 
             entity_id: format!("{entity_prefix}-{i}"),
             payload: json!({"seq": i}),
             metadata: None,
+            ..Default::default()
         })
         .collect();
     core.ingest_batch(inputs)
@@ -228,6 +229,7 @@ async fn dedup_filters_replayed_versions() {
             entity_id: prefix.clone(),
             payload: json!({}),
             metadata: None,
+            ..Default::default()
         })
         .await
         .unwrap();

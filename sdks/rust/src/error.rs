@@ -35,6 +35,23 @@ pub enum Error {
     #[error("server contract violation: {0}")]
     Protocol(String),
 
+    /// A compare-and-swap ingest was rejected: the entity was not at the
+    /// version the write expected.
+    ///
+    /// Raised when [`crate::IngestEventInput::expected_version`] is set and
+    /// Core's actual version differs. Deliberately **not** retryable — the
+    /// write cannot succeed unchanged, so the caller must re-read state,
+    /// recompute against `current`, and issue a fresh write. Retrying the same
+    /// body would either fail identically or, worse, succeed against a version
+    /// the caller never inspected.
+    #[error("version conflict: expected entity at version {expected}, but it is at {current}")]
+    VersionConflict {
+        /// The version the write required the entity to be at.
+        expected: u64,
+        /// The version Core actually holds.
+        current: u64,
+    },
+
     /// WebSocket transport error.
     #[cfg(feature = "ws")]
     #[error("WebSocket error: {0}")]

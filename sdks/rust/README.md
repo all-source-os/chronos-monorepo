@@ -30,12 +30,11 @@ async fn main() -> Result<(), allsource::Error> {
     let core = CoreClient::new("http://localhost:3900", "your-api-key")?;
     let query = QueryClient::new("http://localhost:3902", "your-api-key")?;
 
-    core.ingest_event(IngestEventInput {
-        event_type: "user.signup".into(),
-        entity_id: "user-123".into(),
-        payload: json!({"email": "alice@example.com"}),
-        metadata: None,
-    }).await?;
+    core.ingest_event(IngestEventInput::new(
+        "user.signup",
+        "user-123",
+        json!({"email": "alice@example.com"}),
+    )).await?;
 
     let events = query.query_events(
         QueryEventsParams::new().entity_id("user-123").limit(10),

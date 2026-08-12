@@ -98,6 +98,7 @@ pub use error::Error;
 pub use fold::{fold_events, EventFolder};
 pub use normalize::normalize_event_type;
 pub use paginate::{EntityPaginator, EventPaginator, DEFAULT_PAGE_SIZE};
+pub use projection_api::{ProjectionStateSummaryPage, ProjectionStateSummaryParams};
 pub use types::*;
 
 #[cfg(feature = "ws")]

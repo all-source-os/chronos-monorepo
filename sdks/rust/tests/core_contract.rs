@@ -516,3 +516,391 @@ async fn sort_order_serializes_to_the_values_core_accepts() {
         );
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #256 — projection state summary pagination
+//
+// Core's `GET /api/v1/projections/:name/state` gained `limit`, `offset` and
+// `entity_id_prefix` in issue #249 (`api.rs:1695-1704`), ordering entities by
+// `entity_id` so offset paging is stable, and returning `total` + `has_more`.
+//
+// `PaginationSupport::Ignored` is Core *before* #249: the parameters are
+// unknown query fields, so `Query<T>` drops them silently and the endpoint
+// answers with the whole projection and no paging metadata. That is the shape
+// that made #250 an infinite loop, so the SDK has to notice and refuse.
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PaginationSupport {
+    Honoured,
+    Ignored,
+}
+
+struct FakeCoreProjectionSummary {
+    /// (entity_id, state) pairs, deliberately stored unsorted — Core sorts.
+    states: Vec<(String, serde_json::Value)>,
+    pagination: PaginationSupport,
+}
+
+impl Respond for FakeCoreProjectionSummary {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let pairs = query_pairs(request);
+
+        let mut matches: Vec<&(String, serde_json::Value)> = self
+            .states
+            .iter()
+            .filter(|(entity_id, _)| match self.pagination {
+                PaginationSupport::Honoured => param(&pairs, "entity_id_prefix")
+                    .is_none_or(|prefix| entity_id.starts_with(&prefix)),
+                // Unknown field on a pre-#249 Core: silently dropped.
+                PaginationSupport::Ignored => true,
+            })
+            .collect();
+        // "Entities are ordered by `entity_id` so offset paging is stable."
+        matches.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let total = matches.len();
+
+        if self.pagination == PaginationSupport::Ignored {
+            // Pre-#249: everything, and no `total`/`has_more` keys at all.
+            let states: Vec<_> = matches
+                .iter()
+                .map(|(id, state)| serde_json::json!({ "entity_id": id, "state": state }))
+                .collect();
+            return ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "projection": "test",
+                "states": states,
+                "count": total,
+            }));
+        }
+
+        let offset: usize = param(&pairs, "offset")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+        let limit: usize = param(&pairs, "limit")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(usize::MAX);
+
+        let page: Vec<_> = matches
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|(id, state)| serde_json::json!({ "entity_id": id, "state": state }))
+            .collect();
+        let count = page.len();
+
+        ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "projection": "test",
+            "states": page,
+            "count": count,
+            "total": total,
+            "has_more": offset + count < total,
+        }))
+    }
+}
+
+async fn summary_harness(
+    states: Vec<(String, serde_json::Value)>,
+    pagination: PaginationSupport,
+) -> (allsource::CoreClient, MockServer) {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/projections/tenant_usage/state"))
+        .respond_with(FakeCoreProjectionSummary { states, pagination })
+        .mount(&server)
+        .await;
+    let client = allsource::CoreClient::new(&server.uri(), "test-key").unwrap();
+    (client, server)
+}
+
+fn seed_states(n: usize) -> Vec<(String, serde_json::Value)> {
+    // Reverse order on purpose: proves the SDK relies on Core's sort, not on
+    // the order the states happened to be written in.
+    (0..n)
+        .rev()
+        .map(|i| {
+            (
+                format!("tenant-{i:03}"),
+                serde_json::json!({ "events": i * 10 }),
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn projection_summary_pages_through_limit_and_offset() {
+    let (client, _server) = summary_harness(seed_states(10), PaginationSupport::Honoured).await;
+
+    let first = client
+        .get_projection_state_summary_paged::<serde_json::Value>(
+            "tenant_usage",
+            &allsource::ProjectionStateSummaryParams::new().limit(4),
+        )
+        .await
+        .expect("first page");
+
+    assert_eq!(first.states.len(), 4, "limit must bound the page");
+    assert_eq!(first.total, 10, "total is the full match set, not the page");
+    assert!(first.has_more);
+    let ids: Vec<&str> = first.states.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["tenant-000", "tenant-001", "tenant-002", "tenant-003"],
+        "ordered by entity_id so offset paging is stable"
+    );
+
+    let last = client
+        .get_projection_state_summary_paged::<serde_json::Value>(
+            "tenant_usage",
+            &allsource::ProjectionStateSummaryParams::new()
+                .limit(4)
+                .offset(8),
+        )
+        .await
+        .expect("last page");
+
+    assert_eq!(last.states.len(), 2, "final partial page");
+    assert!(!last.has_more, "has_more must clear on the final page");
+}
+
+#[tokio::test]
+async fn projection_summary_walks_one_shard_with_entity_id_prefix() {
+    let mut states = seed_states(5);
+    states.push(("other-a".into(), serde_json::json!({ "events": 1 })));
+    states.push(("other-b".into(), serde_json::json!({ "events": 2 })));
+    let (client, _server) = summary_harness(states, PaginationSupport::Honoured).await;
+
+    let page = client
+        .get_projection_state_summary_paged::<serde_json::Value>(
+            "tenant_usage",
+            &allsource::ProjectionStateSummaryParams::new().entity_id_prefix("tenant-"),
+        )
+        .await
+        .expect("prefix page");
+
+    assert_eq!(page.states.len(), 5, "prefix must exclude the other shard");
+    assert_eq!(
+        page.total, 5,
+        "total counts matches, not the whole projection"
+    );
+    assert!(page.states.iter().all(|(id, _)| id.starts_with("tenant-")));
+}
+
+#[tokio::test]
+async fn projection_summary_refuses_a_server_that_ignores_limit() {
+    // Pre-#249 Core: `limit` is an unknown query field, dropped silently, so
+    // the endpoint answers with all 10 states. Returning them would hand the
+    // caller a page 2.5x the size it asked for and no way to page — the #250
+    // failure mode. The SDK must fail loudly instead.
+    let (client, _server) = summary_harness(seed_states(10), PaginationSupport::Ignored).await;
+
+    let result = client
+        .get_projection_state_summary_paged::<serde_json::Value>(
+            "tenant_usage",
+            &allsource::ProjectionStateSummaryParams::new().limit(4),
+        )
+        .await;
+
+    match result {
+        Err(allsource::Error::Protocol(msg)) => {
+            assert!(
+                msg.contains("ignored `limit`"),
+                "message should name the cause, got: {msg}"
+            );
+        }
+        Err(other) => panic!("expected Error::Protocol, got {other:?}"),
+        Ok(page) => panic!(
+            "SDK accepted {} states for a limit of 4 — this is issue #250 again",
+            page.states.len()
+        ),
+    }
+}
+
+#[tokio::test]
+async fn projection_summary_unbounded_call_still_works_against_a_pre_249_core() {
+    // The back-compat path: no params set, so nothing is sent, and a Core that
+    // never heard of #249 answers exactly as it always did. `total` and
+    // `has_more` are absent from that body and must degrade honestly.
+    let (client, _server) = summary_harness(seed_states(3), PaginationSupport::Ignored).await;
+
+    let page = client
+        .get_projection_state_summary_paged::<serde_json::Value>(
+            "tenant_usage",
+            &allsource::ProjectionStateSummaryParams::new(),
+        )
+        .await
+        .expect("unbounded call must not error");
+
+    assert_eq!(page.states.len(), 3);
+    assert_eq!(page.total, 3, "absent total falls back to what we hold");
+    assert!(!page.has_more, "absent has_more must not invent more pages");
+
+    // And the legacy signature keeps its exact behaviour.
+    let legacy = client
+        .get_projection_state_summary::<serde_json::Value>("tenant_usage")
+        .await
+        .expect("legacy signature");
+    assert_eq!(legacy.len(), 3);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #257 — optimistic-concurrency ingest
+//
+// Core reads `expected_version` off each ingest request (`api.rs:286`, `:399`)
+// and enforces it in `store.rs:503` under the entity's version lock. A mismatch
+// is `AllSourceError::VersionConflict`, rendered by `error.rs:138-145` as a 409
+// with {"error":"version_conflict","expected_version":N,"current_version":M}.
+//
+// Note Core marks VersionConflict `is_retryable()` server-side (`error.rs:74`),
+// but a CAS rejection cannot succeed on an unchanged retry — the caller has to
+// re-read and recompute. The SDK must therefore surface it as its own variant
+// and keep it out of the retry loop.
+// ═══════════════════════════════════════════════════════════════════════════
+
+struct FakeCoreIngest {
+    /// Current version of the single entity this fake tracks.
+    current_version: u64,
+    /// Bodies the fake actually received, so a test can assert the wire.
+    seen: Arc<std::sync::Mutex<Vec<serde_json::Value>>>,
+    attempts: Arc<AtomicUsize>,
+}
+
+impl Respond for FakeCoreIngest {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        self.attempts.fetch_add(1, Ordering::SeqCst);
+        let body: serde_json::Value = serde_json::from_slice(&request.body).unwrap_or_default();
+        self.seen.lock().unwrap().push(body.clone());
+
+        let expected = body
+            .get("expected_version")
+            .and_then(serde_json::Value::as_u64);
+        match expected {
+            Some(expected) if expected != self.current_version => ResponseTemplate::new(409)
+                .set_body_json(serde_json::json!({
+                    "error": "version_conflict",
+                    "expected_version": expected,
+                    "current_version": self.current_version,
+                })),
+            // Core's real success body: api.rs:304 IngestEventResponse.
+            _ => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "event_id": "evt-1",
+                "timestamp": "2026-08-12T00:00:00Z",
+                "version": self.current_version + 1,
+            })),
+        }
+    }
+}
+
+async fn ingest_harness(
+    current_version: u64,
+) -> (
+    allsource::CoreClient,
+    Arc<std::sync::Mutex<Vec<serde_json::Value>>>,
+    Arc<AtomicUsize>,
+    MockServer,
+) {
+    let server = MockServer::start().await;
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let attempts = Arc::new(AtomicUsize::new(0));
+    Mock::given(method("POST"))
+        .and(path("/api/v1/events"))
+        .respond_with(FakeCoreIngest {
+            current_version,
+            seen: Arc::clone(&seen),
+            attempts: Arc::clone(&attempts),
+        })
+        .mount(&server)
+        .await;
+    let client = allsource::CoreClient::new(&server.uri(), "test-key").unwrap();
+    (client, seen, attempts, server)
+}
+
+#[tokio::test]
+async fn expected_version_reaches_the_wire_and_a_match_succeeds() {
+    let (client, seen, _attempts, _server) = ingest_harness(7).await;
+
+    client
+        .ingest_event(
+            allsource::IngestEventInput::new(
+                "tenant.updated",
+                "tenant-1",
+                serde_json::json!({ "plan": "studio" }),
+            )
+            .with_expected_version(7),
+        )
+        .await
+        .expect("CAS write at the current version must succeed");
+
+    let bodies = seen.lock().unwrap();
+    assert_eq!(
+        bodies[0]
+            .get("expected_version")
+            .and_then(serde_json::Value::as_u64),
+        Some(7),
+        "expected_version must be serialized onto the request"
+    );
+}
+
+#[tokio::test]
+async fn omitting_expected_version_sends_no_field_at_all() {
+    // The wire must stay byte-identical for callers that never opt in —
+    // `expected_version: null` would be a behaviour change for Core's DTO.
+    let (client, seen, _attempts, _server) = ingest_harness(7).await;
+
+    client
+        .ingest_event(allsource::IngestEventInput::new(
+            "tenant.updated",
+            "tenant-1",
+            serde_json::json!({}),
+        ))
+        .await
+        .expect("unconditional write");
+
+    let bodies = seen.lock().unwrap();
+    assert!(
+        bodies[0].get("expected_version").is_none(),
+        "absent expectation must be omitted, not sent as null: {}",
+        bodies[0]
+    );
+}
+
+#[tokio::test]
+async fn version_conflict_surfaces_as_a_typed_error_and_is_not_retried() {
+    let (client, _seen, attempts, _server) = ingest_harness(9).await;
+
+    let result = client
+        .ingest_event(
+            allsource::IngestEventInput::new("tenant.updated", "tenant-1", serde_json::json!({}))
+                .with_expected_version(4),
+        )
+        .await;
+
+    match result {
+        Err(allsource::Error::VersionConflict { expected, current }) => {
+            assert_eq!(expected, 4);
+            assert_eq!(current, 9, "the caller needs the real version to recompute");
+        }
+        Err(other) => panic!("expected Error::VersionConflict, got {other:?}"),
+        Ok(_) => panic!("a CAS write against the wrong version must not succeed"),
+    }
+
+    assert_eq!(
+        attempts.load(Ordering::SeqCst),
+        1,
+        "a compare-and-swap rejection must not be retried — an unchanged retry \
+         either fails identically or lands on a version the caller never read"
+    );
+}
+
+#[tokio::test]
+async fn version_conflict_is_not_classified_as_retryable() {
+    let err = allsource::Error::VersionConflict {
+        expected: 1,
+        current: 2,
+    };
+    assert!(
+        !err.is_retryable(),
+        "is_retryable() gates the transport retry loop; a CAS failure is a \
+         decision point for the caller, not a transient fault"
+    );
+}

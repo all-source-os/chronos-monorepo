@@ -3,7 +3,11 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 /// An event to ingest into AllSource.
-#[derive(Debug, Clone, Serialize)]
+///
+/// Prefer [`IngestEventInput::new`] plus the `with_*` builders over a struct
+/// literal: the builders keep compiling when a field is added, whereas a
+/// literal has to name every field.
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct IngestEventInput {
     /// Event type (e.g., "user.signup", "order.placed").
     pub event_type: String,
@@ -14,6 +18,53 @@ pub struct IngestEventInput {
     /// Optional metadata (correlation IDs, source info).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
+    /// Compare-and-swap guard: reject the write unless the entity is currently
+    /// at exactly this version. `None` (the default) appends unconditionally.
+    ///
+    /// A mismatch fails the write with [`crate::Error::VersionConflict`], which
+    /// carries both the version you expected and the version Core actually
+    /// holds — enough to re-read, recompute, and retry at the new version.
+    ///
+    /// Use `0` to assert "this entity does not exist yet": Core counts versions
+    /// from 0, so a create-if-absent write expects 0.
+    ///
+    /// Honoured by single ingest **and** by every item of a batch ingest —
+    /// Core reads the field per event, not per request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_version: Option<u64>,
+}
+
+impl IngestEventInput {
+    /// A new event with no metadata and no version expectation.
+    pub fn new(
+        event_type: impl Into<String>,
+        entity_id: impl Into<String>,
+        payload: Value,
+    ) -> Self {
+        Self {
+            event_type: event_type.into(),
+            entity_id: entity_id.into(),
+            payload,
+            metadata: None,
+            expected_version: None,
+        }
+    }
+
+    /// Attach correlation ids, source info, or any other side-band data.
+    #[must_use]
+    pub fn with_metadata(mut self, metadata: Value) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
+
+    /// Make this a compare-and-swap write against `version`.
+    ///
+    /// See [`Self::expected_version`] for the failure mode.
+    #[must_use]
+    pub fn with_expected_version(mut self, version: u64) -> Self {
+        self.expected_version = Some(version);
+        self
+    }
 }
 
 /// A stored event returned from AllSource.
@@ -375,6 +426,14 @@ pub struct DetectDuplicatesResponse {
 pub struct IngestResponse {
     pub event_id: String,
     pub timestamp: String,
+    /// The entity's version after this append.
+    ///
+    /// Feed it straight into the next
+    /// [`IngestEventInput::with_expected_version`] to chain compare-and-swap
+    /// writes without a re-read between them. `None` from a Core old enough not
+    /// to report it.
+    #[serde(default)]
+    pub version: Option<u64>,
 }
 
 /// Response from batch ingesting events via Core.
