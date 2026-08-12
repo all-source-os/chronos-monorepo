@@ -8,12 +8,13 @@ import (
 	"io"
 	"log"
 
-	"github.com/allsource/control-plane/internal/logsafe"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/allsource/control-plane/internal/logsafe"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"

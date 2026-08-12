@@ -6,14 +6,14 @@ package main
 //
 // `POST /api/v1/onboard/start` is published in apps/web/public/llms.txt and is
 // how an agent signs up without ever touching the web UI. Those are exactly
-// the AI-native users this whole measurement programme is about, and a capture
+// the AI-native users this whole measurement program is about, and a capture
 // that only covered the browser form would systematically miss them — while
 // looking complete.
 //
 // # The vocabulary is a mirror, not an original
 //
 // The canonical discovery-source list is
-// tooling/geo/geo-core/src/discovery.rs, serialised to
+// tooling/geo/geo-core/src/discovery.rs, serialized to
 // docs/contracts/geo-events/discovery-sources.json. This file mirrors it, as
 // does apps/web/src/lib/geo-discovery-sources.ts. The three cannot import each
 // other (three languages, and the monorepo isolation rule), so each asserts
@@ -162,7 +162,7 @@ type geoSelfReportEnvelope struct {
 // onboarding capture, or returns ok=false when there is nothing to record.
 //
 // Returning ok=false rather than an error is deliberate: an absent or
-// unrecognised discovery_source must never fail a signup. The endpoint's job
+// unrecognized discovery_source must never fail a signup. The endpoint's job
 // is to mint a tenant; attribution is a bonus and is silently skipped when the
 // caller did not give us a usable answer.
 func buildGeoSelfReport(

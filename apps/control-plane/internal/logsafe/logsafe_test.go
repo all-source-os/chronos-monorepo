@@ -1,14 +1,15 @@
 package logsafe
 
-import "strings"
-
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestStripsNewlinesThatWouldForgeALogEntry(t *testing.T) {
 	// The actual attack: an attacker-chosen email that appends a fake line.
 	got := String("victim@example.com\n2026-08-11 ADMIN promoted attacker@evil.test")
 	if strings.ContainsAny(got, "\n\r") {
-		t.Fatalf("sanitised value still contains a line break: %q", got)
+		t.Fatalf("sanitized value still contains a line break: %q", got)
 	}
 	if !strings.Contains(got, `\n`) {
 		t.Fatalf("expected the break to be made visible as \\n, got %q", got)
@@ -41,7 +42,7 @@ func TestTruncatesOverlongValues(t *testing.T) {
 		t.Fatalf("value not truncated: len=%d", len(got))
 	}
 	if !strings.HasSuffix(got, "…(truncated)") {
-		t.Fatalf("truncation not signalled: %q", got[len(got)-20:])
+		t.Fatalf("truncation not signaled: %q", got[len(got)-20:])
 	}
 }
 

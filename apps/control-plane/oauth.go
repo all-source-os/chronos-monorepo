@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/allsource/control-plane/internal/logsafe"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/allsource/control-plane/internal/logsafe"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"

@@ -115,7 +115,7 @@ func TestBuildGeoSelfReport(t *testing.T) {
 		}
 	})
 
-	t.Run("an unrecognised source records nothing rather than failing", func(t *testing.T) {
+	t.Run("an unrecognized source records nothing rather than failing", func(t *testing.T) {
 		// Never an error: the endpoint's job is to mint a tenant. A typo in an
 		// optional telemetry field must not cost somebody their signup.
 		for _, bad := range []string{"ChatGPT", "chatgpt-6", "  ", "'; DROP TABLE"} {
@@ -181,7 +181,10 @@ func TestBuildGeoSelfReport(t *testing.T) {
 			long[i] = 'a'
 		}
 		env, _ := buildGeoSelfReport("t1", "trial", "claude", string(long), at)
-		got, _ := env.Payload["verbatim"].(string)
+		got, ok := env.Payload["verbatim"].(string)
+		if !ok {
+			t.Fatalf("verbatim = %T, want string", env.Payload["verbatim"])
+		}
 		if len(got) != geoMaxVerbatim {
 			t.Errorf("verbatim length = %d, want %d", len(got), geoMaxVerbatim)
 		}

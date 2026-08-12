@@ -46,7 +46,7 @@ func demoEnabled() bool {
 // OnboardRequest represents a request to start onboarding.
 //
 // DiscoverySource/DiscoveryPrompt are the GEO layer-4 self-report capture
-// (see geo_selfreport.go). Both are OPTIONAL and the endpoint's behaviour is
+// (see geo_selfreport.go). Both are OPTIONAL and the endpoint's behavior is
 // unchanged when they are absent — same status, same response keys, same
 // values, no event written. That is not a nicety: this endpoint is published
 // in apps/web/public/llms.txt and live agents call it, so a required field
@@ -57,11 +57,11 @@ type OnboardRequest struct {
 	Name  string `json:"name"`
 	// How the caller found AllSource — one of the ids in
 	// docs/contracts/geo-events/discovery-sources.json ("chatgpt", "search").
-	// An absent or unrecognised value is silently ignored, never an error.
+	// An absent or unrecognized value is silently ignored, never an error.
 	DiscoverySource string `json:"discovery_source"`
 	// What they asked the assistant, verbatim. Only stored for the AI sources.
 	// This is the highest-value field in the layer: an agent's actual prompt is
-	// first-party buyer language no probe harness can synthesise.
+	// first-party buyer language no probe harness can synthesize.
 	DiscoveryPrompt string `json:"discovery_prompt"`
 }
 

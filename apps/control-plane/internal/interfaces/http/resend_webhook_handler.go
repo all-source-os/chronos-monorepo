@@ -7,9 +7,10 @@ import (
 	"io"
 	"log"
 
-	"github.com/allsource/control-plane/internal/logsafe"
 	"net/http"
 	"strings"
+
+	"github.com/allsource/control-plane/internal/logsafe"
 
 	"github.com/gin-gonic/gin"
 
@@ -184,7 +185,7 @@ func (h *ResendWebhookHandler) Inbound(c *gin.Context) {
 	msg, err := h.provider.FetchMessage(ctx, addr, note.Data.EmailID)
 	if err != nil {
 		// The provider's error text can quote back attacker-supplied fields
-		// (message ids, headers), so it is sanitised like any other untrusted value.
+		// (message ids, headers), so it is sanitized like any other untrusted value.
 		log.Printf("resend inbound: fetch failed email_id=%s: %s", logsafe.String(note.Data.EmailID), logsafe.String(err.Error()))
 		c.JSON(http.StatusBadGateway, gin.H{"error": "fetch message failed"})
 		return
