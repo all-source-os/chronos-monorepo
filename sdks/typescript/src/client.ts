@@ -44,6 +44,22 @@ function normalizeCreated(raw: RawCreatedEvent): CreatedEvent {
   };
 }
 
+/**
+ * Strips trailing slashes in linear time.
+ *
+ * The previous implementation used `replace(/\/+$/, "")`. That pattern
+ * backtracks polynomially: a caller-supplied `baseUrl` ending in a long run of
+ * slashes (e.g. "https://x/" + "/".repeat(50_000)) makes the regex engine retry
+ * every split point, hanging the thread. `baseUrl` is library input, so a
+ * caller passing a value built from user data could stall their own process.
+ * A scan from the end has no backtracking to do.
+ */
+function stripTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47 /* "/" */) end--;
+  return url.slice(0, end);
+}
+
 export class AllSourceClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -56,7 +72,7 @@ export class AllSourceClient {
     if (!config.baseUrl) throw new Error("baseUrl is required");
     if (!config.apiKey) throw new Error("apiKey is required");
 
-    this.baseUrl = config.baseUrl.replace(/\/+$/, "");
+    this.baseUrl = stripTrailingSlashes(config.baseUrl);
     this.apiKey = config.apiKey;
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
 
@@ -79,11 +95,7 @@ export class AllSourceClient {
    * unwraps and normalizes it to `id`.
    */
   async ingestEvent(event: IngestEventInput): Promise<CreatedEvent> {
-    const res = await this.request<{ data: RawCreatedEvent }>(
-      "POST",
-      "/api/v1/events",
-      event,
-    );
+    const res = await this.request<{ data: RawCreatedEvent }>("POST", "/api/v1/events", event);
     return normalizeCreated(res.data);
   }
 
@@ -94,20 +106,18 @@ export class AllSourceClient {
    * (`id` / `timestamp` / `version`).
    */
   async ingestBatch(
-    events: IngestEventInput[],
+    events: IngestEventInput[]
   ): Promise<{ count: number; events: CreatedEvent[] }> {
     const res = await this.request<{ data: RawCreatedEvent[]; count: number }>(
       "POST",
       "/api/v1/events/batch",
-      { events },
+      { events }
     );
     return { count: res.count, events: (res.data ?? []).map(normalizeCreated) };
   }
 
   /** Query events with optional filters. */
-  async queryEvents(
-    params: QueryEventsParams = {},
-  ): Promise<QueryEventsResponse> {
+  async queryEvents(params: QueryEventsParams = {}): Promise<QueryEventsResponse> {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null) {
@@ -115,9 +125,7 @@ export class AllSourceClient {
       }
     }
     const qs = query.toString();
-    const path = qs
-      ? `/api/v1/events/query?${qs}`
-      : "/api/v1/events/query";
+    const path = qs ? `/api/v1/events/query?${qs}` : "/api/v1/events/query";
     return this.request<QueryEventsResponse>("GET", path);
   }
 
@@ -130,7 +138,7 @@ export class AllSourceClient {
   async listPrimeProjections(): Promise<PrimeProjection[]> {
     const res = await this.request<{ data: PrimeProjection[]; count: number }>(
       "GET",
-      "/api/v1/prime/projections",
+      "/api/v1/prime/projections"
     );
     return res.data;
   }
@@ -138,12 +146,12 @@ export class AllSourceClient {
   /** Define (or update) a Prime projection with per-field merge policies. */
   async definePrimeProjection(
     entityType: string,
-    fieldPolicies: Record<string, string>,
+    fieldPolicies: Record<string, string>
   ): Promise<PrimeProjectionAck> {
     const res = await this.request<{ data: PrimeProjectionAck }>(
       "POST",
       "/api/v1/prime/projections",
-      { entity_type: entityType, field_policies: fieldPolicies },
+      { entity_type: entityType, field_policies: fieldPolicies }
     );
     return res.data;
   }
@@ -152,28 +160,22 @@ export class AllSourceClient {
   async projectNode(nodeId: string): Promise<PrimeSnapshot> {
     const res = await this.request<{ data: PrimeSnapshot }>(
       "POST",
-      `/api/v1/prime/nodes/${nodeId}/project`,
+      `/api/v1/prime/nodes/${nodeId}/project`
     );
     return res.data;
   }
 
   /** Fetch provenance for a single field on a Prime node. Throws AllSourceError (404) when none. */
-  async nodeFieldProvenance(
-    nodeId: string,
-    field: string,
-  ): Promise<PrimeProvenance> {
+  async nodeFieldProvenance(nodeId: string, field: string): Promise<PrimeProvenance> {
     const res = await this.request<{ data: PrimeProvenance }>(
       "GET",
-      `/api/v1/prime/nodes/${nodeId}/fields/${field}/provenance`,
+      `/api/v1/prime/nodes/${nodeId}/fields/${field}/provenance`
     );
     return res.data;
   }
 
   /** Query events and fold them into a state using the provided folder. */
-  async queryAndFold<S>(
-    params: QueryEventsParams,
-    folder: EventFolder<S>,
-  ): Promise<S | undefined> {
+  async queryAndFold<S>(params: QueryEventsParams, folder: EventFolder<S>): Promise<S | undefined> {
     const result = await this.queryEvents(params);
     return foldEvents(folder, result.events);
   }
@@ -183,11 +185,7 @@ export class AllSourceClient {
     return this.request<HealthResponse>("GET", "/health");
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-  ): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     this.circuitBreaker.check();
 
     const url = `${this.baseUrl}${path}`;
@@ -230,7 +228,7 @@ export class AllSourceClient {
           const error = new AllSourceError(
             `AllSource API error: ${response.status} ${response.statusText}`,
             response.status,
-            responseBody,
+            responseBody
           );
 
           if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < maxAttempts - 1) {
@@ -254,10 +252,7 @@ export class AllSourceClient {
           throw error;
         }
         if (error instanceof DOMException && error.name === "AbortError") {
-          const timeoutErr = new AllSourceError(
-            `Request timeout after ${this.timeout}ms`,
-            0,
-          );
+          const timeoutErr = new AllSourceError(`Request timeout after ${this.timeout}ms`, 0);
           if (attempt < maxAttempts - 1) {
             lastError = timeoutErr;
             continue;
@@ -284,7 +279,7 @@ export class AllSourceClient {
 
   private computeDelay(attempt: number): number {
     const { baseDelay, backoffFactor, maxDelay } = this.retryConfig;
-    const exponentialDelay = baseDelay * Math.pow(backoffFactor, attempt - 1);
+    const exponentialDelay = baseDelay * backoffFactor ** (attempt - 1);
     const capped = Math.min(exponentialDelay, maxDelay);
     // Add jitter: random value between 0 and capped delay
     const jitter = Math.random() * capped;

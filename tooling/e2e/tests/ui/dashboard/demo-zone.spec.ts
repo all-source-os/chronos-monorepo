@@ -83,7 +83,9 @@ test.describe("Demo Zone — view toggle", () => {
     await page.getByRole("button", { name: /Live Fire/i }).click();
     await page.waitForTimeout(500);
 
-    expect(page.url()).toMatch(/view=live-fire|\/dashboard\/demo$/);
+    // Grouped explicitly: without the group, `$` binds only to the second
+    // branch, which reads as if it anchored both.
+    expect(page.url()).toMatch(/(?:view=live-fire)|(?:\/dashboard\/demo$)/);
   });
 });
 

@@ -14,6 +14,8 @@ version: "0.23.0"
 [![CI](https://github.com/all-source-os/all-source/actions/workflows/ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/ci.yml)
 [![Container CI](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/container-ci.yml)
 [![Docker Build](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml/badge.svg)](https://github.com/all-source-os/all-source/actions/workflows/docker-build.yml)
+[![Security Scanning](https://github.com/all-source-os/all-source/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/all-source-os/all-source/actions/workflows/security.yml)
+[![CodeQL](https://github.com/all-source-os/all-source/actions/workflows/security.yml/badge.svg?branch=main&event=push)](https://github.com/all-source-os/all-source/security/code-scanning)
 [![Release](https://img.shields.io/github/v/release/all-source-os/all-source?label=release&color=blue)](https://github.com/all-source-os/all-source/releases/latest)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![License: BSL 1.1](https://img.shields.io/badge/Enterprise-BSL_1.1-orange.svg)](LICENSE-BSL)
@@ -407,6 +409,40 @@ See [Quality Gates](docs/current/QUALITY_GATES.md) · [Quality Gates Setup](docs
 | Query Service | `apps/query-service/mix.exs` |
 | MCP Server | `apps/mcp-server-elixir/mix.exs` |
 | K8s Manifests | `deploy/k8s/*.yaml` |
+
+---
+
+## Security
+
+[![Security Scanning](https://github.com/all-source-os/all-source/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/all-source-os/all-source/actions/workflows/security.yml)
+
+Live status for every scanner runs off the badge above — it reflects the latest
+run of [`security.yml`](.github/workflows/security.yml) on `main`.
+
+| Scanner | Covers | Runs |
+| --- | --- | --- |
+| [CodeQL](https://github.com/all-source-os/all-source/security/code-scanning) | Go + JavaScript/TypeScript, `security-and-quality` queries | every push to `main`, weekly, on demand |
+| `govulncheck` | Go dependencies **and** the standard library, with reachability analysis | every push to `main`, weekly |
+| `cargo audit` | Rust dependencies (`apps/core`) | every push to `main`, weekly |
+| `mix deps.audit` | Elixir dependencies (`apps/query-service`) | every push to `main`, weekly |
+| Trivy | Container images and filesystem | every push to `main`, weekly |
+
+Findings land in the repository's
+[code-scanning dashboard](https://github.com/all-source-os/all-source/security/code-scanning).
+
+Two notes on reading them honestly:
+
+- **Reachability beats version-matching.** Dependency scanners flag by installed
+  version; `govulncheck` reports only what the code actually calls. A recent
+  sweep flagged 35 CVEs by version, of which 5 were genuinely reachable — those
+  5 were fixed, and the rest were noise from unused code paths.
+- **Generated output is excluded**, via
+  [`.github/codeql/codeql-config.yml`](.github/codeql/codeql-config.yml). Build
+  artefacts, bundled reports, and vendored assets are not first-party code, and
+  scanning them buries real findings under style warnings about minified files.
+
+To report a vulnerability privately, open a
+[security advisory](https://github.com/all-source-os/all-source/security/advisories/new).
 
 ---
 

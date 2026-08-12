@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demoLogin } from "../../fixtures/demo-auth";
+import { urlPathMatcher } from "../../helpers/regex";
 
 /**
  * Navigation & Auth Protection E2E Tests — Production / Staging compatible
@@ -121,7 +122,7 @@ test.describe("Sidebar navigation", () => {
       await link.click();
 
       // Verify URL
-      await page.waitForURL(new RegExp(expectedPath.replace(/\//g, "\\/")), {
+      await page.waitForURL(urlPathMatcher(expectedPath), {
         timeout: 15000,
       });
 

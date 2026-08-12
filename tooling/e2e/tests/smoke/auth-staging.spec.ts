@@ -182,7 +182,9 @@ test.describe("OAuth flow (real credentials)", () => {
     });
     await providerButton.click();
 
-    await page.waitForURL(/accounts\.google\.com|github\.com\/login/, {
+    // Anchored to the origin: an unanchored alternation would also match a
+    // URL that merely contains these hosts as a path or query fragment.
+    await page.waitForURL(/^https:\/\/(?:accounts\.google\.com\/|github\.com\/login)/, {
       timeout: 10000,
     });
 

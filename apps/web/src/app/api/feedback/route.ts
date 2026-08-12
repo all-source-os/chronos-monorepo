@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { logSafe } from "@/lib/log-safe";
 
 const GITHUB_OWNER = "all-source-os";
-const GITHUB_REPO = "chronos-monorepo";
+const GITHUB_REPO = "all-source";
 
 const categoryLabels: Record<string, string> = {
   bug: "bug",
@@ -87,8 +88,8 @@ export async function POST(request: NextRequest) {
 
   // Fallback: log to console (useful during development)
   console.log("=== Feedback Received ===");
-  console.log("Title:", issueTitle);
-  console.log("Body:", issueBody);
+  console.log("Title:", logSafe(issueTitle));
+  console.log("Body:", logSafe(issueBody));
   console.log("========================");
 
   return NextResponse.json({ ok: true });

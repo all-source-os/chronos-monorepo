@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demoLogin, authenticateAndGoToDashboard } from "../../../fixtures/demo-auth";
+import { urlPathMatcher } from "../../../helpers/regex";
 
 /**
  * Sidebar Navigation E2E Tests
@@ -50,7 +51,7 @@ test.describe("Sidebar navigation — link routing", () => {
       await expect(link).toBeVisible({ timeout: 10000 });
       await link.click();
 
-      await page.waitForURL(new RegExp(href.replace(/\//g, "\\/")), {
+      await page.waitForURL(urlPathMatcher(href), {
         timeout: 15000,
       });
       expect(page.url()).toContain(href);
