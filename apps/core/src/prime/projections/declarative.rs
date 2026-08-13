@@ -10,7 +10,9 @@
 //!
 //! `fold(observations, def)` produces the same snapshot regardless of the
 //! observation input order, given the same merge policy per field. This is
-//! the load-bearing contract — it's enforced by [`tests::fold_is_order_independent_for_each_policy`]
+//! the load-bearing contract — it's enforced by
+//! `tests::fold_is_order_independent_for_each_policy` (not a doc link: the
+//! `tests` module is `#[cfg(test)]`, so it does not exist in a docs build)
 //! and the proptest in this file. Read it before changing any policy
 //! implementation: the moment a policy reads input order without going
 //! through one of `observed_at`, `source_priority`, or `specificity_score`,
@@ -127,7 +129,7 @@ pub struct EntitySnapshot {
 /// Fold a set of observations into a snapshot per the projection definition.
 ///
 /// Determinism contract: same inputs (any order) always yield the same
-/// output. Tested by [`tests::fold_is_order_independent_for_each_policy`] and a proptest.
+/// output. Tested by `tests::fold_is_order_independent_for_each_policy` and a proptest.
 ///
 /// Fields not in `def.field_policies` are dropped — the projection defines
 /// what's surfaced.

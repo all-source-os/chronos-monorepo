@@ -1777,7 +1777,8 @@ impl Prime {
         Ok(entries)
     }
 
-    /// Project a node's event history into a list of [`Observation`]s
+    /// Project a node's event history into a list of
+    /// [`super::projections::declarative::Observation`]s
     /// suitable for [`super::projections::declarative::fold`] and the
     /// provenance API.
     ///
