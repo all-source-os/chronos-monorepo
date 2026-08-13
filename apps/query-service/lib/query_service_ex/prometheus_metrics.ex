@@ -3,8 +3,10 @@ defmodule QueryServiceEx.PrometheusMetrics do
   Prometheus metrics exporter for the Query Service.
 
   Defines and exposes metrics in Prometheus text format via the /metrics endpoint.
-  Uses telemetry_metrics_prometheus to automatically collect metrics from
-  telemetry events emitted throughout the application.
+  Uses telemetry_metrics_prometheus_core to collect metrics from telemetry events
+  emitted throughout the application. The `_core` package is the reporter only —
+  it starts no HTTP listener of its own; the metrics are served by Phoenix
+  (`/api/metrics/prometheus`) calling `scrape/0` below.
 
   ## Metric Categories
 
@@ -68,7 +70,7 @@ defmodule QueryServiceEx.PrometheusMetrics do
   @impl true
   def init(_opts) do
     children = [
-      {TelemetryMetricsPrometheus, metrics: metrics()}
+      {TelemetryMetricsPrometheus.Core, metrics: metrics()}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)

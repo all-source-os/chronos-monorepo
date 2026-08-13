@@ -92,7 +92,13 @@ defmodule QueryServiceEx.MixProject do
       {:telemetry, "~> 1.2"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.1"},
-      {:telemetry_metrics_prometheus, "~> 1.1"},
+      # _core, not the full package: the full one bundles a standalone Cowboy
+      # listener (default port 9568) that nothing scrapes — metrics are served
+      # by Phoenix at /api/metrics via Bandit. Dropping it removes plug_cowboy,
+      # cowboy, cowlib and ranch from the tree, and with them cowlib's two
+      # unfixable advisories (CVE-2026-43966 / CVE-2026-43969, affected through
+      # 2.19.0 with no patched release).
+      {:telemetry_metrics_prometheus_core, "~> 1.2"},
 
       # Structured Logging
       {:logger_json, "~> 7.0"},
