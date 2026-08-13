@@ -7,8 +7,15 @@
   # Pattern match coverage warnings (exhaustive matches flagged by dialyzer)
   ~r/query_controller\.ex.*pattern_match_cov/,
   ~r/tenant_context\.ex.*pattern_match_cov/,
-  # WebSocket client no_return (expected — reconnection loops)
-  ~r/core_websocket_client\.ex.*no_return/,
+  # The two filters below look redundant, and exactly one of them is — but
+  # *which* one depends on the toolchain, so both have to stay.
+  # `mix dialyzer --list-unused-filters` reports:
+  #   OTP 27 (CI):    `pattern_match` unused, `call_with_opaque` used
+  #   OTP 28 (local): `call_with_opaque` unused, `pattern_match` used
+  # The two OTPs disagree about which warning Mint's opaque conn provokes.
+  # Deleting either one greens the toolchain that reported it unused and reds
+  # the other, so keep both until CI and local run the same OTP.
+  #
   # Mint.WebSocket.new can return {:ok, conn, ws} but Dialyzer infers only error from typespecs
   ~r/core_websocket_worker\.ex.*pattern_match/,
   # `Mint.WebSocket.upgrade/4` takes the `Mint.HTTP.t()` handed back by
