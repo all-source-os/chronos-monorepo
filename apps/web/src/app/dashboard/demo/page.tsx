@@ -94,13 +94,17 @@ export default function DemoPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
+      const data = (await response.json().catch(() => null)) as {
+        seeded?: boolean;
+        error?: string;
+      } | null;
       if (!response.ok) {
-        throw new Error(`Seed failed: ${response.statusText}`);
+        throw new Error(data?.error || `Demo service returned HTTP ${response.status}.`);
       }
-      const data = await response.json();
-      if (data.seeded) {
-        setSeeded(true);
+      if (!data?.seeded) {
+        throw new Error("Demo service did not confirm setup. Try again.");
       }
+      setSeeded(true);
     } catch (err) {
       setSeedError(err instanceof Error ? err.message : "Failed to seed demo data");
     } finally {
@@ -214,7 +218,15 @@ function EmptyState({ seeding, seedError, onSeed }: Omit<ViewProps, "seeded">) {
             </>
           )}
         </Button>
-        {seedError && <p className="mt-4 text-sm text-destructive">{seedError}</p>}
+        {seedError && (
+          <div
+            className="mt-4 max-w-md rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-destructive">Demo could not start</p>
+            <p className="mt-1 text-sm text-muted-foreground">{seedError}</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
