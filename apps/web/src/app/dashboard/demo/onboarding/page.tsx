@@ -2,15 +2,8 @@
 
 import { Button, Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Code2,
-  Download,
-  Play,
-  Search,
-} from "lucide-react";
+import { track } from "@vercel/analytics";
+import { ArrowLeft, ArrowRight, Check, Code2, Download, Play, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -24,11 +17,11 @@ const STEPS = [
 
 type SDK = "rust" | "go" | "typescript" | "python";
 
-const SDK_OPTIONS: { id: SDK; label: string; icon: string }[] = [
-  { id: "rust", label: "Rust", icon: "🦀" },
-  { id: "go", label: "Go", icon: "🐹" },
-  { id: "typescript", label: "TypeScript", icon: "🟦" },
-  { id: "python", label: "Python", icon: "🐍" },
+const SDK_OPTIONS: { id: SDK; label: string; mark: string }[] = [
+  { id: "rust", label: "Rust", mark: "Rs" },
+  { id: "go", label: "Go", mark: "Go" },
+  { id: "typescript", label: "TypeScript", mark: "TS" },
+  { id: "python", label: "Python", mark: "Py" },
 ];
 
 const INSTALL_COMMANDS: Record<SDK, { cmd: string; registry?: string }> = {
@@ -53,7 +46,7 @@ use serde_json::json;
 #[tokio::main]
 async fn main() -> Result<(), allsource::Error> {
     let client = CoreClient::new(
-        "http://localhost:3900",
+        "https://api.all-source.xyz",
         "your-api-key",
     )?;
 
@@ -78,7 +71,7 @@ import (
 )
 
 func main() {
-    client := allsource.New("your-api-key", "http://localhost:3900")
+    client := allsource.New("your-api-key", "https://api.all-source.xyz")
 
     resp, err := client.Ingest(context.Background(),
         "user.signup", "user-001",
@@ -95,7 +88,7 @@ func main() {
   typescript: `import { AllSourceClient } from "@allsourcedev/client";
 
 const client = new AllSourceClient({
-  baseUrl: "http://localhost:3900",
+  baseUrl: "https://api.all-source.xyz",
   apiKey: "your-api-key",
 });
 
@@ -113,7 +106,7 @@ console.log("Created event:", resp.event_id);`,
 
 client = AllSourceClient(
     api_key="your-api-key",
-    base_url="http://localhost:3900",
+    base_url="https://api.all-source.xyz",
 )
 
 event = client.ingest(
@@ -132,7 +125,7 @@ const QUERY_SNIPPETS: Record<SDK, string> = {
   rust: `use allsource::{QueryClient, QueryEventsParams};
 
 let qs = QueryClient::new(
-    "http://localhost:3902",
+    "https://api.all-source.xyz",
     "your-api-key",
 )?;
 
@@ -182,12 +175,16 @@ function getLanguageLabel(sdk: SDK): string {
   return SDK_OPTIONS.find((s) => s.id === sdk)?.label ?? sdk;
 }
 
-export default function OnboardingWizardPage() {
+export function OnboardingWizard({
+  basePath = "/dashboard/demo/onboarding",
+}: {
+  basePath?: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const stepParam = parseInt(searchParams.get("step") ?? "1", 10);
-  const currentStep = Math.max(1, Math.min(4, isNaN(stepParam) ? 1 : stepParam));
+  const currentStep = Math.max(1, Math.min(4, Number.isNaN(stepParam) ? 1 : stepParam));
   const stepIndex = currentStep - 1;
 
   const sdkParam = searchParams.get("sdk") as SDK | null;
@@ -195,6 +192,7 @@ export default function OnboardingWizardPage() {
     sdkParam && SDK_OPTIONS.some((s) => s.id === sdkParam) ? sdkParam : null;
 
   const [createdEventId, setCreatedEventId] = useState<string | null>(null);
+  const [queryVerified, setQueryVerified] = useState(false);
 
   const setParams = useCallback(
     (updates: Record<string, string>) => {
@@ -202,19 +200,21 @@ export default function OnboardingWizardPage() {
       for (const [key, value] of Object.entries(updates)) {
         params.set(key, value);
       }
-      router.push(`/dashboard/demo/onboarding?${params.toString()}`);
+      router.push(`${basePath}?${params.toString()}`);
     },
-    [router, searchParams],
+    [basePath, router, searchParams]
   );
 
-  const goToStep = useCallback(
-    (step: number) => setParams({ step: String(step) }),
-    [setParams],
-  );
+  const goToStep = useCallback((step: number) => setParams({ step: String(step) }), [setParams]);
 
   const handleSelectSdk = useCallback(
-    (sdk: SDK) => setParams({ sdk, step: "2" }),
-    [setParams],
+    (sdk: SDK) => {
+      setCreatedEventId(null);
+      setQueryVerified(false);
+      track("onboarding_sdk_selected", { sdk, path: basePath });
+      setParams({ sdk, step: "2" });
+    },
+    [basePath, setParams]
   );
 
   const handleBack = useCallback(() => {
@@ -226,43 +226,56 @@ export default function OnboardingWizardPage() {
   }, [currentStep, goToStep]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <section className="mx-auto max-w-3xl space-y-8" aria-labelledby="onboarding-title">
+      <div className="text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          First event
+        </p>
+        <h1 id="onboarding-title" className="mt-2 text-3xl font-bold tracking-tight">
+          Connect AllSource to your stack
+        </h1>
+        <p className="mx-auto mt-2 max-w-xl text-muted-foreground">
+          Install one SDK, write a real event to this tenant, then query it back.
+        </p>
+      </div>
       {/* Step indicator */}
       <div data-testid="step-indicator" className="flex items-center justify-center gap-2">
         {STEPS.map((step, index) => {
           const StepIcon = step.icon;
           const isActive = index === stepIndex;
-          const isCompleted = index < stepIndex;
+          const isCompleted =
+            (index === 0 && !!selectedSdk) ||
+            (index === 1 && currentStep > 2) ||
+            (index === 2 && !!createdEventId) ||
+            (index === 3 && queryVerified);
+          const isAvailable =
+            index === 0 ||
+            (index <= 2 && !!selectedSdk) ||
+            (index === 3 && !!createdEventId) ||
+            isActive;
           return (
             <div key={step.id} className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => goToStep(index + 1)}
+                disabled={!isAvailable}
                 className={cn(
-                  "flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  "flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : isCompleted
                       ? "bg-green-500/20 text-green-500"
-                      : "bg-muted text-muted-foreground",
+                      : "bg-muted text-muted-foreground"
                 )}
                 aria-label={`Step ${index + 1}: ${step.label}`}
                 aria-current={isActive ? "step" : undefined}
               >
-                {isCompleted ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <StepIcon className="h-4 w-4" />
-                )}
+                {isCompleted ? <Check className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
                 <span className="hidden sm:inline">{step.label}</span>
                 <span className="sm:hidden">{index + 1}</span>
               </button>
               {index < STEPS.length - 1 && (
-                <div
-                  className={cn(
-                    "h-0.5 w-6",
-                    isCompleted ? "bg-green-500" : "bg-muted",
-                  )}
-                />
+                <div className={cn("h-0.5 w-6", isCompleted ? "bg-green-500" : "bg-muted")} />
               )}
             </div>
           );
@@ -280,18 +293,18 @@ export default function OnboardingWizardPage() {
         className="animate-in fade-in-50 slide-in-from-right-4 duration-300"
         data-testid="step-content"
       >
-        {currentStep === 1 && (
-          <StepChooseSdk selected={selectedSdk} onSelect={handleSelectSdk} />
-        )}
-        {currentStep === 2 && selectedSdk && (
-          <StepInstall sdk={selectedSdk} />
-        )}
+        {currentStep === 1 && <StepChooseSdk selected={selectedSdk} onSelect={handleSelectSdk} />}
+        {currentStep === 2 && selectedSdk && <StepInstall sdk={selectedSdk} />}
         {currentStep === 2 && !selectedSdk && (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">
                 Please{" "}
-                <button onClick={() => goToStep(1)} className="text-primary underline">
+                <button
+                  type="button"
+                  onClick={() => goToStep(1)}
+                  className="text-primary underline"
+                >
                   choose an SDK
                 </button>{" "}
                 first.
@@ -311,7 +324,11 @@ export default function OnboardingWizardPage() {
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">
                 Please{" "}
-                <button onClick={() => goToStep(1)} className="text-primary underline">
+                <button
+                  type="button"
+                  onClick={() => goToStep(1)}
+                  className="text-primary underline"
+                >
                   choose an SDK
                 </button>{" "}
                 first.
@@ -320,14 +337,18 @@ export default function OnboardingWizardPage() {
           </Card>
         )}
         {currentStep === 4 && selectedSdk && (
-          <StepQueryBack sdk={selectedSdk} />
+          <StepQueryBack sdk={selectedSdk} onVerificationChange={setQueryVerified} />
         )}
         {currentStep === 4 && !selectedSdk && (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">
                 Please{" "}
-                <button onClick={() => goToStep(1)} className="text-primary underline">
+                <button
+                  type="button"
+                  onClick={() => goToStep(1)}
+                  className="text-primary underline"
+                >
                   choose an SDK
                 </button>{" "}
                 first.
@@ -352,20 +373,35 @@ export default function OnboardingWizardPage() {
         {currentStep < 4 ? (
           <Button
             onClick={handleNext}
-            disabled={currentStep === 1 && !selectedSdk}
+            disabled={(currentStep === 1 && !selectedSdk) || (currentStep === 3 && !createdEventId)}
             data-testid="next-button"
           >
             Next
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
-          <Button asChild data-testid="go-to-dashboard-button">
-            <Link href="/dashboard">Go to Dashboard</Link>
+          <Button
+            type="button"
+            disabled={!queryVerified}
+            data-testid="go-to-dashboard-button"
+            onClick={() => {
+              track("onboarding_completed", {
+                sdk: selectedSdk ?? "unknown",
+                path: basePath,
+              });
+              router.push("/dashboard");
+            }}
+          >
+            Go to Dashboard
           </Button>
         )}
       </div>
-    </div>
+    </section>
   );
+}
+
+export default function OnboardingWizardPage() {
+  return <OnboardingWizard />;
 }
 
 function StepChooseSdk({
@@ -379,25 +415,24 @@ function StepChooseSdk({
     <div className="space-y-6 text-center">
       <div>
         <h2 className="text-2xl font-bold">Choose Your SDK</h2>
-        <p className="mt-2 text-muted-foreground">
-          Pick your language to get started with AllSource.
-        </p>
+        <p className="mt-2 text-muted-foreground">Pick the client used by your application.</p>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-testid="sdk-selector">
         {SDK_OPTIONS.map((sdk) => (
           <button
+            type="button"
             key={sdk.id}
             onClick={() => onSelect(sdk.id)}
             className={cn(
               "flex flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              selected === sdk.id
-                ? "border-primary bg-primary/5"
-                : "border-border",
+              selected === sdk.id ? "border-primary bg-primary/5" : "border-border"
             )}
             data-testid={`sdk-option-${sdk.id}`}
             aria-label={`Select ${sdk.label} SDK`}
           >
-            <span className="text-4xl">{sdk.icon}</span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted font-mono text-sm font-semibold text-foreground">
+              {sdk.mark}
+            </span>
             <span className="font-medium">{sdk.label}</span>
           </button>
         ))}
@@ -406,13 +441,7 @@ function StepChooseSdk({
   );
 }
 
-function CodeBlock({
-  code,
-  language,
-}: {
-  code: string;
-  language: string;
-}) {
+function CodeBlock({ code, language }: { code: string; language: string }) {
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(code);
   }, [code]);
@@ -422,6 +451,7 @@ function CodeBlock({
       <div className="flex items-center justify-between rounded-t-lg border border-b-0 border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground">
         <span>{language}</span>
         <button
+          type="button"
           onClick={handleCopy}
           className="rounded px-2 py-1 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="copy-button"
@@ -444,8 +474,16 @@ function StepInstall({ sdk }: { sdk: SDK }) {
       <div className="text-center">
         <h2 className="text-2xl font-bold">Install the {getLanguageLabel(sdk)} SDK</h2>
         <p className="mt-2 text-muted-foreground">
-          Copy-paste these commands to add AllSource to your project.
+          Add the client to your project. Create an API key before using the snippet.
         </p>
+      </div>
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
+        <span className="text-muted-foreground">Hosted SDK calls require an API key.</span>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/dashboard/api-keys?action=create" target="_blank" rel="noopener noreferrer">
+            Create API key
+          </Link>
+        </Button>
       </div>
       <div className="space-y-4" data-testid="install-commands">
         <CodeBlock code={config.cmd} language={getLanguageLabel(sdk)} />
@@ -493,20 +531,22 @@ function StepSendEvent({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const id = data.id ?? data.event_id ?? "evt-demo";
+      track("onboarding_event_created", { sdk });
       onEventCreated(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send event");
     } finally {
       setIsRunning(false);
     }
-  }, [onEventCreated]);
+  }, [onEventCreated, sdk]);
 
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold">Send Your First Event</h2>
         <p className="mt-2 text-muted-foreground">
-          Create an event using the {getLanguageLabel(sdk)} SDK.
+          Review the {getLanguageLabel(sdk)} request, then use your signed-in session to write the
+          same event to this tenant.
         </p>
       </div>
       <div data-testid="send-event-snippet">
@@ -529,7 +569,8 @@ function StepSendEvent({
           >
             <Check className="h-5 w-5 text-green-500" />
             <span>
-              Event created! ID: <code className="font-mono text-green-400">{createdEventId}</code>
+              Event stored. ID:{" "}
+              <code className="font-mono text-green-600 dark:text-green-400">{createdEventId}</code>
             </span>
           </div>
         )}
@@ -543,7 +584,13 @@ function StepSendEvent({
   );
 }
 
-function StepQueryBack({ sdk }: { sdk: SDK }) {
+function StepQueryBack({
+  sdk,
+  onVerificationChange,
+}: {
+  sdk: SDK;
+  onVerificationChange: (verified: boolean) => void;
+}) {
   const [isQuerying, setIsQuerying] = useState(false);
   const [queryResult, setQueryResult] = useState<Record<string, unknown>[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -551,6 +598,7 @@ function StepQueryBack({ sdk }: { sdk: SDK }) {
   const handleTryIt = useCallback(async () => {
     setIsQuerying(true);
     setError(null);
+    onVerificationChange(false);
     try {
       const params = new URLSearchParams({
         event_type: "user.signup",
@@ -562,20 +610,27 @@ function StepQueryBack({ sdk }: { sdk: SDK }) {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setQueryResult(data.events ?? []);
+      const events: Record<string, unknown>[] = Array.isArray(data.events) ? data.events : [];
+      setQueryResult(events);
+      if (events.length === 0) {
+        setError("No matching event returned yet. Retry the query after the event is available.");
+        return;
+      }
+      onVerificationChange(true);
+      track("onboarding_query_completed", { sdk, result_count: events.length });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to query events");
     } finally {
       setIsQuerying(false);
     }
-  }, []);
+  }, [onVerificationChange, sdk]);
 
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold">Query It Back</h2>
         <p className="mt-2 text-muted-foreground">
-          Retrieve the event you just created.
+          Query this tenant for the event you just stored.
         </p>
       </div>
       <div data-testid="query-snippet">
@@ -611,14 +666,16 @@ function StepQueryBack({ sdk }: { sdk: SDK }) {
           </p>
         )}
       </div>
-      <Card>
-        <CardContent className="py-6 text-center">
-          <p className="text-lg font-semibold">You&apos;re all set!</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Head to your dashboard to explore events, projections, and more.
-          </p>
-        </CardContent>
-      </Card>
+      {queryResult && queryResult.length > 0 && (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <p className="text-lg font-semibold">Ingest and query verified</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Open Event Explorer to inspect payloads, streams, and event history.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ import { canonicalTier } from "@/lib/tier";
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 }
 
 const navigation = [
@@ -45,7 +46,7 @@ const navigation = [
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { tenant } = useAuthStore();
 
@@ -62,7 +63,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-border px-4">
-        <Link href="/dashboard" className="group flex items-center gap-2">
+        <Link href="/dashboard" className="group flex items-center gap-2" onClick={onNavigate}>
           <Icons.logo className="h-8 w-8 shrink-0 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12" />
           {!collapsed && (
             <span className="text-xl font-semibold tracking-tight bg-gradient-to-r from-foreground to-foreground bg-clip-text transition-all duration-300 group-hover:from-primary group-hover:to-foreground group-hover:text-transparent">
@@ -120,6 +121,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 collapsed && "justify-center px-2"
               )}
               title={collapsed ? item.name : undefined}
+              onClick={onNavigate}
             >
               <item.icon className="h-5 w-5 shrink-0" />
               {!collapsed && <span>{item.name}</span>}
@@ -140,7 +142,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               Get 5M events/month, unlimited streams, and hosted MCP read + write.
             </p>
             <Button size="sm" className="w-full" asChild>
-              <Link href="/dashboard/billing">Upgrade now</Link>
+              <Link href="/dashboard/billing" onClick={onNavigate}>
+                Upgrade now
+              </Link>
             </Button>
           </div>
         </div>
@@ -148,25 +152,25 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Platform status link */}
       <div className="border-t border-border p-2">
-        <a
+        <Link
           href="/status"
           className={cn(
             "flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
             collapsed && "justify-center px-2"
           )}
           title="Platform status"
+          onClick={onNavigate}
         >
           <span className="flex h-2 w-2 shrink-0">
-            <span className="absolute h-2 w-2 animate-ping rounded-full bg-green-500 opacity-60" />
-            <span className="relative h-2 w-2 rounded-full bg-green-500" />
+            <span className="relative h-2 w-2 rounded-full bg-muted-foreground" />
           </span>
           {!collapsed && (
             <>
-              <span className="flex-1">Platform status</span>
+              <span className="flex-1">System status</span>
               <ExternalLink className="h-3 w-3 shrink-0 opacity-60" />
             </>
           )}
-        </a>
+        </Link>
       </div>
     </aside>
   );

@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
+@source "../../../../packages/ui/src";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -214,16 +215,8 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: Inter, sans-serif;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "salt";
-    font-variation-settings: "cv02", "cv03", "cv04", "cv11", "salt";
-  }
-
-  @supports (font-variation-settings: normal) {
-    :root {
-      font-family: InterVariable, sans-serif;
-      font-feature-settings: "cv02", "cv03", "cv04", "cv11", "salt";
-    }
+    font-family:
+      ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 }
 

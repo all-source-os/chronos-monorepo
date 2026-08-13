@@ -1,6 +1,8 @@
 "use client";
 
+import { Button } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CommandPalette } from "@/components/dashboard/command-palette";
@@ -16,35 +18,48 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { login, setLoading, isLoading } = useAuthStore();
+  const { login, logout, setLoading, setError, isLoading, isAuthenticated, error } = useAuthStore();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
-  // Fetch session on mount
-  useEffect(() => {
-    const fetchSession = async () => {
-      try {
-        const response = await fetch("/api/auth/session");
-        if (!response.ok) {
-          router.push("/login");
-          return;
-        }
-        const data = await response.json();
-        if (data.data?.user) {
-          login(data.data.user, data.data.tenant, data.data.core_api_key ?? null);
-        } else {
-          router.push("/login");
-        }
-      } catch {
-        router.push("/login");
-      } finally {
-        setLoading(false);
+  const fetchSession = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/session", { cache: "no-store" });
+      if (response.status === 401 || response.status === 403) {
+        logout();
+        router.replace("/login?redirect=/dashboard");
+        return;
       }
-    };
+      if (!response.ok) {
+        throw new Error("Session service is temporarily unavailable.");
+      }
 
+      const data = await response.json();
+      if (!data.data?.user) {
+        logout();
+        router.replace("/login?redirect=/dashboard");
+        return;
+      }
+
+      login(data.data.user, data.data.tenant, data.data.core_api_key ?? null);
+    } catch (sessionError) {
+      setError(
+        sessionError instanceof Error ? sessionError.message : "Session could not be verified."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [login, logout, router, setError, setLoading]);
+
+  // Verify the cookie in the background. A persisted, previously verified
+  // session can render the shell immediately; invalid sessions are still
+  // rejected as soon as this request returns 401/403.
+  useEffect(() => {
     fetchSession();
-  }, [login, router, setLoading]);
+  }, [fetchSession]);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -60,12 +75,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  if (isLoading) {
+  if (isLoading && !isAuthenticated) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
+      <div className="min-h-screen bg-background p-6" role="status" aria-label="Loading dashboard">
+        <div className="mx-auto max-w-7xl animate-pulse space-y-6 pt-16">
+          <div className="h-8 w-48 rounded bg-muted" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {["events", "streams", "projections", "latency"].map((metric) => (
+              <div key={metric} className="h-32 rounded-xl border border-border bg-card" />
+            ))}
+          </div>
+          <div className="h-72 rounded-xl border border-border bg-card" />
         </div>
       </div>
     );
@@ -85,12 +105,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Mobile sidebar overlay */}
         {mobileMenuOpen && (
           <>
-            <div
+            <button
+              type="button"
               className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm md:hidden"
               onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close navigation"
             />
             <div className="fixed left-0 top-0 z-40 md:hidden">
-              <Sidebar collapsed={false} onToggle={() => setMobileMenuOpen(false)} />
+              <Sidebar
+                collapsed={false}
+                onToggle={() => setMobileMenuOpen(false)}
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
             </div>
           </>
         )}
@@ -114,6 +140,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <DemoBanner />
           <EarlyAccessBanner />
           <HistoricalModeBanner />
+
+          {error && (
+            <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-3 md:px-6">
+              <div className="mx-auto flex max-w-7xl flex-col gap-3 text-sm sm:flex-row sm:items-center">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                <p className="flex-1">
+                  Session verification is unavailable. Cached dashboard data remains visible.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchSession}
+                  disabled={isLoading}
+                >
+                  <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isLoading && "animate-spin")} />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="container mx-auto max-w-7xl p-4 md:p-6 lg:p-8">{children}</div>
         </main>

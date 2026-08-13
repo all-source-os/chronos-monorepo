@@ -2,6 +2,7 @@
 
 import { BlurFade, Button, Card, CardContent, DatePicker, Input } from "@allsource/ui";
 import {
+  AlertCircle,
   BookOpen,
   Download,
   Eye,
@@ -14,7 +15,8 @@ import {
   X,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CreateEventDialog } from "@/components/events/create-event-dialog";
 import { EventDetailDrawer } from "@/components/events/event-detail-drawer";
 import { EventList } from "@/components/events/event-list";
 import { EventTimeline } from "@/components/events/event-timeline";
@@ -34,8 +36,9 @@ export default function EventsPage() {
   const [showSystem, setShowSystem] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  const { events, total, isLoading, error, refresh } = useEvents({
+  const { events, total, isLoading, error, createEvent, refresh } = useEvents({
     entity_id: entityFilter || undefined,
     event_type: typeFilter || undefined,
     // Hide platform-noise namespaces (heartbeats/audit/_system) by default so
@@ -46,6 +49,12 @@ export default function EventsPage() {
   });
 
   const showingEmptyState = events.length === 0 && !isLoading;
+
+  useEffect(() => {
+    if (searchParams.get("action") === "create") {
+      setShowCreateDialog(true);
+    }
+  }, [searchParams]);
 
   // Filter events by search
   const filteredEvents = events.filter((event) =>
@@ -71,6 +80,13 @@ export default function EventsPage() {
     setEntityFilter("");
     setTypeFilter("");
     router.push("/dashboard/events");
+  };
+
+  const setCreateDialogOpen = (open: boolean) => {
+    setShowCreateDialog(open);
+    if (!open && searchParams.get("action") === "create") {
+      router.replace("/dashboard/events", { scroll: false });
+    }
   };
 
   const hasFilters = search || entityFilter || typeFilter;
@@ -104,7 +120,7 @@ export default function EventsPage() {
               <Download className="mr-1.5 h-4 w-4" />
               Export
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={() => setShowCreateDialog(true)}>
               <Plus className="mr-1.5 h-4 w-4" />
               Create Event
             </Button>
@@ -112,8 +128,25 @@ export default function EventsPage() {
         </div>
       </BlurFade>
 
+      {/* Read failure */}
+      {error && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center">
+            <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+            <div className="flex-1">
+              <p className="font-medium">Events could not be loaded</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={refresh}>
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Empty State */}
-      {showingEmptyState && (
+      {showingEmptyState && !error && (
         <BlurFade delay={0.15} inView>
           <Card className="p-12 text-center">
             <Inbox className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
@@ -127,13 +160,17 @@ export default function EventsPage() {
                 Quick start with curl:
               </p>
               <pre className="overflow-x-auto text-xs">
-                <code>{`curl -X POST $ALLSOURCE_URL/api/events \\
+                <code>{`curl -X POST $ALLSOURCE_URL/api/v1/events \\
   -H "Authorization: Bearer $API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"entity_id":"user-1","event_type":"user.created","payload":{"name":"Alice"}}'`}</code>
               </pre>
             </div>
             <div className="mt-6 flex items-center justify-center gap-3">
+              <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Create first event
+              </Button>
               <Button variant="outline" size="sm" asChild>
                 <a href="https://docs.all-source.xyz" target="_blank" rel="noopener noreferrer">
                   <BookOpen className="mr-1.5 h-4 w-4" />
@@ -206,23 +243,29 @@ export default function EventsPage() {
             {showFilters && (
               <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">Entity ID</label>
+                  <label htmlFor="event-entity-filter" className="mb-1.5 block text-sm font-medium">
+                    Entity ID
+                  </label>
                   <Input
+                    id="event-entity-filter"
                     placeholder="Filter by entity..."
                     value={entityFilter}
                     onChange={(e) => setEntityFilter(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">Event Type</label>
+                  <label htmlFor="event-type-filter" className="mb-1.5 block text-sm font-medium">
+                    Event Type
+                  </label>
                   <Input
+                    id="event-type-filter"
                     placeholder="Filter by type..."
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">Date Range</label>
+                  <span className="mb-1.5 block text-sm font-medium">Date Range</span>
                   <DatePicker placeholder="Select date..." />
                 </div>
               </div>
@@ -249,7 +292,8 @@ export default function EventsPage() {
               <h2 className="text-lg font-semibold">
                 Events
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({filteredEvents.length} results)
+                  ({filteredEvents.length} shown
+                  {total > filteredEvents.length ? ` of ${total}` : ""})
                 </span>
               </h2>
             </div>
@@ -274,6 +318,12 @@ export default function EventsPage() {
         open={showDrawer}
         onClose={() => setShowDrawer(false)}
         onViewEntity={handleViewEntity}
+      />
+
+      <CreateEventDialog
+        open={showCreateDialog}
+        onOpenChange={setCreateDialogOpen}
+        onCreate={createEvent}
       />
     </div>
   );

@@ -3,12 +3,12 @@
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { AlertTriangle, ArrowRight, Plus, Sparkles } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
 import { CreateKeyDialog } from "@/components/api-keys/create-key-dialog";
 import { KeyTable } from "@/components/api-keys/key-table";
-import { UsageChart } from "@/components/billing/usage-chart";
-import { LiveMetrics } from "@/components/dashboard/live-metrics";
+import { GettingStarted } from "@/components/dashboard/getting-started";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RecentEvents } from "@/components/dashboard/recent-events";
 import { StatsCards } from "@/components/dashboard/stats-cards";
@@ -20,10 +20,33 @@ import { apiClient } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { canonicalTier } from "@/lib/tier";
 
+const UsageChart = dynamic(
+  () => import("@/components/billing/usage-chart").then((module) => module.UsageChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-72 animate-pulse rounded-xl border border-border bg-card" />,
+  }
+);
+
+const LiveMetrics = dynamic(
+  () => import("@/components/dashboard/live-metrics").then((module) => module.LiveMetrics),
+  {
+    ssr: false,
+    loading: () => <div className="h-72 animate-pulse rounded-xl border border-border bg-card" />,
+  }
+);
+
 export default function DashboardPage() {
-  const { user, tenant } = useAuthStore();
-  const { stats } = useDashboardStats();
-  const { keys, isLoading: keysLoading, createKey, rotateKey, revokeKey } = useApiKeys();
+  const { tenant } = useAuthStore();
+  const { stats, isLoading: statsLoading, error: statsError } = useDashboardStats();
+  const {
+    keys,
+    isLoading: keysLoading,
+    error: keysError,
+    createKey,
+    rotateKey,
+    revokeKey,
+  } = useApiKeys();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
@@ -33,8 +56,6 @@ export default function DashboardPage() {
   const eventsQuota = stats.events.quota || tenant?.events_quota || 10000;
   const queriesUsed = stats.queries.used || tenant?.queries_used || 0;
   const queriesQuota = stats.queries.quota || tenant?.queries_quota || 10000;
-  // Real tenant-scoped event total (event-store count, not the meter).
-  const totalEvents = stats.events.total || eventsUsed;
   // Real daily ingestion series for the 30-day chart.
   const ingestionHistory = stats.ingestion.map((p) => p.count);
   const ingestionTotal = stats.ingestion.reduce((sum, p) => sum + p.count, 0);
@@ -42,13 +63,6 @@ export default function DashboardPage() {
   // are event-sourced — the chart shows an honest empty state in that case.
   const queryHistory = stats.queries_series.map((p) => p.count);
   const queryTotal = stats.queries_series.reduce((sum, p) => sum + p.count, 0);
-
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  };
 
   const handleCreateKey = async (data: {
     name: string;
@@ -103,15 +117,43 @@ export default function DashboardPage() {
     <div className="space-y-8">
       {/* Header */}
       <FadeIn delay={0.1}>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            {greeting()}, {user?.name?.split(" ")[0] || "there"}
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Here&apos;s what&apos;s happening with your event store today.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-primary">{tenant?.name ?? "Your tenant"}</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">Overview</h1>
+            <p className="mt-1 text-muted-foreground">
+              Data flow, recent activity, and account usage.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/events">Browse events</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/dashboard/events?action=create">
+                <Plus className="mr-1.5 h-4 w-4" />
+                Create event
+              </Link>
+            </Button>
+          </div>
         </div>
       </FadeIn>
+
+      {(statsError || keysError) && (
+        <Card className="border-amber-500/30 bg-amber-500/10">
+          <CardContent className="flex items-start gap-3 p-4">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <div>
+              <p className="text-sm font-medium">Some dashboard data is unavailable</p>
+              <p className="text-xs text-muted-foreground">{statsError ?? keysError}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!statsLoading && !keysLoading && (stats.events.total === 0 || keys.length === 0) && (
+        <GettingStarted hasApiKey={keys.length > 0} hasEvents={stats.events.total > 0} />
+      )}
 
       {/* Stats Cards */}
       <FadeIn delay={0.2}>
@@ -285,40 +327,6 @@ export default function DashboardPage() {
       {/* Recent Events */}
       <FadeIn delay={0.5}>
         <RecentEvents />
-      </FadeIn>
-
-      {/* Instance Stats Banner */}
-      <FadeIn delay={0.55}>
-        <div className="rounded-xl border border-border bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold">Your Event Store</h3>
-              <p className="text-sm text-muted-foreground">Real-time instance metrics</p>
-            </div>
-            <div className="flex flex-wrap gap-6 text-center">
-              <div>
-                <p className="text-2xl font-bold text-primary">{totalEvents.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">total events</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">{stats.latency.formatted}</p>
-                {/* Core's query-duration p99 is a process-global, all-tenant
-                    figure — label it platform, not this tenant's. */}
-                <p className="text-xs text-muted-foreground">p99 latency (platform)</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">{stats.projections.active}</p>
-                <p className="text-xs text-muted-foreground">active projections</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">{stats.storage.formatted}</p>
-                {/* allsource_storage_size_bytes is the whole data-dir on disk
-                    (all tenants) — platform storage, not this tenant's. */}
-                <p className="text-xs text-muted-foreground">storage on disk (platform)</p>
-              </div>
-            </div>
-          </div>
-        </div>
       </FadeIn>
 
       {/* Create Key Dialog */}

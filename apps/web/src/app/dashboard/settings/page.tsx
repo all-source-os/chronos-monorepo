@@ -15,19 +15,28 @@ import {
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { Bell, Check, Copy, Database, Shield, User } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
-import { useAuthStore } from "@/lib/stores/auth-store";
 import {
-  useNotificationPreferences,
   type NotificationPreferences,
+  useNotificationPreferences,
 } from "@/hooks/use-notification-preferences";
 import { useSchemaEnforcement } from "@/hooks/use-schema-enforcement";
 import type { SchemaEnforcementMode } from "@/lib/api/client";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 const ENFORCEMENT_OPTIONS: { mode: SchemaEnforcementMode; label: string; help: string }[] = [
   { mode: "permissive", label: "Permissive", help: "No validation — anything ingests (default)." },
-  { mode: "warn", label: "Warn", help: "Validate against registered schemas; log violations but accept." },
-  { mode: "strict", label: "Strict", help: "Reject events that violate a registered schema (HTTP 422)." },
+  {
+    mode: "warn",
+    label: "Warn",
+    help: "Validate against registered schemas; log violations but accept.",
+  },
+  {
+    mode: "strict",
+    label: "Strict",
+    help: "Reject events that violate a registered schema (HTTP 422).",
+  },
 ];
 
 type Tab = "profile" | "security" | "notifications";
@@ -83,6 +92,7 @@ export default function SettingsPage() {
           <nav className="flex gap-2 lg:w-48 lg:flex-col">
             {tabs.map((tab) => (
               <button
+                type="button"
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
@@ -105,15 +115,20 @@ export default function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Profile Information</CardTitle>
-                  <CardDescription>Your profile is managed by your authentication provider</CardDescription>
+                  <CardDescription>
+                    Your profile is managed by your authentication provider
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Avatar */}
                   <div className="flex items-center gap-4">
                     {user?.avatar_url ? (
-                      <img
+                      <Image
                         src={user.avatar_url}
                         alt={user?.name || "Profile"}
+                        width={64}
+                        height={64}
+                        unoptimized
                         className="h-16 w-16 rounded-full"
                       />
                     ) : (
@@ -132,22 +147,13 @@ export default function SettingsPage() {
                   {/* Name */}
                   <div>
                     <Label>Full Name</Label>
-                    <Input
-                      value={user?.name || ""}
-                      disabled
-                      className="mt-1.5"
-                    />
+                    <Input value={user?.name || ""} disabled className="mt-1.5" />
                   </div>
 
                   {/* Email */}
                   <div>
                     <Label>Email Address</Label>
-                    <Input
-                      type="email"
-                      value={user?.email || ""}
-                      disabled
-                      className="mt-1.5"
-                    />
+                    <Input type="email" value={user?.email || ""} disabled className="mt-1.5" />
                     <p className="mt-1 text-xs text-muted-foreground">
                       Email is managed by your authentication provider
                     </p>
@@ -172,11 +178,7 @@ export default function SettingsPage() {
                     {coreApiKey ? (
                       <>
                         <div className="mt-1.5 flex items-center gap-2">
-                          <Input
-                            value={coreApiKey}
-                            readOnly
-                            className="flex-1 font-mono text-sm"
-                          />
+                          <Input value={coreApiKey} readOnly className="flex-1 font-mono text-sm" />
                           <Button variant="outline" size="icon" onClick={handleCopyApiKey}>
                             {apiKeyCopied ? (
                               <Check className="h-4 w-4 text-green-500" />
@@ -186,11 +188,11 @@ export default function SettingsPage() {
                           </Button>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Use this key in <code className="font-mono">.chronis/config.toml</code> for{" "}
-                          <code className="font-mono">cn sync</code>. Keep it secret.
+                          Use this key in <code className="font-mono">.chronis/config.toml</code>{" "}
+                          for <code className="font-mono">cn sync</code>. Keep it secret.
                         </p>
                         <pre className="mt-2 rounded-md bg-muted p-3 text-xs font-mono text-muted-foreground">
-                          {`[remote]\nurl = "https://api.allsource.dev"\napi_key = "${coreApiKey}"`}
+                          {`[remote]\nurl = "https://api.all-source.xyz"\napi_key = "${coreApiKey}"`}
                         </pre>
                       </>
                     ) : (
@@ -226,7 +228,9 @@ export default function SettingsPage() {
                       {provider === "google" ? (
                         <Badge variant="default">Connected</Badge>
                       ) : (
-                        <Badge variant="outline" className="opacity-50">Not available</Badge>
+                        <Badge variant="outline" className="opacity-50">
+                          Not available
+                        </Badge>
                       )}
                     </div>
 
@@ -244,7 +248,9 @@ export default function SettingsPage() {
                       {provider === "github" ? (
                         <Badge variant="default">Connected</Badge>
                       ) : (
-                        <Badge variant="outline" className="opacity-50">Not available</Badge>
+                        <Badge variant="outline" className="opacity-50">
+                          Not available
+                        </Badge>
                       )}
                     </div>
                   </CardContent>
@@ -328,33 +334,39 @@ export default function SettingsPage() {
                   <CardDescription>Choose what updates you want to receive</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {([
-                    {
-                      key: "usage_alerts" as const,
-                      title: "Usage Alerts",
-                      description: "Get notified when approaching quota limits",
-                    },
-                    {
-                      key: "pipeline_errors" as const,
-                      title: "Pipeline Errors",
-                      description: "Receive alerts when pipelines fail",
-                    },
-                    {
-                      key: "security_alerts" as const,
-                      title: "Security Alerts",
-                      description: "Get notified about security-related events",
-                    },
-                    {
-                      key: "product_updates" as const,
-                      title: "Product Updates",
-                      description: "Learn about new features and improvements",
-                    },
-                    {
-                      key: "tips" as const,
-                      title: "Tips & Tutorials",
-                      description: "Receive helpful tips to get the most out of AllSource",
-                    },
-                  ] satisfies { key: keyof NotificationPreferences; title: string; description: string }[]).map((pref) => (
+                  {(
+                    [
+                      {
+                        key: "usage_alerts" as const,
+                        title: "Usage Alerts",
+                        description: "Get notified when approaching quota limits",
+                      },
+                      {
+                        key: "pipeline_errors" as const,
+                        title: "Pipeline Errors",
+                        description: "Receive alerts when pipelines fail",
+                      },
+                      {
+                        key: "security_alerts" as const,
+                        title: "Security Alerts",
+                        description: "Get notified about security-related events",
+                      },
+                      {
+                        key: "product_updates" as const,
+                        title: "Product Updates",
+                        description: "Learn about new features and improvements",
+                      },
+                      {
+                        key: "tips" as const,
+                        title: "Tips & Tutorials",
+                        description: "Receive helpful tips to get the most out of AllSource",
+                      },
+                    ] satisfies {
+                      key: keyof NotificationPreferences;
+                      title: string;
+                      description: string;
+                    }[]
+                  ).map((pref) => (
                     <div key={pref.key} className="flex items-center justify-between">
                       <div>
                         <p className="font-medium">{pref.title}</p>

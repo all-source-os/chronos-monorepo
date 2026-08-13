@@ -2,7 +2,8 @@
 
 import { Button } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Bell, LogOut, Menu, Moon, Search, Settings, Sun, User } from "lucide-react";
+import { LogOut, Menu, Moon, Search, Settings, Sun } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useState } from "react";
@@ -62,8 +63,19 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
           <Menu className="h-5 w-5" />
         </Button>
 
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={onCommandPaletteOpen}
+          aria-label="Search events and navigation"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
+
         {/* Search */}
         <button
+          type="button"
           onClick={onCommandPaletteOpen}
           className="hidden items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
         >
@@ -80,12 +92,6 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
         {/* Time Travel Picker */}
         <TimeTravelPicker />
 
-        {/* Connection status */}
-        <div className="hidden items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 sm:flex">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
-          <span className="text-xs font-medium text-green-600 dark:text-green-400">Connected</span>
-        </div>
-
         {/* Theme toggle */}
         <Button
           variant="ghost"
@@ -95,11 +101,6 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
         >
           <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        </Button>
-
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="h-5 w-5" />
         </Button>
 
         {/* User menu */}
@@ -113,7 +114,14 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
             aria-expanded={showUserMenu}
           >
             {user?.avatar_url ? (
-              <img src={user.avatar_url} alt={user.name} className="h-8 w-8 rounded-full" />
+              <Image
+                src={user.avatar_url}
+                alt={user.name}
+                width={32}
+                height={32}
+                unoptimized
+                className="h-8 w-8 rounded-full"
+              />
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
                 {user?.name?.charAt(0).toUpperCase() || "U"}
@@ -124,7 +132,12 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
           {/* Dropdown menu */}
           {showUserMenu && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setShowUserMenu(false)}
+                aria-label="Close user menu"
+              />
               <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
                 <div className="border-b border-border px-3 py-2">
                   <p className="text-sm font-medium">{user?.name}</p>
@@ -132,16 +145,7 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
                 </div>
                 <div className="py-1">
                   <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      router.push("/dashboard/settings");
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-muted"
-                  >
-                    <User className="h-4 w-4" />
-                    Profile
-                  </button>
-                  <button
+                    type="button"
                     onClick={() => {
                       setShowUserMenu(false);
                       router.push("/dashboard/settings");
@@ -154,6 +158,7 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
                 </div>
                 <div className="border-t border-border py-1">
                   <button
+                    type="button"
                     onClick={handleLogout}
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
                   >

@@ -5,7 +5,7 @@ import { apiClient } from "@/lib/api/client";
 export function useUsageAnalytics(range?: string) {
   const key = range ? `/api/tenants/me/analytics?range=${range}` : "/api/tenants/me/analytics";
 
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     key,
     async () => {
       const response = await apiClient.getUsageAnalytics(range ? { range } : undefined);
@@ -25,5 +25,6 @@ export function useUsageAnalytics(range?: string) {
     range: data?.range ?? range ?? "7d",
     isLoading,
     error: error?.message,
+    refresh: () => mutate(),
   };
 }

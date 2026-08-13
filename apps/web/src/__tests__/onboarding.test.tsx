@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const mockPush = vi.fn();
@@ -12,19 +12,41 @@ vi.mock("next/navigation", () => ({
 
 // Mock next/link
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: { children: React.ReactNode; href: string; [key: string]: unknown }) => (
-    <a href={href} {...props}>{children}</a>
+  default: ({
+    children,
+    href,
+    ...props
+  }: {
+    children: React.ReactNode;
+    href: string;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
   ),
 }));
 
 // Mock @allsource/ui — passthrough divs/buttons
 vi.mock("@allsource/ui", () => ({
-  Button: ({ children, asChild, ...props }: { children: React.ReactNode; asChild?: boolean; [key: string]: unknown }) => {
+  Button: ({
+    children,
+    asChild,
+    ...props
+  }: {
+    children: React.ReactNode;
+    asChild?: boolean;
+    [key: string]: unknown;
+  }) => {
     if (asChild) return <>{children}</>;
     return <button {...props}>{children}</button>;
   },
-  Card: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => <div {...props}>{children}</div>,
-  CardContent: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => <div {...props}>{children}</div>,
+  Card: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
+  CardContent: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
 }));
 
 vi.mock("@allsource/ui/utils", () => ({
@@ -192,12 +214,8 @@ describe("Step navigation", () => {
   it("selecting an SDK navigates to step 2", () => {
     render(<OnboardingWizardPage />);
     fireEvent.click(screen.getByTestId("sdk-option-rust"));
-    expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining("sdk=rust")
-    );
-    expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining("step=2")
-    );
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("sdk=rust"));
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("step=2"));
   });
 
   it("next button is disabled on step 1 without SDK selected", () => {
@@ -224,11 +242,10 @@ describe("Step navigation", () => {
     expect(screen.getByText(/choose an SDK/)).toBeInTheDocument();
   });
 
-  it("step 4 shows 'Go to Dashboard' link instead of Next", () => {
+  it("step 4 keeps dashboard completion disabled until query succeeds", () => {
     setSearchParams({ sdk: "rust", step: "4" });
     render(<OnboardingWizardPage />);
-    expect(screen.getByText("Go to Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Go to Dashboard").closest("a")).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByTestId("go-to-dashboard-button")).toBeDisabled();
     expect(screen.queryByTestId("next-button")).not.toBeInTheDocument();
   });
 });
@@ -267,10 +284,13 @@ describe("Run It button sends correct POST to /api/v1/events", () => {
   });
 
   it("shows success feedback with event ID", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ event_id: "evt-456" }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ event_id: "evt-456" }),
+      })
+    );
 
     setSearchParams({ sdk: "rust", step: "3" });
     render(<OnboardingWizardPage />);
@@ -284,10 +304,13 @@ describe("Run It button sends correct POST to /api/v1/events", () => {
   });
 
   it("shows error on fetch failure", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+      })
+    );
 
     setSearchParams({ sdk: "go", step: "3" });
     render(<OnboardingWizardPage />);
@@ -324,10 +347,13 @@ describe("Try It button sends correct GET to /api/v1/events/query", () => {
   });
 
   it("shows query results", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ events: [{ id: "evt-1", event_type: "user.signup" }] }),
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ events: [{ id: "evt-1", event_type: "user.signup" }] }),
+      })
+    );
 
     setSearchParams({ sdk: "rust", step: "4" });
     render(<OnboardingWizardPage />);
@@ -337,6 +363,27 @@ describe("Try It button sends correct GET to /api/v1/events/query", () => {
     await waitFor(() => {
       expect(screen.getByTestId("query-result")).toBeInTheDocument();
       expect(screen.getByText(/Found 1 event/)).toBeInTheDocument();
+      expect(screen.getByTestId("go-to-dashboard-button")).not.toBeDisabled();
+    });
+  });
+
+  it("does not claim verification when query returns no event", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ events: [] }),
+      })
+    );
+
+    setSearchParams({ sdk: "rust", step: "4" });
+    render(<OnboardingWizardPage />);
+
+    fireEvent.click(screen.getByTestId("try-it-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("query-error")).toHaveTextContent(/No matching event/);
+      expect(screen.getByTestId("go-to-dashboard-button")).toBeDisabled();
     });
   });
 

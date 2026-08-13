@@ -43,36 +43,40 @@ export async function GET(request: NextRequest) {
   try {
     const apiUrl = getApiUrl();
 
-    // Fetch user info from backend
-    const meResponse = await fetch(`${apiUrl}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const requestOptions = {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store" as const,
+    };
+
+    // These reads are independent. Running them together removes one backend
+    // round trip from every cold dashboard load.
+    const [meResponse, tenantResponse] = await Promise.all([
+      fetch(`${apiUrl}/api/auth/me`, requestOptions),
+      fetch(`${apiUrl}/api/tenant`, requestOptions),
+    ]);
 
     if (!meResponse.ok) {
+      if (meResponse.status !== 401 && meResponse.status !== 403) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "session_unavailable",
+              message: "Session service is temporarily unavailable",
+            },
+          },
+          { status: 503 }
+        );
+      }
+
       const response = NextResponse.json(
         { error: { code: "invalid_session", message: "Session expired" } },
         { status: 401 }
       );
-      // Only clear the cookie when the backend genuinely rejects the token
-      // (401/403). A 404 (misrouted endpoint) or 5xx/network blip must NOT log
-      // the user out — treating those as "invalid token" is what silently
-      // booted everyone on dashboard load.
-      if (meResponse.status === 401 || meResponse.status === 403) {
-        response.cookies.delete("auth_token");
-      }
+      response.cookies.delete("auth_token");
       return response;
     }
 
     const userData = await meResponse.json();
-
-    // Also fetch tenant info
-    const tenantResponse = await fetch(`${apiUrl}/api/tenant`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
 
     let tenantData = null;
     if (tenantResponse.ok) {
@@ -81,8 +85,7 @@ export async function GET(request: NextRequest) {
 
     // Extract core_api_key from JWT payload (set by CP during OAuth login).
     const jwtPayload = decodeJwtPayload(token);
-    const coreApiKey =
-      typeof jwtPayload.core_api_key === "string" ? jwtPayload.core_api_key : null;
+    const coreApiKey = typeof jwtPayload.core_api_key === "string" ? jwtPayload.core_api_key : null;
 
     return NextResponse.json({
       data: {

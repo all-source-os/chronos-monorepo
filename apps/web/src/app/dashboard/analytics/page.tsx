@@ -1,7 +1,8 @@
 "use client";
 
-import { BlurFade, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
-import { BarChart3, Database, Hash, TrendingUp } from "lucide-react";
+import { BlurFade, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
+import { AlertCircle, BarChart3, Database, Hash, RefreshCw, TrendingUp } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import {
   Area,
@@ -60,7 +61,7 @@ function formatTimestamp(ts: string, range: string): string {
 
 export default function AnalyticsPage() {
   const [range, setRange] = useState("7d");
-  const { eventTypeDistribution, topEntityIds, ingestionRate, isLoading, error } =
+  const { eventTypeDistribution, topEntityIds, ingestionRate, isLoading, error, refresh } =
     useUsageAnalytics(range);
 
   const totalEvents = eventTypeDistribution.reduce((sum, d) => sum + d.count, 0);
@@ -107,7 +108,9 @@ export default function AnalyticsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Events</p>
-                <p className="text-2xl font-bold tabular-nums">{totalEvents.toLocaleString()}</p>
+                <p className="text-2xl font-bold tabular-nums">
+                  {isLoading || error ? "—" : totalEvents.toLocaleString()}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -118,7 +121,9 @@ export default function AnalyticsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Event Types</p>
-                <p className="text-2xl font-bold tabular-nums">{uniqueTypes}</p>
+                <p className="text-2xl font-bold tabular-nums">
+                  {isLoading || error ? "—" : uniqueTypes}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -129,7 +134,9 @@ export default function AnalyticsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Unique Entities</p>
-                <p className="text-2xl font-bold tabular-nums">{uniqueEntities}</p>
+                <p className="text-2xl font-bold tabular-nums">
+                  {isLoading || error ? "—" : uniqueEntities}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -141,8 +148,25 @@ export default function AnalyticsPage() {
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
       ) : error ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-destructive">{error}</CardContent>
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="flex flex-col items-center py-12 text-center">
+            <AlertCircle className="mb-3 h-8 w-8 text-amber-500" />
+            <h2 className="font-semibold">Usage analytics is unavailable</h2>
+            <p className="mt-1 max-w-lg text-sm text-muted-foreground">
+              Event ingestion remains available. Retry this report or inspect current tenant data in
+              Event Explorer.
+            </p>
+            <p className="mt-2 max-w-lg text-xs text-muted-foreground">{error}</p>
+            <div className="mt-5 flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => refresh()}>
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+                Try again
+              </Button>
+              <Button size="sm" asChild>
+                <Link href="/dashboard/events">Browse events</Link>
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       ) : (
         <>
@@ -177,10 +201,7 @@ export default function AnalyticsPage() {
                           fontSize={12}
                           tick={{ fill: "var(--color-muted-foreground)" }}
                         />
-                        <YAxis
-                          fontSize={12}
-                          tick={{ fill: "var(--color-muted-foreground)" }}
-                        />
+                        <YAxis fontSize={12} tick={{ fill: "var(--color-muted-foreground)" }} />
                         <Tooltip
                           labelFormatter={(ts) => formatTimestamp(String(ts), range)}
                           contentStyle={{
