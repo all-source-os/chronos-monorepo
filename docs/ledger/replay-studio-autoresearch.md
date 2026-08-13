@@ -41,7 +41,7 @@ Product gates:
 
 | Metric | Result | Delta |
 |---|---:|---:|
-| Route JavaScript | 733,670 B | +3,828 B (+0.52%) |
+| Route JavaScript | 733,896 B | +4,054 B (+0.56%) |
 | Chunks | 13 | 0 |
 | Status crash cases | 0 | fixed |
 | Tenant isolation tests | passing | added |
