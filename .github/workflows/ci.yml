@@ -28,18 +28,32 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The releases CDN has now redded this build twice for reasons that had
+      # nothing to do with the code under test (curl exit 56, then four
+      # straight 503s). Cache the binary so a healthy run never touches the
+      # network, and only pay for a download when the cache misses.
+      - name: Cache actionlint
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/actionlint
+          key: actionlint-1.7.7-linux-amd64
+
       - name: Install actionlint
         run: |
-          # Download actionlint from GitHub releases
           ACTIONLINT_VERSION="1.7.7"
-          # -f: treat an HTTP error as a failure instead of saving the error
-          # page as a tarball. --retry: a dropped connection to the releases
-          # CDN used to red the whole build (curl exit 56), which is a poor
-          # reason to block a release.
-          curl -sSLf --retry 3 --retry-all-errors --retry-delay 2 -O \
-            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          tar xzf "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          chmod +x actionlint
+          BIN_DIR="$HOME/.cache/actionlint"
+          if [ ! -x "$BIN_DIR/actionlint" ]; then
+            mkdir -p "$BIN_DIR"
+            # -f: treat an HTTP error as a failure instead of saving the error
+            # page as a tarball. 5 retries at 5s covers a CDN blip long enough
+            # to outlast the outages seen so far.
+            curl -sSLf --retry 5 --retry-all-errors --retry-delay 5 \
+              --connect-timeout 10 -o /tmp/actionlint.tar.gz \
+              "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+            tar xzf /tmp/actionlint.tar.gz -C "$BIN_DIR" actionlint
+          fi
+          chmod +x "$BIN_DIR/actionlint"
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
 
       - name: Lint workflow files
         run: |
@@ -47,7 +61,7 @@ jobs:
           # SC2086: Word splitting - often intentional with GHA outputs
           # SC2129: Multiple echo redirects - style preference
           # SC2193: Comparison can never be equal - false positive for GHA template syntax
-          ./actionlint -ignore 'SC2086' -ignore 'SC2129' -ignore 'SC2193' -color
+          actionlint -ignore 'SC2086' -ignore 'SC2129' -ignore 'SC2193' -color
 
   # Validate workflow structure with act (dry-run)
   workflow-validate:
