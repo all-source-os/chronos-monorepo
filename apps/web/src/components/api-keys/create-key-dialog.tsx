@@ -48,7 +48,13 @@ const EXPIRATION_OPTIONS = [
 export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedScopes, setSelectedScopes] = useState<string[]>(["events:read", "events:write"]);
+  // Start empty, deliberately. Pre-selecting read+write made the first click on
+  // the scope you wanted *remove* it: picking "Write Events" left ["events:read"]
+  // and picking "Read Events" left ["events:write"], which reads as the dashboard
+  // showing reversed labels. With nothing pre-selected, a click always adds.
+  // Create is already disabled while no scope is chosen, so an explicit pick is
+  // required — the right default for a credential anyway.
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [expiration, setExpiration] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyWithSecret | null>(null);
@@ -96,7 +102,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
   const handleClose = () => {
     setName("");
     setDescription("");
-    setSelectedScopes(["events:read", "events:write"]);
+    setSelectedScopes([]);
     setExpiration("");
     setCreatedKey(null);
     onClose();
@@ -232,6 +238,9 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                   {AVAILABLE_SCOPES.map((scope) => (
                     <button
                       key={scope.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={selectedScopes.includes(scope.id)}
                       onClick={() => toggleScope(scope.id)}
                       className={cn(
                         "flex items-start gap-2 rounded-lg border p-3 text-left transition-all",
