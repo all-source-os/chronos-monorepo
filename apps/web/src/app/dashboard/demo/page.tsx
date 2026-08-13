@@ -1,19 +1,61 @@
 "use client";
 
-import { BlurFade, Button, Card, CardContent } from "@allsource/ui";
+import { Button, Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Flame, Loader2, Rocket, Swords, Zap } from "lucide-react";
+import { Brain, Flame, Loader2, Rocket, Swords, Zap } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { LiveEventStreamPanel } from "@/components/demo/live-event-stream-panel";
-import { VectorQueryPlayground } from "@/components/demo/vector-query-playground";
-import { SpeedSimplicityDashboard } from "@/components/demo/speed-simplicity-dashboard";
-import { McpShowdownPanel } from "@/components/demo/mcp-showdown-panel";
-import { CostCalculator } from "@/components/demo/cost-calculator";
-import { FeedbackWidget } from "@/components/demo/feedback-widget";
-import { PrimePlayground } from "@/components/demo/prime-playground";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Brain } from "lucide-react";
 import { useCallback, useState } from "react";
+import { FadeIn } from "@/components/ui/fade-in";
+
+function DemoPanelLoading() {
+  return (
+    <div
+      className="h-72 animate-pulse rounded-xl border border-border bg-card"
+      role="status"
+      aria-label="Loading demo panel"
+    />
+  );
+}
+
+const LiveEventStreamPanel = dynamic(
+  () =>
+    import("@/components/demo/live-event-stream-panel").then(
+      (module) => module.LiveEventStreamPanel
+    ),
+  { ssr: false, loading: DemoPanelLoading }
+);
+const VectorQueryPlayground = dynamic(
+  () =>
+    import("@/components/demo/vector-query-playground").then(
+      (module) => module.VectorQueryPlayground
+    ),
+  { ssr: false, loading: DemoPanelLoading }
+);
+const SpeedSimplicityDashboard = dynamic(
+  () =>
+    import("@/components/demo/speed-simplicity-dashboard").then(
+      (module) => module.SpeedSimplicityDashboard
+    ),
+  { ssr: false, loading: DemoPanelLoading }
+);
+const McpShowdownPanel = dynamic(
+  () => import("@/components/demo/mcp-showdown-panel").then((module) => module.McpShowdownPanel),
+  { ssr: false, loading: DemoPanelLoading }
+);
+const CostCalculator = dynamic(
+  () => import("@/components/demo/cost-calculator").then((module) => module.CostCalculator),
+  { ssr: false, loading: DemoPanelLoading }
+);
+const PrimePlayground = dynamic(
+  () => import("@/components/demo/prime-playground").then((module) => module.PrimePlayground),
+  { ssr: false, loading: DemoPanelLoading }
+);
+const FeedbackWidget = dynamic(
+  () => import("@/components/demo/feedback-widget").then((module) => module.FeedbackWidget),
+  { ssr: false }
+);
 
 type DemoView = "live-fire" | "mcp-showdown" | "prime";
 
@@ -29,11 +71,7 @@ export default function DemoPage() {
 
   const viewParam = searchParams.get("view");
   const activeView: DemoView =
-    viewParam === "mcp-showdown"
-      ? "mcp-showdown"
-      : viewParam === "prime"
-        ? "prime"
-        : "live-fire";
+    viewParam === "mcp-showdown" ? "mcp-showdown" : viewParam === "prime" ? "prime" : "live-fire";
 
   const [seeding, setSeeding] = useState(false);
   const [seeded, setSeeded] = useState(false);
@@ -73,14 +111,12 @@ export default function DemoPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Zap className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-                Demo Zone
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Demo Zone</h1>
             </div>
             <p className="mt-1 text-muted-foreground">
               Experience AllSource in action — real data, real speed, real results.
@@ -92,6 +128,7 @@ export default function DemoPage() {
             <div className="flex items-center rounded-lg border border-border bg-muted/50 p-1">
               {VIEWS.map((view) => (
                 <button
+                  type="button"
                   key={view.id}
                   onClick={() => setView(view.id)}
                   className={cn(
@@ -118,18 +155,28 @@ export default function DemoPage() {
             )}
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Content area */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         {activeView === "live-fire" ? (
-          <LiveFireView seeded={seeded} seeding={seeding} seedError={seedError} onSeed={handleSeed} />
+          <LiveFireView
+            seeded={seeded}
+            seeding={seeding}
+            seedError={seedError}
+            onSeed={handleSeed}
+          />
         ) : activeView === "prime" ? (
           <PrimeView />
         ) : (
-          <McpShowdownView seeded={seeded} seeding={seeding} seedError={seedError} onSeed={handleSeed} />
+          <McpShowdownView
+            seeded={seeded}
+            seeding={seeding}
+            seedError={seedError}
+            onSeed={handleSeed}
+          />
         )}
-      </BlurFade>
+      </FadeIn>
 
       {/* Feedback widget — floating bottom-right after seeding */}
       {seeded && <FeedbackWidget />}
@@ -151,7 +198,8 @@ function EmptyState({ seeding, seedError, onSeed }: Omit<ViewProps, "seeded">) {
         <Zap className="mb-4 h-12 w-12 text-muted-foreground/50" />
         <h2 className="mb-2 text-xl font-semibold">No demo data yet</h2>
         <p className="mb-6 max-w-md text-center text-muted-foreground">
-          Seed your event store with 1,000 diverse events to experience the full Demo Zone — real-time streaming, vector search, and speed comparisons.
+          Seed your event store with 1,000 diverse events to experience the full Demo Zone —
+          real-time streaming, vector search, and speed comparisons.
         </p>
         <Button onClick={onSeed} disabled={seeding} size="lg">
           {seeding ? (
@@ -166,9 +214,7 @@ function EmptyState({ seeding, seedError, onSeed }: Omit<ViewProps, "seeded">) {
             </>
           )}
         </Button>
-        {seedError && (
-          <p className="mt-4 text-sm text-destructive">{seedError}</p>
-        )}
+        {seedError && <p className="mt-4 text-sm text-destructive">{seedError}</p>}
       </CardContent>
     </Card>
   );

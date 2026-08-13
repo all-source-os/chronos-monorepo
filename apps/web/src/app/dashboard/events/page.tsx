@@ -1,6 +1,6 @@
 "use client";
 
-import { BlurFade, Button, Card, CardContent, DatePicker, Input } from "@allsource/ui";
+import { Button, Card, CardContent, Input } from "@allsource/ui";
 import {
   AlertCircle,
   BookOpen,
@@ -14,16 +14,24 @@ import {
   Search,
   X,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CreateEventDialog } from "@/components/events/create-event-dialog";
-import { EventDetailDrawer } from "@/components/events/event-detail-drawer";
 import { EventList } from "@/components/events/event-list";
 import { EventTimeline } from "@/components/events/event-timeline";
 import { LiveEventFeed } from "@/components/events/live-event-feed";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useEvents } from "@/hooks/use-events";
 import type { Event } from "@/lib/api/client";
+import { eventMatchesLocalFilters } from "@/lib/event-filters";
 import { PLATFORM_NOISE_PREFIX_PARAM } from "@/lib/event-namespaces";
+
+const EventDetailDrawer = dynamic(
+  () =>
+    import("@/components/events/event-detail-drawer").then((module) => module.EventDetailDrawer),
+  { ssr: false }
+);
 
 export default function EventsPage() {
   const router = useRouter();
@@ -32,6 +40,7 @@ export default function EventsPage() {
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState(searchParams.get("entity") || "");
   const [typeFilter, setTypeFilter] = useState("");
+  const [fromDate, setFromDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [showSystem, setShowSystem] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
@@ -58,10 +67,7 @@ export default function EventsPage() {
 
   // Filter events by search
   const filteredEvents = events.filter((event) =>
-    search
-      ? event.event_type.toLowerCase().includes(search.toLowerCase()) ||
-        event.entity_id.toLowerCase().includes(search.toLowerCase())
-      : true
+    eventMatchesLocalFilters(event, search, fromDate)
   );
 
   const handleEventClick = (event: Event) => {
@@ -79,6 +85,7 @@ export default function EventsPage() {
     setSearch("");
     setEntityFilter("");
     setTypeFilter("");
+    setFromDate("");
     router.push("/dashboard/events");
   };
 
@@ -89,7 +96,7 @@ export default function EventsPage() {
     }
   };
 
-  const hasFilters = search || entityFilter || typeFilter;
+  const hasFilters = search || entityFilter || typeFilter || fromDate;
 
   const exportEvents = () => {
     const dataStr = JSON.stringify(filteredEvents, null, 2);
@@ -107,7 +114,7 @@ export default function EventsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Event Explorer</h1>
@@ -126,7 +133,7 @@ export default function EventsPage() {
             </Button>
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Read failure */}
       {error && (
@@ -147,7 +154,7 @@ export default function EventsPage() {
 
       {/* Empty State */}
       {showingEmptyState && !error && (
-        <BlurFade delay={0.15} inView>
+        <FadeIn delay={0.15} inView>
           <Card className="p-12 text-center">
             <Inbox className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
             <h3 className="text-lg font-medium">No events yet</h3>
@@ -183,11 +190,11 @@ export default function EventsPage() {
               </Button>
             </div>
           </Card>
-        </BlurFade>
+        </FadeIn>
       )}
 
       {/* Search and Filters */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col gap-4 sm:flex-row">
@@ -265,28 +272,35 @@ export default function EventsPage() {
                   />
                 </div>
                 <div>
-                  <span className="mb-1.5 block text-sm font-medium">Date Range</span>
-                  <DatePicker placeholder="Select date..." />
+                  <label htmlFor="event-from-date" className="mb-1.5 block text-sm font-medium">
+                    On or after
+                  </label>
+                  <Input
+                    id="event-from-date"
+                    type="date"
+                    value={fromDate}
+                    onChange={(event) => setFromDate(event.target.value)}
+                  />
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Timeline */}
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         <EventTimeline
           events={filteredEvents}
           onEventClick={handleEventClick}
           selectedEventId={selectedEvent?.id}
         />
-      </BlurFade>
+      </FadeIn>
 
       {/* Main content grid */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Event List */}
-        <BlurFade delay={0.4} inView className="lg:col-span-2">
+        <FadeIn delay={0.4} inView className="lg:col-span-2">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">
@@ -304,12 +318,12 @@ export default function EventsPage() {
               isLoading={isLoading}
             />
           </div>
-        </BlurFade>
+        </FadeIn>
 
         {/* Live Feed */}
-        <BlurFade delay={0.5} inView>
+        <FadeIn delay={0.5} inView>
           <LiveEventFeed onEventClick={handleEventClick} />
-        </BlurFade>
+        </FadeIn>
       </div>
 
       {/* Event Detail Drawer */}

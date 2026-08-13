@@ -1,16 +1,27 @@
 "use client";
 
-import { BlurFade, Button, Card, CardContent } from "@allsource/ui";
+import { Button, Card, CardContent } from "@allsource/ui";
 import { Plus, Users } from "lucide-react";
 import { useState } from "react";
+import { LoadError } from "@/components/dashboard/load-error";
 import { AgentKeysSection } from "@/components/team/agent-keys-section";
 import { InviteMemberDialog } from "@/components/team/invite-member-dialog";
 import { MemberTable } from "@/components/team/member-table";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useTeamMembers } from "@/hooks/use-team-members";
 
 export default function TeamPage() {
-  const { members, seatLimit, seatsUsed, isLoading, inviteMember, removeMember, updateRole } =
-    useTeamMembers();
+  const {
+    members,
+    seatLimit,
+    seatsUsed,
+    isLoading,
+    error,
+    inviteMember,
+    removeMember,
+    updateRole,
+    refresh,
+  } = useTeamMembers();
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
@@ -43,7 +54,7 @@ export default function TeamPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Team</h1>
@@ -56,10 +67,10 @@ export default function TeamPage() {
             Invite Member
           </Button>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Seat usage */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="flex items-start gap-4 p-4">
             <Users className="h-5 w-5 shrink-0 text-primary" />
@@ -78,22 +89,26 @@ export default function TeamPage() {
             </div>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Members table */}
-      <BlurFade delay={0.3} inView>
-        <MemberTable
-          members={members}
-          isLoading={isLoading}
-          onRemove={handleRemove}
-          onUpdateRole={handleUpdateRole}
-        />
-      </BlurFade>
+      <FadeIn delay={0.3} inView>
+        {error ? (
+          <LoadError title="Team members could not be loaded" message={error} onRetry={refresh} />
+        ) : (
+          <MemberTable
+            members={members}
+            isLoading={isLoading}
+            onRemove={handleRemove}
+            onUpdateRole={handleUpdateRole}
+          />
+        )}
+      </FadeIn>
 
       {/* Agent Keys */}
-      <BlurFade delay={0.4} inView>
+      <FadeIn delay={0.4} inView>
         <AgentKeysSection />
-      </BlurFade>
+      </FadeIn>
 
       {/* Invite dialog */}
       <InviteMemberDialog

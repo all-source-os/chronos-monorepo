@@ -2,7 +2,6 @@
 
 import {
   Badge,
-  BlurFade,
   Button,
   Card,
   CardContent,
@@ -21,11 +20,30 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ProjectionStateView } from "@/components/dashboard/projection-state-view";
+import { LoadError } from "@/components/dashboard/load-error";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { apiClient, type Projection, type ProjectionTemplate } from "@/lib/api/client";
+
+const ProjectionStateView = dynamic(
+  () =>
+    import("@/components/dashboard/projection-state-view").then(
+      (module) => module.ProjectionStateView
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="h-64 animate-pulse rounded-lg border border-border bg-muted/30"
+        role="status"
+        aria-label="Loading projection state"
+      />
+    ),
+  }
+);
 
 function statusColor(status: Projection["status"]) {
   return status === "ready" ? "bg-green-500" : "bg-yellow-500";
@@ -85,7 +103,12 @@ function ProjectionCard({
 
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                onClick={() => setShowMenu(false)}
+                aria-label="Close projection actions"
+              />
               <div className="absolute right-0 top-full z-50 mt-1 w-36 rounded-lg border border-border bg-popover p-1 shadow-lg">
                 <button
                   type="button"
@@ -164,6 +187,7 @@ export default function PipelinesPage() {
   const [projections, setProjections] = useState<Projection[]>([]);
   const [templates, setTemplates] = useState<ProjectionTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const { stats } = useDashboardStats();
@@ -173,28 +197,32 @@ export default function PipelinesPage() {
 
   const refresh = useCallback(async () => {
     const response = await apiClient.listProjections();
-    if (response.data) {
-      setProjections(response.data.projections ?? []);
+    if (response.error) throw new Error(response.error.message);
+    setProjections(response.data?.projections ?? []);
+  }, []);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setPageError(null);
+    try {
+      const [list, catalog] = await Promise.all([
+        apiClient.listProjections(),
+        apiClient.listProjectionTemplates(),
+      ]);
+      if (list.error) throw new Error(list.error.message);
+      if (catalog.error) throw new Error(catalog.error.message);
+      setProjections(list.data?.projections ?? []);
+      setTemplates(catalog.data?.templates ?? []);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Projection data is unavailable.");
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const [list, catalog] = await Promise.all([
-          apiClient.listProjections(),
-          apiClient.listProjectionTemplates(),
-        ]);
-        if (list.data) setProjections(list.data.projections ?? []);
-        if (catalog.data) setTemplates(catalog.data.templates ?? []);
-      } catch (error) {
-        console.error("Failed to load projections:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
     load();
-  }, []);
+  }, [load]);
 
   const enabledNames = new Set(projections.map((p) => p.name));
   const available = templates.filter((t) => !enabledNames.has(t.name));
@@ -202,15 +230,13 @@ export default function PipelinesPage() {
   const handleEnable = async (template: string) => {
     setShowAdd(false);
     setBusy(template);
+    setPageError(null);
     try {
       const response = await apiClient.enableProjection(template);
-      if (response.error) {
-        console.error("Failed to enable projection:", response.error);
-        return;
-      }
+      if (response.error) throw new Error(response.error.message);
       await refresh();
     } catch (error) {
-      console.error("Failed to enable projection:", error);
+      setPageError(error instanceof Error ? error.message : "Projection could not be enabled.");
     } finally {
       setBusy(null);
     }
@@ -218,15 +244,13 @@ export default function PipelinesPage() {
 
   const handleDisable = async (name: string) => {
     setBusy(name);
+    setPageError(null);
     try {
       const response = await apiClient.disableProjection(name);
-      if (response.error) {
-        console.error("Failed to disable projection:", response.error);
-        return;
-      }
+      if (response.error) throw new Error(response.error.message);
       await refresh();
     } catch (error) {
-      console.error("Failed to disable projection:", error);
+      setPageError(error instanceof Error ? error.message : "Projection could not be disabled.");
     } finally {
       setBusy(null);
     }
@@ -238,7 +262,7 @@ export default function PipelinesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Projections</h1>
@@ -253,7 +277,12 @@ export default function PipelinesPage() {
             </Button>
             {showAdd && available.length > 0 && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowAdd(false)} />
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setShowAdd(false)}
+                  aria-label="Close projection picker"
+                />
                 <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-popover p-1 shadow-lg">
                   {available.map((t) => (
                     <button
@@ -271,13 +300,17 @@ export default function PipelinesPage() {
             )}
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
+
+      {pageError && (
+        <LoadError title="Projections could not be updated" message={pageError} onRetry={load} />
+      )}
 
       {/* Zero-events hint — projections build from the event stream, so they
           stay empty until events arrive. Be honest rather than letting a user
           enable a projection and stare at a meaningless "Ready / 0". */}
-      {!isLoading && hasNoEvents && (
-        <BlurFade delay={0.15} inView>
+      {!isLoading && !pageError && hasNoEvents && (
+        <FadeIn delay={0.15} inView>
           <Card className="border-yellow-500/30 bg-yellow-500/5">
             <CardContent className="flex items-start gap-3 p-4">
               <GitBranch className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600" />
@@ -294,54 +327,56 @@ export default function PipelinesPage() {
               </div>
             </CardContent>
           </Card>
-        </BlurFade>
+        </FadeIn>
       )}
 
       {/* Status Overview */}
-      <BlurFade delay={0.2} inView>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                <Layers className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{projections.length}</p>
-                <p className="text-sm text-muted-foreground">Enabled</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{readyCount}</p>
-                <p className="text-sm text-muted-foreground">Ready</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/10">
-                <Loader2 className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{buildingCount}</p>
-                <p className="text-sm text-muted-foreground">Building</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </BlurFade>
+      {!pageError && (
+        <FadeIn delay={0.2} inView>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                  <Layers className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{projections.length}</p>
+                  <p className="text-sm text-muted-foreground">Enabled</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{readyCount}</p>
+                  <p className="text-sm text-muted-foreground">Ready</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/10">
+                  <Loader2 className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{buildingCount}</p>
+                  <p className="text-sm text-muted-foreground">Building</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </FadeIn>
+      )}
 
       {/* Projections Grid */}
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Card key={i}>
+            {["first", "second"].map((placeholder) => (
+              <Card key={placeholder}>
                 <CardContent className="p-6 space-y-4">
                   <div className="h-6 w-40 animate-pulse rounded bg-muted" />
                   <div className="h-4 w-full animate-pulse rounded bg-muted" />
@@ -353,7 +388,7 @@ export default function PipelinesPage() {
               </Card>
             ))}
           </div>
-        ) : (
+        ) : pageError ? null : (
           <div className="grid gap-4 md:grid-cols-2">
             {projections.map((projection) => (
               <ProjectionCard
@@ -366,11 +401,11 @@ export default function PipelinesPage() {
             ))}
           </div>
         )}
-      </BlurFade>
+      </FadeIn>
 
       {/* Empty state */}
-      {!isLoading && projections.length === 0 && (
-        <BlurFade delay={0.3} inView>
+      {!isLoading && !pageError && projections.length === 0 && (
+        <FadeIn delay={0.3} inView>
           <Card className="p-12 text-center">
             <GitBranch className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
             <h3 className="text-lg font-medium">No projections enabled</h3>
@@ -384,7 +419,7 @@ export default function PipelinesPage() {
               </Button>
             )}
           </Card>
-        </BlurFade>
+        </FadeIn>
       )}
     </div>
   );

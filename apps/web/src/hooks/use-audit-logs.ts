@@ -8,7 +8,7 @@ export function useAuditLogs(params?: AuditLogParams) {
     ? `/api/tenant/audit-logs?${JSON.stringify(params)}`
     : "/api/tenant/audit-logs";
 
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     key,
     async () => {
       const response = await apiClient.listAuditLogs(params);
@@ -24,5 +24,6 @@ export function useAuditLogs(params?: AuditLogParams) {
     actions: data?.actions || [],
     isLoading,
     error: error?.message,
+    refresh: mutate,
   };
 }

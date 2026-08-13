@@ -1,10 +1,8 @@
 "use client";
 
-import { Badge, BlurFade, Button, Card, CardContent, CardHeader, CardTitle, Popover, PopoverContent, PopoverTrigger, Calendar } from "@allsource/ui";
-import { format } from "date-fns";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import {
   AlertCircle,
-  CalendarIcon,
   CheckCircle2,
   Clock,
   Loader2,
@@ -15,7 +13,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
-
+import { LoadError } from "@/components/dashboard/load-error";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useReplays } from "@/hooks/use-replay";
 import type { ReplayProgress, ReplayStatus } from "@/lib/api/client";
 
@@ -49,7 +48,8 @@ function formatTimestamp(ts: string): string {
 }
 
 export default function ReplayPage() {
-  const { replays, isLoading, error, startReplay, cancelReplay, deleteReplay } = useReplays();
+  const { replays, isLoading, error, startReplay, cancelReplay, deleteReplay, refresh } =
+    useReplays();
 
   const [fromTimestamp, setFromTimestamp] = useState("");
   const [fromTime, setFromTime] = useState("");
@@ -112,17 +112,17 @@ export default function ReplayPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Event Replay</h1>
           <p className="mt-1 text-muted-foreground">
             Replay events from a specific point in time to rebuild projections or re-process events
           </p>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Start Replay Form */}
-      <BlurFade delay={0.15} inView>
+      <FadeIn delay={0.15} inView>
         <Card className="max-w-3xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -138,31 +138,19 @@ export default function ReplayPage() {
                   From Date
                 </label>
                 <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="from-date"
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {fromTimestamp || "Pick date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={fromTimestamp ? new Date(`${fromTimestamp}T00:00:00`) : undefined}
-                        onSelect={(date) => date && setFromTimestamp(format(date, "yyyy-MM-dd"))}
-                        autoFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
                   <input
+                    id="from-date"
+                    type="date"
+                    value={fromTimestamp}
+                    onChange={(event) => setFromTimestamp(event.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <input
+                    id="from-time"
                     type="time"
                     value={fromTime}
                     onChange={(e) => setFromTime(e.target.value)}
-                    aria-label="From time"
+                    aria-label="From time (optional)"
                     className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
@@ -172,31 +160,19 @@ export default function ReplayPage() {
                   To Date
                 </label>
                 <div className="flex gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="to-date"
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {toTimestamp || "Pick date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={toTimestamp ? new Date(`${toTimestamp}T00:00:00`) : undefined}
-                        onSelect={(date) => date && setToTimestamp(format(date, "yyyy-MM-dd"))}
-                        autoFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
                   <input
+                    id="to-date"
+                    type="date"
+                    value={toTimestamp}
+                    onChange={(event) => setToTimestamp(event.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <input
+                    id="to-time"
                     type="time"
                     value={toTime}
                     onChange={(e) => setToTime(e.target.value)}
-                    aria-label="To time"
+                    aria-label="To time (optional)"
                     className="flex h-9 w-28 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   />
                 </div>
@@ -263,10 +239,10 @@ export default function ReplayPage() {
             </Button>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Replay History */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card className="max-w-3xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -280,7 +256,11 @@ export default function ReplayPage() {
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : error ? (
-              <div className="py-12 text-center text-sm text-destructive">{error}</div>
+              <LoadError
+                title="Replay history could not be loaded"
+                message={error}
+                onRetry={refresh}
+              />
             ) : replays.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">
                 No replays yet. Start a new replay above.
@@ -299,7 +279,7 @@ export default function ReplayPage() {
             )}
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

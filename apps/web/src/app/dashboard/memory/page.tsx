@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, BlurFade, buttonVariants, Card, CardContent, cn, Skeleton } from "@allsource/ui";
+import { Badge, buttonVariants, Card, CardContent, cn, Skeleton } from "@allsource/ui";
 import { formatDistanceToNow } from "date-fns";
 import {
   Brain,
@@ -19,6 +19,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, Suspense, useMemo } from "react";
 import { PrimeGraph } from "@/components/memory/PrimeGraph";
 import { PrimeGraphList } from "@/components/memory/PrimeGraphList";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useEvents } from "@/hooks/use-events";
 import { useGraph } from "@/hooks/use-graph";
 import type { Event } from "@/lib/api/client";
@@ -59,7 +60,7 @@ function eventMeta(type: string) {
 }
 
 function nodeTypeFromPayload(payload: Record<string, unknown>): string {
-  const t = payload["node_type"];
+  const t = payload.node_type;
   return typeof t === "string" ? t : "unknown";
 }
 
@@ -187,7 +188,7 @@ function MemoryPageInner() {
 
   return (
     <div className="mx-auto w-full max-w-screen-xl px-4 py-8 lg:px-8">
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="mb-8 flex items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex items-center gap-2">
@@ -215,10 +216,10 @@ function MemoryPageInner() {
             Refresh
           </button>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* View toggle — persisted in ?view= so it's shareable/reloadable. */}
-      <BlurFade delay={0.12} inView>
+      <FadeIn delay={0.12} inView>
         <div className="mb-6 inline-flex rounded-md border p-0.5">
           <ViewTab active={view === "overview"} onClick={() => setView("overview")} icon={Layers}>
             Overview
@@ -230,7 +231,7 @@ function MemoryPageInner() {
             List
           </ViewTab>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {graphError && view !== "overview" && (
         <Card className="mb-6 border-destructive/40">
@@ -243,7 +244,7 @@ function MemoryPageInner() {
       {graphLoading && view !== "overview" && <GraphLoadingSkeleton />}
 
       {!graphLoading && !graphError && view === "graph" && nodes.length > 0 && (
-        <BlurFade delay={0.15} inView>
+        <FadeIn delay={0.15} inView>
           {hasMore && (
             <p className="mb-3 text-xs text-muted-foreground">
               Showing {nodes.length.toLocaleString()} of {graphStats.node_count.toLocaleString()}{" "}
@@ -251,11 +252,11 @@ function MemoryPageInner() {
             </p>
           )}
           <PrimeGraph nodes={nodes} edges={edges} nodesByType={graphStats.nodes_by_type} />
-        </BlurFade>
+        </FadeIn>
       )}
 
       {!graphLoading && !graphError && view === "list" && nodes.length > 0 && (
-        <BlurFade delay={0.15} inView>
+        <FadeIn delay={0.15} inView>
           {hasMore && (
             <p className="mb-3 text-xs text-muted-foreground">
               Showing {nodes.length.toLocaleString()} of {graphStats.node_count.toLocaleString()}{" "}
@@ -263,7 +264,7 @@ function MemoryPageInner() {
             </p>
           )}
           <PrimeGraphList nodes={nodes} edges={edges} nodesByType={graphStats.nodes_by_type} />
-        </BlurFade>
+        </FadeIn>
       )}
 
       {view === "overview" &&
@@ -277,7 +278,7 @@ function MemoryPageInner() {
 
 function EmptyMemoryState() {
   return (
-    <BlurFade delay={0.15} inView>
+    <FadeIn delay={0.15} inView>
       <Card className="border-dashed">
         <CardContent className="space-y-4 pt-6">
           <div className="flex items-start gap-3">
@@ -344,7 +345,7 @@ allsource-prime \\
           </div>
         </CardContent>
       </Card>
-    </BlurFade>
+    </FadeIn>
   );
 }
 
@@ -358,7 +359,7 @@ function OverviewBody({
   return (
     <>
       {/* Stats cards */}
-      <BlurFade delay={0.15} inView>
+      <FadeIn delay={0.15} inView>
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             icon={Sparkles}
@@ -385,11 +386,11 @@ function OverviewBody({
             label="Prime events"
           />
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Nodes by type */}
       {stats.sortedNodeTypes.length > 0 && (
-        <BlurFade delay={0.2} inView>
+        <FadeIn delay={0.2} inView>
           <Card className="mb-6">
             <CardContent className="pt-6">
               <h3 className="mb-3 text-sm font-medium text-foreground">Nodes by type</h3>
@@ -405,11 +406,11 @@ function OverviewBody({
               </div>
             </CardContent>
           </Card>
-        </BlurFade>
+        </FadeIn>
       )}
 
       {/* Recent events */}
-      <BlurFade delay={0.25} inView>
+      <FadeIn delay={0.25} inView>
         <Card>
           <CardContent className="pt-6">
             <h3 className="mb-3 text-sm font-medium text-foreground">Recent activity</h3>
@@ -440,7 +441,7 @@ function OverviewBody({
             </div>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
     </>
   );
 }
@@ -483,12 +484,12 @@ function MemoryPageSkeleton() {
 
 function GraphLoadingSkeleton() {
   return (
-    <BlurFade delay={0.12} inView>
+    <FadeIn delay={0.12} inView>
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <Skeleton className="h-[560px] w-full rounded-lg" />
         <Skeleton className="h-[280px] w-full rounded-lg" />
       </div>
-    </BlurFade>
+    </FadeIn>
   );
 }
 

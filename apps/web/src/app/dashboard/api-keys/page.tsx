@@ -1,17 +1,19 @@
 "use client";
 
-import { BlurFade, Button, Card, CardContent } from "@allsource/ui";
+import { Button, Card, CardContent } from "@allsource/ui";
 import { AlertTriangle, Key, Plus, Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CreateKeyDialog } from "@/components/api-keys/create-key-dialog";
 import { KeyTable } from "@/components/api-keys/key-table";
+import { LoadError } from "@/components/dashboard/load-error";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
 
 export default function ApiKeysPage() {
   const searchParams = useSearchParams();
-  const { keys, isLoading, createKey, rotateKey, revokeKey } = useApiKeys();
+  const { keys, isLoading, error, createKey, rotateKey, revokeKey, refresh } = useApiKeys();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
@@ -61,7 +63,7 @@ export default function ApiKeysPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">API Keys</h1>
@@ -74,10 +76,10 @@ export default function ApiKeysPage() {
             Create Key
           </Button>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Security notice */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="flex items-start gap-4 p-4">
             <Shield className="h-5 w-5 shrink-0 text-primary" />
@@ -90,20 +92,24 @@ export default function ApiKeysPage() {
             </div>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Keys table */}
-      <BlurFade delay={0.3} inView>
-        <KeyTable
-          keys={keys}
-          isLoading={isLoading}
-          onRotate={handleRotate}
-          onRevoke={handleRevoke}
-        />
-      </BlurFade>
+      <FadeIn delay={0.3} inView>
+        {error ? (
+          <LoadError title="API keys could not be loaded" message={error} onRetry={refresh} />
+        ) : (
+          <KeyTable
+            keys={keys}
+            isLoading={isLoading}
+            onRotate={handleRotate}
+            onRevoke={handleRevoke}
+          />
+        )}
+      </FadeIn>
 
       {/* Quick tips */}
-      <BlurFade delay={0.4} inView>
+      <FadeIn delay={0.4} inView>
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
             <CardContent className="p-4">
@@ -133,7 +139,7 @@ export default function ApiKeysPage() {
             </CardContent>
           </Card>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Create dialog */}
       <CreateKeyDialog
@@ -145,9 +151,11 @@ export default function ApiKeysPage() {
       {/* Revoke confirmation */}
       {confirmRevoke && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
+          <button
+            type="button"
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => setConfirmRevoke(null)}
+            aria-label="Cancel API key revocation"
           />
           <Card className="relative z-10 w-full max-w-sm mx-4">
             <CardContent className="p-6">

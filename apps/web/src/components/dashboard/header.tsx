@@ -45,8 +45,8 @@ export function Header({ sidebarCollapsed, onMenuClick, onCommandPaletteOpen }: 
   return (
     <header
       className={cn(
-        "fixed top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur transition-all duration-300 md:px-6",
-        sidebarCollapsed ? "left-16" : "left-64"
+        "fixed left-0 top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur transition-all duration-300 md:px-6",
+        sidebarCollapsed ? "md:left-16" : "md:left-64"
       )}
       style={{ right: 0 }}
     >

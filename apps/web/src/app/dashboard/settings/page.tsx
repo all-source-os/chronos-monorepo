@@ -2,7 +2,6 @@
 
 import {
   Badge,
-  BlurFade,
   Button,
   Card,
   CardContent,
@@ -17,6 +16,7 @@ import { cn } from "@allsource/ui/utils";
 import { Bell, Check, Copy, Database, Shield, User } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
+import { FadeIn } from "@/components/ui/fade-in";
 import {
   type NotificationPreferences,
   useNotificationPreferences,
@@ -76,17 +76,17 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Settings</h1>
           <p className="mt-1 text-muted-foreground">
             Manage your account and workspace preferences
           </p>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Tabs and Content */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <div className="flex flex-col gap-6 lg:flex-row">
           {/* Sidebar tabs */}
           <nav className="flex gap-2 lg:w-48 lg:flex-col">
@@ -388,7 +388,7 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

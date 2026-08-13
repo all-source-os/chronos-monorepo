@@ -2,7 +2,6 @@
 
 import {
   Badge,
-  BlurFade,
   Button,
   Card,
   CardContent,
@@ -15,6 +14,7 @@ import { Calendar, Check, CreditCard, ExternalLink, Loader2 } from "lucide-react
 import { useEffect, useState } from "react";
 import { PlanCards } from "@/components/billing/plan-cards";
 import { UsageChart } from "@/components/billing/usage-chart";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { apiClient } from "@/lib/api/client";
 import { siteConfig } from "@/lib/config";
@@ -208,7 +208,7 @@ export default function BillingPage() {
       )}
 
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Billing & Usage</h1>
@@ -226,11 +226,11 @@ export default function BillingPage() {
             </Button>
           )}
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Trial/Subscription Banner */}
       {trialEndsAt && (
-        <BlurFade delay={0.15} inView>
+        <FadeIn delay={0.15} inView>
           <Card className="border-yellow-500/50 bg-yellow-500/10">
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
@@ -247,11 +247,11 @@ export default function BillingPage() {
               </Button>
             </CardContent>
           </Card>
-        </BlurFade>
+        </FadeIn>
       )}
 
       {/* Current Plan Card */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -319,10 +319,10 @@ export default function BillingPage() {
             </div>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Usage Charts */}
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Usage This Month</h2>
@@ -333,10 +333,10 @@ export default function BillingPage() {
             <UsageChart title="Queries" used={queriesUsed} quota={queriesQuota} />
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Upgrade Section */}
-      <BlurFade delay={0.4} inView>
+      <FadeIn delay={0.4} inView>
         <div className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -386,10 +386,10 @@ export default function BillingPage() {
             onUpgrade={handleUpgrade}
           />
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* FAQ */}
-      <BlurFade delay={0.5} inView>
+      <FadeIn delay={0.5} inView>
         <Card>
           <CardHeader>
             <CardTitle>Billing FAQ</CardTitle>
@@ -418,7 +418,7 @@ export default function BillingPage() {
             </div>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

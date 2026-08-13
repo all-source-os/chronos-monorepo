@@ -1,8 +1,10 @@
 "use client";
 
-import { Badge, BlurFade, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@allsource/ui";
 import { ChevronLeft, ChevronRight, FileText, Filter, Shield } from "lucide-react";
 import { useState } from "react";
+import { LoadError } from "@/components/dashboard/load-error";
+import { FadeIn } from "@/components/ui/fade-in";
 import { useAuditLogs } from "@/hooks/use-audit-logs";
 
 const PAGE_SIZE = 25;
@@ -55,7 +57,7 @@ export default function AuditLogPage() {
   const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(0);
 
-  const { entries, retentionDays, actions, isLoading, error } = useAuditLogs({
+  const { entries, retentionDays, actions, isLoading, error, refresh } = useAuditLogs({
     action: actionFilter,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -67,7 +69,7 @@ export default function AuditLogPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Audit Log</h1>
@@ -80,10 +82,10 @@ export default function AuditLogPage() {
             <span className="text-sm text-muted-foreground">{retentionDays}-day retention</span>
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Action filter */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card>
           <CardContent className="flex flex-wrap items-center gap-2 p-4">
             <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -121,10 +123,10 @@ export default function AuditLogPage() {
             ))}
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {/* Audit log entries */}
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -138,7 +140,11 @@ export default function AuditLogPage() {
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : error ? (
-              <div className="py-12 text-center text-sm text-destructive">{error}</div>
+              <LoadError
+                title="Audit activity could not be loaded"
+                message={error}
+                onRetry={refresh}
+              />
             ) : entries.length === 0 ? (
               <div className="py-12 text-center">
                 <Shield className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
@@ -206,7 +212,7 @@ export default function AuditLogPage() {
             )}
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

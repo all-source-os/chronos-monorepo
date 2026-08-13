@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  Button,
-  Calendar as CalendarComponent,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@allsource/ui";
+import { Button } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { CalendarIcon, ChevronDown, Clock, History, RotateCcw, X } from "lucide-react";
+import { ChevronDown, Clock, History, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   DEMO_PRESETS,
@@ -107,6 +101,7 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
     <div className={cn("relative", className)}>
       {/* Trigger button */}
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
@@ -114,6 +109,9 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
             ? "border-amber-500/50 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
             : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
         )}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        aria-label={isHistorical ? `Historical view: ${formatAsOf()}` : "Time Travel"}
       >
         {isHistorical ? (
           <>
@@ -134,10 +132,19 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setIsOpen(false)}
+            aria-label="Close time travel"
+          />
 
           {/* Panel */}
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border bg-background p-4 shadow-lg">
+          <div
+            className="fixed left-4 right-4 top-16 z-50 mt-2 rounded-xl border border-border bg-background p-4 shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-full sm:w-80"
+            role="dialog"
+            aria-label="Choose historical time"
+          >
             {/* Header */}
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-medium">
@@ -148,7 +155,12 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
                 <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                   <span className="text-xs">&#8984;</span>T
                 </kbd>
-                <button onClick={() => setIsOpen(false)} className="rounded p-1 hover:bg-muted">
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="rounded p-1 hover:bg-muted"
+                  aria-label="Close time travel"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -183,6 +195,7 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
               <div className="grid grid-cols-2 gap-2">
                 {presets.map((preset) => (
                   <button
+                    type="button"
                     key={preset.label}
                     onClick={() => handlePresetClick(preset.getDate)}
                     className="rounded-lg border border-border px-3 py-2 text-left text-xs transition-colors hover:bg-muted"
@@ -198,36 +211,23 @@ export function TimeTravelPicker({ showDemoPresets = false, className }: TimeTra
               <p className="mb-2 text-xs font-medium text-muted-foreground">Custom date & time</p>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal text-sm",
-                          !customDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {customDate || "Pick date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={customDate ? new Date(`${customDate}T00:00:00`) : undefined}
-                        onSelect={(date) => {
-                          if (date) {
-                            setCustomDate(toLocalYmd(date));
-                          }
-                        }}
-                        autoFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <label htmlFor="time-travel-date" className="sr-only">
+                    Date
+                  </label>
+                  <input
+                    id="time-travel-date"
+                    type="date"
+                    value={customDate}
+                    onChange={(event) => setCustomDate(event.target.value)}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                  />
                 </div>
                 <div className="w-24">
-                  <label className="sr-only">Time</label>
+                  <label htmlFor="time-travel-time" className="sr-only">
+                    Time
+                  </label>
                   <input
+                    id="time-travel-time"
                     type="time"
                     value={customTime}
                     onChange={(e) => setCustomTime(e.target.value)}
