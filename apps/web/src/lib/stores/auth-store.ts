@@ -5,7 +5,6 @@ import type { Tenant, User } from "@/lib/api/client";
 interface AuthState {
   user: User | null;
   tenant: Tenant | null;
-  coreApiKey: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
@@ -13,10 +12,9 @@ interface AuthState {
   // Actions
   setUser: (user: User | null) => void;
   setTenant: (tenant: Tenant | null) => void;
-  setCoreApiKey: (key: string | null) => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
-  login: (user: User, tenant: Tenant, coreApiKey?: string | null) => void;
+  login: (user: User, tenant: Tenant) => void;
   logout: () => void;
   reset: () => void;
 }
@@ -24,11 +22,23 @@ interface AuthState {
 const initialState = {
   user: null,
   tenant: null,
-  coreApiKey: null,
   isLoading: true,
   isAuthenticated: false,
   error: null,
 };
+
+type PersistedAuthState = Pick<AuthState, "user" | "tenant" | "isAuthenticated">;
+
+export function sanitizePersistedAuthState(value: unknown): PersistedAuthState {
+  const state = value && typeof value === "object" ? (value as Partial<AuthState>) : {};
+  const user = state.user ?? null;
+
+  return {
+    user,
+    tenant: state.tenant ?? null,
+    isAuthenticated: Boolean(user && state.isAuthenticated),
+  };
+}
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -43,17 +53,14 @@ export const useAuthStore = create<AuthState>()(
 
       setTenant: (tenant) => set({ tenant }),
 
-      setCoreApiKey: (coreApiKey) => set({ coreApiKey }),
-
       setLoading: (isLoading) => set({ isLoading }),
 
       setError: (error) => set({ error }),
 
-      login: (user, tenant, coreApiKey = null) =>
+      login: (user, tenant) =>
         set({
           user,
           tenant,
-          coreApiKey,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -69,10 +76,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "auth-storage",
+      version: 1,
+      migrate: (persistedState) => sanitizePersistedAuthState(persistedState),
       partialize: (state) => ({
         user: state.user,
         tenant: state.tenant,
-        coreApiKey: state.coreApiKey,
         isAuthenticated: state.isAuthenticated,
       }),
     }

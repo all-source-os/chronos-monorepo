@@ -61,25 +61,38 @@ describe("GET /api/auth/session", () => {
     expect(response.headers.get("set-cookie")).toContain("auth_token=");
   });
 
-  it("returns user, tenant, and the JWT sync key", async () => {
+  it("returns user and tenant without exposing a credential", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json({ data: { user: { id: "user-1", name: "Ada" } } }))
       .mockResolvedValueOnce(Response.json({ data: { id: "tenant-1", name: "Acme" } }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const response = await GET(
-      sessionRequest(tokenWith({ sub: "user-1", core_api_key: "ask_sync" }))
-    );
+    const response = await GET(sessionRequest(tokenWith({ sub: "user-1" })));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       data: {
         user: { id: "user-1", name: "Ada" },
         tenant: { id: "tenant-1", name: "Acme" },
-        core_api_key: "ask_sync",
       },
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects legacy sessions that embedded an API key", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await GET(
+      sessionRequest(tokenWith({ sub: "user-1", core_api_key: "legacy-secret" }))
+    );
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("set-cookie")).toContain("auth_token=");
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "session_refresh_required" },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,18 @@
 "use client";
 
-import { Button, Card, CardContent } from "@allsource/ui";
-import { AlertTriangle, Key, Plus, Shield } from "lucide-react";
+import { Button, Card, CardContent, Input, Label } from "@allsource/ui";
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  Key,
+  Plus,
+  Shield,
+  Terminal,
+  X,
+} from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CreateKeyDialog } from "@/components/api-keys/create-key-dialog";
@@ -11,16 +22,19 @@ import { FadeIn } from "@/components/ui/fade-in";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
 
+const CHRONIS_SCOPES = ["events:read", "events:write"];
+
 export default function ApiKeysPage() {
   const searchParams = useSearchParams();
   const { keys, isLoading, error, createKey, rotateKey, revokeKey, refresh } = useApiKeys();
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createIntent, setCreateIntent] = useState<"generic" | "chronis" | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  const [rotatedKey, setRotatedKey] = useState<ApiKeyWithSecret | null>(null);
 
   // Check URL for action param
   useEffect(() => {
     if (searchParams.get("action") === "create") {
-      setShowCreateDialog(true);
+      setCreateIntent("generic");
     }
   }, [searchParams]);
 
@@ -40,7 +54,8 @@ export default function ApiKeysPage() {
 
   const handleRotate = async (id: string) => {
     try {
-      await rotateKey(id);
+      const result = await rotateKey(id);
+      if (result) setRotatedKey(result);
     } catch (error) {
       console.error("Failed to rotate API key:", error);
     }
@@ -71,7 +86,7 @@ export default function ApiKeysPage() {
               Manage API keys for authenticating your applications
             </p>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)}>
+          <Button onClick={() => setCreateIntent("generic")}>
             <Plus className="mr-1.5 h-4 w-4" />
             Create Key
           </Button>
@@ -90,6 +105,37 @@ export default function ApiKeysPage() {
                 them to version control. Use environment variables instead.
               </p>
             </div>
+          </CardContent>
+        </Card>
+      </FadeIn>
+
+      {/* Connection setup */}
+      <FadeIn delay={0.25} inView>
+        <Card>
+          <CardContent className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.85fr)] lg:items-center">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <Terminal className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="font-semibold">Connect Chronis</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Create a dedicated key with Read Events and Write Events. Its secret appears once;
+                  paste it into your local config, then keep it out of source control.
+                </p>
+                <Button
+                  className="mt-4"
+                  variant="outline"
+                  onClick={() => setCreateIntent("chronis")}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Create sync key
+                </Button>
+              </div>
+            </div>
+            <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs text-muted-foreground">
+              {`mode = "remote"\n\n[sync]\nremote_url = "https://api.all-source.xyz"\napi_key = "<YOUR_API_KEY>"`}
+            </pre>
           </CardContent>
         </Card>
       </FadeIn>
@@ -143,10 +189,20 @@ export default function ApiKeysPage() {
 
       {/* Create dialog */}
       <CreateKeyDialog
-        open={showCreateDialog}
-        onClose={() => setShowCreateDialog(false)}
+        key={createIntent ?? "closed"}
+        open={createIntent !== null}
+        onClose={() => setCreateIntent(null)}
         onCreateKey={handleCreateKey}
+        initialName={createIntent === "chronis" ? "Chronis sync" : undefined}
+        initialDescription={
+          createIntent === "chronis" ? "Dedicated key for cn sync from this workspace." : undefined
+        }
+        initialScopes={createIntent === "chronis" ? CHRONIS_SCOPES : undefined}
       />
+
+      {rotatedKey ? (
+        <RotatedKeyDialog apiKey={rotatedKey} onClose={() => setRotatedKey(null)} />
+      ) : null}
 
       {/* Revoke confirmation */}
       {confirmRevoke && (
@@ -181,6 +237,84 @@ export default function ApiKeysPage() {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function RotatedKeyDialog({ apiKey, onClose }: { apiKey: ApiKeyWithSecret; onClose: () => void }) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyKey = async () => {
+    await navigator.clipboard.writeText(apiKey.key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" aria-hidden="true" />
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rotated-key-title"
+        className="relative z-10 mx-4 w-full max-w-lg"
+      >
+        <CardContent className="space-y-5 p-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3 top-3"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <div className="pr-8">
+            <h2 id="rotated-key-title" className="text-lg font-semibold">
+              API key rotated
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Replace the old key now. This secret will not be shown again.
+            </p>
+          </div>
+          <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+            Rotation invalidates clients using the old key. Store this replacement in your secret
+            manager, not in source control.
+          </div>
+          <div>
+            <Label htmlFor="rotated-api-key">New API key</Label>
+            <div className="mt-1.5 flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Input
+                  id="rotated-api-key"
+                  value={revealed ? apiKey.key : "•".repeat(Math.min(apiKey.key.length, 40))}
+                  readOnly
+                  className="font-mono pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setRevealed((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={revealed ? "Hide new API key" : "Reveal new API key"}
+                >
+                  {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <Button variant="outline" onClick={copyKey} aria-label="Copy new API key">
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Done</Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -44,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         return;
       }
 
-      login(data.data.user, data.data.tenant, data.data.core_api_key ?? null);
+      login(data.data.user, data.data.tenant);
     } catch (sessionError) {
       setError(
         sessionError instanceof Error ? sessionError.message : "Session could not be verified."

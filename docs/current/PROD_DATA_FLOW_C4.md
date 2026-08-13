@@ -136,7 +136,7 @@ C4Component
 ## Dynamic flow 1 — Login (OAuth)
 
 1. Browser → `/api/v1/auth/oauth/:provider` (relative) → Next handler → **Control Plane** (`web/.../api/v1/auth/oauth/[...path]/route.ts`, `CONTROL_PLANE_INTERNAL_URL`).
-2. CP ↔ Google/GitHub; CP mints JWT (carrying `core_api_key`) and redirects to `/api/auth/callback?token=…`.
+2. CP ↔ Google/GitHub; CP mints a human session JWT containing identity, tenant, role, and expiry only, then redirects to `/api/auth/callback?token=…`. Long-lived API keys are never embedded in the session token.
 3. Web sets `auth_token` httpOnly cookie (`web/.../api/auth/callback/route.ts:55-61`).
 4. Subsequent `/api/*` calls send the cookie; each Next proxy translates cookie → `Authorization: Bearer` for the backend (`api/[...path]/route.ts:49-54`). QS `AuthPipeline` builds `current_user` from claims.
 

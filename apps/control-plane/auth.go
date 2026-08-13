@@ -21,21 +21,19 @@ import (
 
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/domain/entities"
-	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
 // Claims represents JWT claims
 type Claims struct {
-	UserID     string        `json:"sub"`
-	Username   string        `json:"username"`
-	Email      string        `json:"email,omitempty"`
-	Name       string        `json:"name,omitempty"`
-	TenantID   string        `json:"tenant_id"`
-	Role       entities.Role `json:"role"`
-	Provider   string        `json:"provider,omitempty"`
-	IsAPIKey   bool          `json:"is_api_key,omitempty"`
-	IsDemo     bool          `json:"is_demo,omitempty"`
-	CoreAPIKey string        `json:"core_api_key,omitempty"`
+	UserID   string        `json:"sub"`
+	Username string        `json:"username"`
+	Email    string        `json:"email,omitempty"`
+	Name     string        `json:"name,omitempty"`
+	TenantID string        `json:"tenant_id"`
+	Role     entities.Role `json:"role"`
+	Provider string        `json:"provider,omitempty"`
+	IsAPIKey bool          `json:"is_api_key,omitempty"`
+	IsDemo   bool          `json:"is_demo,omitempty"`
 	// ViewAs marks a read-only "view as tenant" impersonation token minted by
 	// SignViewAsJWT. It is the defense-in-depth marker the write-refusal
 	// middleware (ViewAsWriteRefusal) hard-rejects on any mutating method, in
@@ -487,11 +485,10 @@ func GetAuthContext(c *gin.Context) (*AuthContext, error) {
 
 // oauthUserResult holds the result of finding or creating an OAuth user.
 type oauthUserResult struct {
-	Token      string
-	UserID     string
-	TenantID   string
-	IsNewUser  bool
-	CoreAPIKey string
+	Token     string
+	UserID    string
+	TenantID  string
+	IsNewUser bool
 }
 
 // findOrCreateOAuthUser creates or finds a tenant for the OAuth user and signs a JWT.
@@ -511,10 +508,6 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 		} else {
 			// Valid invite found — provision the user into the existing tenant.
 			tenantID := invite.TenantID
-			coreAPIKey, provErr := cp.provisionCoreAPIKey(context.Background(), tenantID, userID)
-			if provErr != nil {
-				log.Printf("warn: provisionCoreAPIKey failed for tenant %s user %s: %v", logsafe.String(tenantID), logsafe.String(userID), provErr)
-			}
 
 			// Record the user as a member of this team.
 			if addErr := cp.AddTeamMember(context.Background(), tenantID, TeamMember{
@@ -535,14 +528,13 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 			// Sign JWT for this user in the existing tenant.
 			now := time.Now()
 			claims := &Claims{
-				UserID:     userID,
-				Username:   name,
-				Email:      email,
-				Name:       name,
-				TenantID:   tenantID,
-				Role:       roleForEmail(email),
-				Provider:   provider,
-				CoreAPIKey: coreAPIKey,
+				UserID:   userID,
+				Username: name,
+				Email:    email,
+				Name:     name,
+				TenantID: tenantID,
+				Role:     roleForEmail(email),
+				Provider: provider,
 				StandardClaims: jwt.StandardClaims{
 					ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 					IssuedAt:  now.Unix(),
@@ -556,11 +548,10 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 				return nil, fmt.Errorf("failed to sign JWT: %w", signErr)
 			}
 			return &oauthUserResult{
-				Token:      tokenString,
-				UserID:     userID,
-				TenantID:   tenantID,
-				IsNewUser:  true,
-				CoreAPIKey: coreAPIKey,
+				Token:     tokenString,
+				UserID:    userID,
+				TenantID:  tenantID,
+				IsNewUser: true,
 			}, nil
 		}
 	}
@@ -623,25 +614,16 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 		return nil, fmt.Errorf("failed to create tenant (HTTP %d): %s", resp.StatusCode(), string(resp.Body()))
 	}
 
-	// Provision (or retrieve) a Core API key for this user's tenant.
-	// Non-fatal: log the error but don't block login if Core is unavailable.
-	coreAPIKey, keyErr := cp.provisionCoreAPIKey(context.Background(), tenantID, userID)
-	if keyErr != nil {
-		// Log and continue — the user can still log in; they just won't get the sync key yet.
-		fmt.Printf("warn: failed to provision Core API key for %s: %v\n", logsafe.String(userID), keyErr)
-	}
-
 	// Sign JWT
 	now := time.Now()
 	claims := &Claims{
-		UserID:     userID,
-		Username:   name,
-		Email:      email,
-		Name:       name,
-		TenantID:   tenantID,
-		Role:       roleForEmail(email),
-		Provider:   provider,
-		CoreAPIKey: coreAPIKey,
+		UserID:   userID,
+		Username: name,
+		Email:    email,
+		Name:     name,
+		TenantID: tenantID,
+		Role:     roleForEmail(email),
+		Provider: provider,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: now.Add(7 * 24 * time.Hour).Unix(),
 			IssuedAt:  now.Unix(),
@@ -657,73 +639,14 @@ func (cp *ControlPlane) findOrCreateOAuthUser(provider, providerID, email, name,
 	}
 
 	return &oauthUserResult{
-		Token:      tokenString,
-		UserID:     userID,
-		TenantID:   tenantID,
-		IsNewUser:  isNewUser,
-		CoreAPIKey: coreAPIKey,
+		Token:     tokenString,
+		UserID:    userID,
+		TenantID:  tenantID,
+		IsNewUser: isNewUser,
 	}, nil
 }
 
-// provisionCoreAPIKey returns an existing Core API key for the user's tenant or creates one.
-// The key is cached in Core's config store under "user:{userID}:core_api_key" so that
-// subsequent logins return the same key without creating duplicates.
-//
-// Locally mints the mapping into AuthClient's cache via RememberAPIKey so
-// the subsequent first-use of this key bypasses Core /me entirely — the
-// foundation for removing Core's public auth surface (bead t-62f3).
-func (cp *ControlPlane) provisionCoreAPIKey(ctx context.Context, tenantID, userID string) (string, error) {
-	configKey := "user:" + userID + ":core_api_key"
-
-	// Check if we already provisioned a key for this user.
-	existing, err := cp.coreClient.GetConfig(ctx, configKey)
-	if err == nil && existing != nil {
-		if key, ok := existing.Value.(string); ok && key != "" {
-			// Cache the re-used key too — on a fresh CP process, we'd
-			// otherwise round-trip to Core /me the first time this user's
-			// client calls the delegation layer.
-			cp.authClient.RememberAPIKey(key, &Claims{
-				UserID:   userID,
-				TenantID: tenantID,
-				Role:     entities.RoleServiceAccount,
-				IsAPIKey: true,
-			})
-			return key, nil
-		}
-	}
-
-	// Create a new API key scoped to the user's tenant.
-	keyName := "sync-" + userID
-	resp, err := cp.coreClient.CreateCoreAPIKey(ctx, clients.CreateCoreAPIKeyRequest{
-		Name:     keyName,
-		TenantID: tenantID,
-		Role:     "serviceaccount",
-	})
-	if err != nil {
-		return "", fmt.Errorf("create Core API key: %w", err)
-	}
-
-	// Persist the key so future logins skip re-creation.
-	if cacheErr := cp.coreClient.SetConfig(ctx, clients.SetConfigRequest{
-		Key:   configKey,
-		Value: resp.Key,
-	}); cacheErr != nil {
-		log.Printf("warn: failed to cache Core API key for tenant %s: %v", tenantID, cacheErr)
-	}
-
-	// Local cache: the whole point of this migration. CP is the source of
-	// truth for this key's identity from the moment it's minted.
-	cp.authClient.RememberAPIKey(resp.Key, &Claims{
-		UserID:   userID,
-		TenantID: tenantID,
-		Role:     entities.RoleServiceAccount,
-		IsAPIKey: true,
-	})
-
-	return resp.Key, nil
-}
-
-// SessionHandler returns the current user's session info, including their Core API key.
+// SessionHandler returns current user identity and workspace information.
 // GET /api/v1/auth/session
 func (cp *ControlPlane) SessionHandler(c *gin.Context) {
 	authCtx, exists := c.Get("auth")
@@ -737,33 +660,14 @@ func (cp *ControlPlane) SessionHandler(c *gin.Context) {
 		return
 	}
 
-	// Extract the full Claims from the token to include core_api_key.
-	tokenStr := extractBearerToken(c)
-	var coreAPIKey string
-	if tokenStr != "" {
-		if claims, err := cp.authClient.ValidateToken(tokenStr); err == nil {
-			coreAPIKey = claims.CoreAPIKey
-		}
-	}
-
 	c.JSON(200, gin.H{
 		"user": gin.H{
 			"id":       auth.UserID,
 			"username": auth.Username,
 			"email":    "",
 		},
-		"tenant_id":    auth.TenantID,
-		"core_api_key": coreAPIKey,
+		"tenant_id": auth.TenantID,
 	})
-}
-
-// extractBearerToken pulls the raw JWT from the Authorization header.
-func extractBearerToken(c *gin.Context) string {
-	header := c.GetHeader("Authorization")
-	if strings.HasPrefix(header, "Bearer ") {
-		return strings.TrimPrefix(header, "Bearer ")
-	}
-	return ""
 }
 
 // LoginRequest represents a login request from the frontend.

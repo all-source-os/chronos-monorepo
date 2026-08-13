@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { carriesLegacyApiKey } from "@/lib/server/session-token";
 
 /**
  * GET /api/auth/ws-token — surface the session JWT for the Phoenix WebSocket.
@@ -8,7 +9,7 @@ import { type NextRequest, NextResponse } from "next/server";
  * authenticates with that exact JWT via a `token` connect param — it verifies
  * the HS256 signature with the shared `JWT_SECRET` and reads the `sub` / `exp`
  * / `tenant_id` claims. The REST `/api/auth/session` route intentionally does
- * NOT echo the raw token (it returns user/tenant/core_api_key only), so this
+ * NOT echo the raw token, so this
  * dedicated endpoint exposes the JWT solely for the socket handshake.
  *
  * Security: the token is the same short-lived (7-day) session JWT already held
@@ -24,6 +25,20 @@ export async function GET(request: NextRequest) {
       { error: { code: "not_authenticated", message: "No session found" } },
       { status: 401 }
     );
+  }
+
+  if (carriesLegacyApiKey(token)) {
+    const response = NextResponse.json(
+      {
+        error: {
+          code: "session_refresh_required",
+          message: "Sign in again to refresh this session securely",
+        },
+      },
+      { status: 401 }
+    );
+    response.cookies.delete("auth_token");
+    return response;
   }
 
   return NextResponse.json({ token });

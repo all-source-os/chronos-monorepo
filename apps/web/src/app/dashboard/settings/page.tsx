@@ -13,8 +13,9 @@ import {
   Label,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Bell, Check, Copy, Database, Shield, User } from "lucide-react";
+import { Bell, Check, Database, KeyRound, Shield, User } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { FadeIn } from "@/components/ui/fade-in";
 import {
@@ -54,16 +55,8 @@ function parseProvider(user: { id: string; provider?: string } | null): string |
 }
 
 export default function SettingsPage() {
-  const { user, tenant, coreApiKey } = useAuthStore();
+  const { user } = useAuthStore();
   const provider = parseProvider(user);
-  const [apiKeyCopied, setApiKeyCopied] = useState(false);
-
-  const handleCopyApiKey = async () => {
-    if (!coreApiKey) return;
-    await navigator.clipboard.writeText(coreApiKey);
-    setApiKeyCopied(true);
-    setTimeout(() => setApiKeyCopied(false), 2000);
-  };
   const { preferences, updatePreference } = useNotificationPreferences();
   const { mode: enforcementMode, setMode: setEnforcementMode } = useSchemaEnforcement();
   const [activeTab, setActiveTab] = useState<Tab>("profile");
@@ -159,47 +152,20 @@ export default function SettingsPage() {
                     </p>
                   </div>
 
-                  {/* Tenant ID */}
-                  <div>
-                    <Label>Tenant ID</Label>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <code className="flex-1 rounded-md bg-muted px-3 py-2 font-mono text-sm">
-                        {tenant?.id || user?.tenant_id || "—"}
-                      </code>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Use this ID for API authentication
-                    </p>
-                  </div>
-
-                  {/* Sync API Key */}
-                  <div>
-                    <Label>Sync API Key</Label>
-                    {coreApiKey ? (
-                      <>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <Input value={coreApiKey} readOnly className="flex-1 font-mono text-sm" />
-                          <Button variant="outline" size="icon" onClick={handleCopyApiKey}>
-                            {apiKeyCopied ? (
-                              <Check className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Use this key in <code className="font-mono">.chronis/config.toml</code>{" "}
-                          for <code className="font-mono">cn sync</code>. Keep it secret.
+                  <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                      <div>
+                        <p className="font-medium">Developer credentials</p>
+                        <p className="text-sm text-muted-foreground">
+                          API keys live in their own secure workspace. Secrets appear only once,
+                          after you create or rotate a key.
                         </p>
-                        <pre className="mt-2 rounded-md bg-muted p-3 text-xs font-mono text-muted-foreground">
-                          {`[remote]\nurl = "https://api.all-source.xyz"\napi_key = "${coreApiKey}"`}
-                        </pre>
-                      </>
-                    ) : (
-                      <p className="mt-1.5 text-sm text-muted-foreground">
-                        Log out and back in to generate your sync API key.
-                      </p>
-                    )}
+                      </div>
+                    </div>
+                    <Button asChild variant="outline" className="shrink-0">
+                      <Link href="/dashboard/api-keys">Manage API keys</Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

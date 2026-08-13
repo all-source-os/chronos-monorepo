@@ -107,14 +107,12 @@ RESP=$(curl -s -X POST https://api.all-source.xyz/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"probe-$TS\",\"username\":\"probe-$TS\",\"email\":\"probe-$TS@test.local\",\"password\":\"$(openssl rand -hex 16)\"}")
 
-# Extract the embedded Core API key from the JWT
+# Keep the returned JWT as a human session token. It deliberately contains no
+# long-lived API credential. Create a scoped test key from Dashboard → API Keys,
+# then provide it to this shell without printing or committing it.
 JWT=$(echo "$RESP" | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
-API_KEY=$(echo "$JWT" | awk -F. '{print $2}' | python3 -c "
-import sys,base64,json
-s=sys.stdin.read().strip(); s+='='*((4-len(s)%4)%4)
-print(json.loads(base64.urlsafe_b64decode(s))['core_api_key'])
-")
-echo "API key: $API_KEY"
+read -s "API_KEY?Scoped test API key: "
+echo
 
 # Write + read through the delegation layer
 curl -s -X POST https://api.all-source.xyz/api/v1/events \

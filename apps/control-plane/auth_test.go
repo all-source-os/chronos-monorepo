@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
 
 	"github.com/allsource/control-plane/internal/domain/entities"
 )
@@ -167,8 +169,7 @@ func TestAuthClient_RememberAPIKey_BypassesCoreMe(t *testing.T) {
 
 	client := NewAuthClient("secret", core.URL)
 
-	// Mint a key via RememberAPIKey (simulates provisionCoreAPIKey's
-	// post-CreateCoreAPIKey step).
+	// Seed a key via RememberAPIKey, as explicit key-creation handlers do.
 	remembered := &Claims{
 		UserID:   "user-xyz",
 		TenantID: "tenant-xyz",
@@ -227,6 +228,30 @@ func TestAuthClient_RememberAPIKey_BypassesCoreMe(t *testing.T) {
 			t.Errorf("Core /me called %d times, want 1", otherCalled)
 		}
 	})
+}
+
+func TestSessionHandlerDoesNotExposeCredentials(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("auth", &AuthContext{
+		UserID:   "user-1",
+		Username: "Ada",
+		TenantID: "tenant-1",
+	})
+
+	(&ControlPlane{}).SessionHandler(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want %d", recorder.Code, http.StatusOK)
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if _, exposed := body["core_api_key"]; exposed {
+		t.Fatal("session response must not contain core_api_key")
+	}
 }
 
 func TestRole_HasPermission(t *testing.T) {

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { carriesLegacyApiKey } from "@/lib/server/session-token";
 
 // Session validation must hit the Query Service, which serves /api/auth/me.
 // NEXT_PUBLIC_API_URL is the branded gateway (api.all-source.xyz) and does NOT
@@ -14,21 +15,6 @@ function getApiUrl(): string {
   );
 }
 
-/**
- * Decode a JWT payload without verifying the signature.
- * Safe to use server-side because the token was already validated by the backend.
- */
-function decodeJwtPayload(token: string): Record<string, unknown> {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return {};
-    const payload = Buffer.from(parts[1] ?? "", "base64url").toString("utf-8");
-    return JSON.parse(payload) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
 // GET /api/auth/session - Get current user session
 export async function GET(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value;
@@ -38,6 +24,22 @@ export async function GET(request: NextRequest) {
       { error: { code: "not_authenticated", message: "No session found" } },
       { status: 401 }
     );
+  }
+
+  // Old human session JWTs embedded a long-lived API key. Force one fresh
+  // sign-in so that secret cannot reach browser storage or the WebSocket bridge.
+  if (carriesLegacyApiKey(token)) {
+    const response = NextResponse.json(
+      {
+        error: {
+          code: "session_refresh_required",
+          message: "Sign in again to refresh this session securely",
+        },
+      },
+      { status: 401 }
+    );
+    response.cookies.delete("auth_token");
+    return response;
   }
 
   try {
@@ -83,15 +85,10 @@ export async function GET(request: NextRequest) {
       tenantData = await tenantResponse.json();
     }
 
-    // Extract core_api_key from JWT payload (set by CP during OAuth login).
-    const jwtPayload = decodeJwtPayload(token);
-    const coreApiKey = typeof jwtPayload.core_api_key === "string" ? jwtPayload.core_api_key : null;
-
     return NextResponse.json({
       data: {
         user: userData.data?.user || userData.data,
         tenant: tenantData?.data || null,
-        core_api_key: coreApiKey,
       },
     });
   } catch {

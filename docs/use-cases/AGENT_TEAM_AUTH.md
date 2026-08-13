@@ -11,11 +11,12 @@ AllSource issues two kinds of API credentials:
 
 | Credential | Format | Issued by | Used by |
 |---|---|---|---|
-| **CP JWT** | `eyJ...` (signed JWT) | Control Plane at login | Dashboard browser sessions, human API clients |
-| **Core API key** | `ask_...` (opaque token) | Core `/api/v1/auth/api-keys` | `chronis` CLI, AI agents, automation scripts |
+| **CP JWT** | `eyJ...` (signed JWT) | Control Plane at login | Dashboard browser sessions |
+| **Scoped API key** | signed bearer token | Dashboard API Keys | `chronis` CLI, AI agents, automation scripts |
 
-Human team members receive a CP JWT on OAuth login. That JWT embeds a `core_api_key` field so
-the dashboard can proxy event data transparently.
+Human team members receive a CP JWT on OAuth login. It contains identity and tenant claims only;
+it never embeds a long-lived API key. The dashboard proxies authenticated requests with the
+httpOnly session cookie.
 
 AI agents never go through OAuth. They use **dedicated `ask_...` keys** provisioned per agent
 by a team Admin or Owner, scoped to the team's Core tenant.
@@ -24,35 +25,32 @@ by a team Admin or Owner, scoped to the team's Core tenant.
 
 ## End-to-End Flow
 
-### 1. Human login (automatic provisioning)
+### 1. Human login
 
 ```
 Browser → OAuth provider → Control Plane callback
-  → provisionCoreAPIKey(tenantID, userID)
-      → check Core config store: user:{userID}:core_api_key
-      → if missing: POST /api/v1/auth/api-keys (ServiceAccount, team tenant)
-      → cache key in Core config
-  → embed core_api_key in CP JWT
+  → create/find the user's tenant
+  → sign a human JWT with identity, tenant, role, and expiry
   → return JWT to browser (auth_token cookie)
 ```
 
-The dashboard reads `core_api_key` from the session response (`GET /api/auth/session`) and
-can use it for direct Core queries when needed.
+`GET /api/auth/session` returns user and tenant data only. Browser storage persists that same
+non-secret profile state. Dashboard API requests stay behind same-origin proxies.
 
-### 2. Agent key provisioning (manual, one-time per agent)
+### 2. API key provisioning (manual, one-time per client)
 
-A team Admin or Owner creates a named key for each agent from **Settings → Team → Agent Keys**:
+A user creates a named, minimally scoped key under **Dashboard → API Keys**. The Chronis setup
+action preselects `events:read` and `events:write`:
 
 ```
-Dashboard → POST /api/team/agent-keys  { "name": "ralph-tui-prod" }
-  → Control Plane CreateAgentKeyHandler
-      → POST /api/v1/auth/api-keys on Core (ServiceAccount role, team tenant)
-      → store AgentKeyMeta { name, key_id, created_at } in Core config
-        key: team:{tenantID}:agent_keys
-      → return { name, key, tenant_id, created_at }  ← key shown ONCE, never stored
+Dashboard → POST /api/api-keys
+  { "name": "Chronis sync", "scopes": ["events:read", "events:write"] }
+  → Query Service signs a tenant-scoped API credential
+  → store key metadata and prefix
+  → return the raw key once
 ```
 
-The raw key is returned **exactly once**. Copy it immediately.
+The raw key is returned **exactly once** and masked by default. Copy it immediately.
 
 ### 3. Agent configuration
 
@@ -63,14 +61,14 @@ Add the key to the agent's `chronis` config:
 mode = "remote"
 
 [sync]
-remote_url = "https://core.allsource.io"
-api_key    = "ask_<your-key-here>"
+remote_url = "https://api.all-source.xyz"
+api_key    = "<your-key-here>"
 ```
 
 Or via the CLI:
 
 ```bash
-cn init --remote https://core.allsource.io --api-key ask_<your-key-here>
+cn init --remote https://api.all-source.xyz --api-key <your-key-here>
 ```
 
 From this point the agent writes and reads task events directly against Core with no
@@ -81,7 +79,7 @@ dashboard involvement.
 ```
 ralph-tui / custom agent
   → reads api_key from .chronis/config.toml
-  → POST https://core.allsource.io/api/v1/events
+  → POST https://api.all-source.xyz/api/v1/events
       Authorization: Bearer ask_<key>
   → Core validates key: ServiceAccount role, resolves tenant from key record
   → event written to tenant's event stream
@@ -158,8 +156,8 @@ If you need per-agent isolation, create a separate team tenant for that agent.
 
 ## Security Notes
 
-- **Keys are never stored server-side in plaintext.** Only `key_id`, `name`, and `created_at`
-  are persisted in Core's config store. The raw `ask_...` value exists only during creation.
+- **Keys are never stored server-side in plaintext.** Only metadata and a safe prefix are
+  persisted. The raw bearer value exists only during creation or rotation.
 - **One key per agent.** Name keys descriptively (e.g., `ralph-tui-staging`,
   `deploy-bot-prod`) so you know which key to revoke if an agent is compromised.
 - **Revoke immediately** if a key is leaked. Rotation is safe and fast (see above).
@@ -170,9 +168,9 @@ If you need per-agent isolation, create a separate team tenant for that agent.
 
 ## Dashboard UI
 
-**Settings → Team → Agent Keys**
+**Dashboard → API Keys**
 
-- **New Key** button: opens a name input; press Enter or click Create
-- Key value shown once in a green callout with copy button and ready-to-paste config snippet
-- Key table: name, truncated key ID, creation date, revoke button
+- **Create sync key**: pre-fills a Chronis name and the read/write event scopes
+- Key value shown once, masked by default, with reveal and copy controls
+- Key table: name, safe prefix, scopes, dates, rotate, and revoke controls
 - Empty state guides admins to create their first key

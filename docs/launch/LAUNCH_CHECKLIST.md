@@ -86,7 +86,7 @@ Backend on Fly, frontend on Vercel. All 6 backend apps on Fly are on **v0.18.2**
 
 ## Phase E — Backend data integration
 
-- [x] **Unified auth shipped**: OAuth signup auto-provisions a Core API key via `provisionCoreAPIKey()` (`apps/control-plane/.../auth.go:394-400`, `439-469`); key included in JWT claims
+- [x] **Unified auth shipped with a secret boundary**: OAuth JWTs contain human identity, tenant, role, and expiry only. Users explicitly create scoped credentials under `/dashboard/api-keys`; raw keys are shown once and are never returned by the session API or persisted in browser storage.
 - [x] **LemonSqueezy webhook → tenant plan**: `webhook_lemonsqueezy.go:85-124` processes subscription events; `handleSubscriptionUpdated` (line 146) updates tenant tier + quotas via `updateSubUC.Execute()`
 - [x] Dashboard stats wired (`apps/web/src/hooks/use-dashboard-stats.ts` — Promise.all over `getTenantUsage`/`listProjections`/`getMetrics`)
 - [x] Live event feed uses Phoenix Channel WebSocket (`live-event-feed.tsx:31` → `usePhoenixChannel("events:all", ...)`)

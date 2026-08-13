@@ -13,13 +13,16 @@ import {
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import { AlertTriangle, Check, Copy, Eye, EyeOff, Key, Loader2, X } from "lucide-react";
-import { ApiKeyUsage } from "./api-key-usage";
 import { useState } from "react";
 import type { ApiKeyWithSecret } from "@/lib/api/client";
+import { ApiKeyUsage } from "./api-key-usage";
 
 interface CreateKeyDialogProps {
   open: boolean;
   onClose: () => void;
+  initialName?: string;
+  initialDescription?: string;
+  initialScopes?: string[];
   onCreateKey: (data: {
     name: string;
     description?: string;
@@ -45,20 +48,29 @@ const EXPIRATION_OPTIONS = [
   { value: "365", label: "1 year" },
 ];
 
-export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+const EMPTY_INITIAL_SCOPES: string[] = [];
+
+export function CreateKeyDialog({
+  open,
+  onClose,
+  onCreateKey,
+  initialName = "",
+  initialDescription = "",
+  initialScopes = EMPTY_INITIAL_SCOPES,
+}: CreateKeyDialogProps) {
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
   // Start empty, deliberately. Pre-selecting read+write made the first click on
   // the scope you wanted *remove* it: picking "Write Events" left ["events:read"]
   // and picking "Read Events" left ["events:write"], which reads as the dashboard
   // showing reversed labels. With nothing pre-selected, a click always adds.
   // Create is already disabled while no scope is chosen, so an explicit pick is
   // required — the right default for a credential anyway.
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(() => [...initialScopes]);
   const [expiration, setExpiration] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<ApiKeyWithSecret | null>(null);
-  const [showKey, setShowKey] = useState(true);
+  const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const toggleScope = (scopeId: string) => {
@@ -100,11 +112,13 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
   };
 
   const handleClose = () => {
-    setName("");
-    setDescription("");
-    setSelectedScopes([]);
+    setName(initialName);
+    setDescription(initialDescription);
+    setSelectedScopes([...initialScopes]);
     setExpiration("");
     setCreatedKey(null);
+    setShowKey(false);
+    setCopied(false);
     onClose();
   };
 
@@ -116,19 +130,29 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
       <button
         type="button"
         className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-        onClick={handleClose}
-        aria-label="Close dialog"
+        onClick={() => {
+          if (!createdKey) handleClose();
+        }}
+        aria-label={createdKey ? "API key must be saved before closing" : "Close dialog"}
       />
 
       {/* Dialog */}
-      <Card className="relative z-10 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <Card
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-api-key-title"
+        className="relative z-10 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
               <Key className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle>{createdKey ? "API Key Created" : "Create API Key"}</CardTitle>
+              <CardTitle id="create-api-key-title">
+                {createdKey ? "API Key Created" : "Create API Key"}
+              </CardTitle>
               <CardDescription>
                 {createdKey
                   ? "Save your key now - you won't see it again"
@@ -164,17 +188,20 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
               </div>
 
               <div>
-                <Label>Your API Key</Label>
+                <Label htmlFor="created-api-key">Your API Key</Label>
                 <div className="mt-1.5 flex gap-2">
                   <div className="relative flex-1">
                     <Input
+                      id="created-api-key"
                       value={showKey ? createdKey.key : "•".repeat(createdKey.key.length)}
                       readOnly
                       className="font-mono pr-10"
                     />
                     <button
+                      type="button"
                       onClick={() => setShowKey(!showKey)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showKey ? "Hide API key" : "Reveal API key"}
                     >
                       {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -239,8 +266,7 @@ export function CreateKeyDialog({ open, onClose, onCreateKey }: CreateKeyDialogP
                     <button
                       key={scope.id}
                       type="button"
-                      role="checkbox"
-                      aria-checked={selectedScopes.includes(scope.id)}
+                      aria-pressed={selectedScopes.includes(scope.id)}
                       onClick={() => toggleScope(scope.id)}
                       className={cn(
                         "flex items-start gap-2 rounded-lg border p-3 text-left transition-all",
