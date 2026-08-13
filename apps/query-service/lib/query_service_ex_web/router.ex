@@ -234,7 +234,7 @@ defmodule QueryServiceExWeb.Router do
     post("/schemas", SchemaController, :register)
   end
 
-  # Replay endpoints (proxied to Core)
+  # Tenant-scoped, Query Service-owned projection rebuilds
   scope "/api", QueryServiceExWeb do
     pipe_through([:tenant_scoped, :rate_limited])
 

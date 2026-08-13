@@ -13,6 +13,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
 
   @state_table :tenant_projection_state
   @status_table :tenant_projection_status
+  @generation_table :tenant_projection_generation
 
   setup do
     TenantProjections.init_tables()
@@ -30,6 +31,7 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
     on_exit(fn ->
       :ets.delete_all_objects(@state_table)
       :ets.delete_all_objects(@status_table)
+      :ets.delete_all_objects(@generation_table)
       Application.delete_env(:query_service_ex, :tenant_projection_query_fun)
     end)
 
@@ -255,6 +257,75 @@ defmodule QueryServiceEx.Projections.TenantProjectionsTest do
 
       key = Catalog.tenant_key()
       assert TenantProjections.get_state(tenant, "event-count", key) == {:error, :not_found}
+    end
+  end
+
+  describe "atomic replay" do
+    test "rebuild replaces prior state instead of double-counting it" do
+      tenant = "tenant-replay"
+
+      seed_core(%{
+        tenant => [
+          %{"event_type" => "created", "entity_id" => "1", "tenant_id" => tenant},
+          %{"event_type" => "created", "entity_id" => "2", "tenant_id" => tenant}
+        ]
+      })
+
+      assert :ok = TenantProjections.enable(tenant, "event-count")
+      wait_until(fn -> TenantProjections.status(tenant, "event-count") == :ready end)
+
+      seed_core(%{
+        tenant => [
+          %{"event_type" => "created", "entity_id" => "1", "tenant_id" => tenant},
+          %{"event_type" => "created", "entity_id" => "2", "tenant_id" => tenant},
+          %{"event_type" => "updated", "entity_id" => "2", "tenant_id" => tenant}
+        ]
+      })
+
+      assert {:ok, replay} = TenantProjections.rebuild(tenant, "event-count")
+
+      wait_until(fn ->
+        match?(
+          {:ok, %{status: "completed"}},
+          TenantProjections.get_replay(tenant, replay.replay_id)
+        )
+      end)
+
+      assert {:ok, %{"total" => 3}} =
+               TenantProjections.get_state(tenant, "event-count", Catalog.tenant_key())
+
+      assert [%{projection_name: "event-count", status: "completed"}] =
+               TenantProjections.list_replays(tenant)
+
+      assert {:error, :not_found} =
+               TenantProjections.get_replay("another-tenant", replay.replay_id)
+    end
+
+    test "failed rebuild preserves last known-good state" do
+      tenant = "tenant-replay-failure"
+
+      seed_core(%{
+        tenant => [%{"event_type" => "created", "entity_id" => "1", "tenant_id" => tenant}]
+      })
+
+      assert :ok = TenantProjections.enable(tenant, "event-count")
+      wait_until(fn -> TenantProjections.status(tenant, "event-count") == :ready end)
+
+      Application.put_env(:query_service_ex, :tenant_projection_query_fun, fn _, _ ->
+        {:error, :core_unavailable}
+      end)
+
+      assert {:ok, replay} = TenantProjections.rebuild(tenant, "event-count")
+
+      wait_until(fn ->
+        match?(
+          {:ok, %{status: "failed"}},
+          TenantProjections.get_replay(tenant, replay.replay_id)
+        )
+      end)
+
+      assert {:ok, %{"total" => 1}} =
+               TenantProjections.get_state(tenant, "event-count", Catalog.tenant_key())
     end
   end
 

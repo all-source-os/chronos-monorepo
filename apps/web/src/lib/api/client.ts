@@ -14,6 +14,25 @@ export interface ApiResponse<T> {
   error?: ApiError;
 }
 
+export function normalizeApiError(value: unknown, fallback: string): ApiError {
+  if (typeof value === "string") {
+    return { code: "request_failed", message: value };
+  }
+
+  if (value && typeof value === "object") {
+    const error = value as Record<string, unknown>;
+    return {
+      code: typeof error.code === "string" ? error.code : "request_failed",
+      message: typeof error.message === "string" ? error.message : fallback,
+      ...(error.details && typeof error.details === "object"
+        ? { details: error.details as Record<string, string[]> }
+        : {}),
+    };
+  }
+
+  return { code: "unknown_error", message: fallback };
+}
+
 /** Per-tenant schema-enforcement mode (Gap 3). */
 export type SchemaEnforcementMode = "permissive" | "warn" | "strict";
 
@@ -71,10 +90,7 @@ export class ApiClient {
 
       if (!response.ok) {
         return {
-          error: (data.error as { code: string; message: string }) || {
-            code: "unknown_error",
-            message: response.statusText || `HTTP ${response.status}`,
-          },
+          error: normalizeApiError(data.error, response.statusText || `HTTP ${response.status}`),
         };
       }
 
@@ -115,7 +131,9 @@ export class ApiClient {
   }
 
   // Schema-enforcement toggle (Gap 3) — proxied to Core's per-tenant setting.
-  async getSchemaEnforcement(): Promise<ApiResponse<{ schema_enforcement: SchemaEnforcementMode }>> {
+  async getSchemaEnforcement(): Promise<
+    ApiResponse<{ schema_enforcement: SchemaEnforcementMode }>
+  > {
     return this.request("/api/tenant/schema-enforcement");
   }
 
@@ -957,7 +975,7 @@ export interface AuditLogParams {
 }
 
 // Replay types
-export type ReplayStatus = "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
+export type ReplayStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "unknown";
 
 export interface ReplayConfig {
   batch_size?: number;
@@ -979,6 +997,7 @@ export interface StartReplayRequest {
 export interface ReplayProgress {
   replay_id: string;
   status: ReplayStatus;
+  projection_name?: string | null;
   started_at: string;
   updated_at: string;
   completed_at: string | null;

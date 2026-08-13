@@ -1,6 +1,7 @@
 import useSWR from "swr";
 
 import { apiClient, type ReplayProgress, type StartReplayRequest } from "@/lib/api/client";
+import { normalizeReplay } from "@/lib/replay";
 
 export function useReplays() {
   const { data, error, isLoading, mutate } = useSWR(
@@ -36,9 +37,9 @@ export function useReplays() {
   // `data` is the ReplayProgress[] array, not the wrapper — `data.data` was
   // undefined, rendering the replay list empty despite rows.
   const raw: unknown = data;
-  const list: ReplayProgress[] = (
-    Array.isArray(raw) ? raw : ((raw as { data?: ReplayProgress[] })?.data ?? [])
-  ) as ReplayProgress[];
+  const list = (Array.isArray(raw) ? raw : ((raw as { data?: ReplayProgress[] })?.data ?? [])).map(
+    normalizeReplay
+  );
 
   return {
     replays: list,

@@ -76,6 +76,7 @@ defmodule QueryServiceExWeb.ProjectionControllerTest do
       Application.delete_env(:query_service_ex, :tenant_projection_query_fun)
       :ets.delete_all_objects(:tenant_projection_state)
       :ets.delete_all_objects(:tenant_projection_status)
+      :ets.delete_all_objects(:tenant_projection_generation)
     end)
 
     :ok

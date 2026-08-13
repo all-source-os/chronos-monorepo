@@ -1,138 +1,119 @@
 defmodule QueryServiceExWeb.ReplayController do
   @moduledoc """
-  Controller for event replay operations.
+  Tenant-scoped projection rebuild operations.
 
-  Proxies replay requests to Core's replay API, allowing tenants to
-  replay events from a specific point in time for projection rebuilds
-  or event re-processing.
+  Replays fold one enabled Query Service projection from the authenticated
+  tenant's immutable event history. The current read-model stays live until a
+  successful atomic replacement. Core's global projection replay API is not
+  exposed here because it cannot provide tenant-safe projection ownership.
   """
 
   use Phoenix.Controller, formats: [:json]
 
-  alias QueryServiceEx.Infrastructure.Adapters.RustCoreClient
+  alias QueryServiceEx.Projections.Enablement
+  alias QueryServiceEx.Projections.TenantProjections
 
   action_fallback(QueryServiceExWeb.FallbackController)
 
-  require Logger
-
-  @doc """
-  List all replays.
-
-  GET /api/replay
-  """
   def index(conn, _params) do
-    case RustCoreClient.list_replays() do
-      {:ok, %{replays: replays, total: total}} ->
-        json(conn, %{data: replays, count: length(replays), total: total})
-
-      {:ok, body} when is_list(body) ->
-        json(conn, %{data: body, count: length(body), total: length(body)})
-
-      {:ok, body} ->
-        json(conn, %{data: body})
-
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{error: to_string(reason)})
-    end
+    tenant_id = get_tenant_id!(conn)
+    replays = TenantProjections.list_replays(tenant_id)
+    json(conn, %{data: replays, count: length(replays), total: length(replays)})
   end
 
-  @doc """
-  Start a new event replay.
-
-  POST /api/replay
-
-  Body:
-    - from_timestamp: Start time (ISO 8601, optional)
-    - to_timestamp: End time (ISO 8601, optional)
-    - event_type: Filter by event type (optional)
-    - entity_id: Filter by entity ID (optional)
-    - projection_name: Target projection to rebuild (optional)
-    - config: Replay config overrides (optional)
-      - batch_size: Events per batch (default 1000)
-      - parallel: Enable parallel processing (default false)
-  """
   def create(conn, params) do
-    replay_params =
-      %{}
-      |> maybe_put(:from_timestamp, params["from_timestamp"])
-      |> maybe_put(:to_timestamp, params["to_timestamp"])
-      |> maybe_put(:event_type, params["event_type"])
-      |> maybe_put(:entity_id, params["entity_id"])
-      |> maybe_put(:projection_name, params["projection_name"])
-      |> maybe_put(:config, params["config"])
+    tenant_id = get_tenant_id!(conn)
+    projection_name = params["projection_name"]
 
-    case RustCoreClient.start_replay(replay_params) do
-      {:ok, replay} ->
+    with true <- is_binary(projection_name) and projection_name != "",
+         {:ok, enabled} <- Enablement.enabled_set(tenant_id),
+         true <- projection_name in enabled,
+         {:ok, replay} <- TenantProjections.rebuild(tenant_id, projection_name) do
+      conn
+      |> put_status(:accepted)
+      |> json(%{data: replay})
+    else
+      false ->
         conn
-        |> put_status(:ok)
-        |> json(%{data: replay})
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Choose an enabled projection to rebuild"})
+
+      {:error, :already_running} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "This projection already has a replay running"})
+
+      {:error, :projection_not_enabled} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Projection is not enabled for this tenant"})
 
       {:error, reason} ->
         conn
         |> put_status(:bad_request)
-        |> json(%{error: to_string(reason)})
+        |> json(%{error: to_string_reason(reason)})
     end
   end
 
-  @doc """
-  Get replay progress.
-
-  GET /api/replay/:id
-  """
   def show(conn, %{"id" => replay_id}) do
-    case RustCoreClient.get_replay(replay_id) do
+    tenant_id = get_tenant_id!(conn)
+
+    case TenantProjections.get_replay(tenant_id, replay_id) do
       {:ok, replay} ->
         json(conn, %{data: replay})
 
-      {:error, _reason} ->
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Replay not found"})
     end
   end
 
-  @doc """
-  Cancel a running replay.
-
-  POST /api/replay/:id/cancel
-  """
   def cancel(conn, %{"id" => replay_id}) do
-    case RustCoreClient.cancel_replay(replay_id) do
-      {:ok, body} ->
-        json(conn, %{data: body})
+    tenant_id = get_tenant_id!(conn)
 
-      {:error, _reason} ->
+    case TenantProjections.cancel_replay(tenant_id, replay_id) do
+      {:ok, replay} ->
+        json(conn, %{data: replay})
+
+      {:error, :not_running} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "Replay is no longer running"})
+
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Replay not found"})
     end
   end
 
-  @doc """
-  Delete a completed or failed replay.
-
-  DELETE /api/replay/:id
-  """
   def delete(conn, %{"id" => replay_id}) do
-    case RustCoreClient.delete_replay(replay_id) do
-      {:ok, _body} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{deleted: true})
+    tenant_id = get_tenant_id!(conn)
 
-      {:error, _reason} ->
+    case TenantProjections.delete_replay(tenant_id, replay_id) do
+      :ok ->
+        json(conn, %{deleted: true})
+
+      {:error, :still_running} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{error: "Cancel replay before removing it"})
+
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{error: "Replay not found"})
     end
   end
 
-  # -------------------------------------------------------------------
-  # Helpers
-  # -------------------------------------------------------------------
+  defp get_tenant_id!(conn) do
+    case conn.assigns[:tenant_id] do
+      tenant_id when is_binary(tenant_id) -> tenant_id
+      _ -> raise "Tenant context required but not present - security violation"
+    end
+  end
 
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+  defp to_string_reason(reason) when is_binary(reason), do: reason
+  defp to_string_reason(reason), do: inspect(reason)
 end

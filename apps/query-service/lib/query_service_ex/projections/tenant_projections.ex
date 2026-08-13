@@ -11,8 +11,9 @@ defmodule QueryServiceEx.Projections.TenantProjections do
 
   A single GenServer owns two public ETS tables:
 
-    * `:tenant_projection_state` — `{tenant_id, projection, entity_id} -> state`
+    * `:tenant_projection_state` — `{tenant_id, projection, generation, entity_id} -> state`
     * `:tenant_projection_status` — `{tenant_id, projection} -> :building | :ready`
+    * `:tenant_projection_generation` — `{tenant_id, projection} -> active generation`
 
   State is keyed by `{tenant_id, projection, entity_id}` so one tenant's folded
   read-model never mixes with another's. State is a rebuildable read-model; Core
@@ -43,6 +44,7 @@ defmodule QueryServiceEx.Projections.TenantProjections do
 
   @state_table :tenant_projection_state
   @status_table :tenant_projection_status
+  @generation_table :tenant_projection_generation
   @pubsub QueryServiceEx.PubSub
 
   # Backfill paging: bounded pages, loop until a short page.
@@ -62,6 +64,7 @@ defmodule QueryServiceEx.Projections.TenantProjections do
   def init_tables do
     ensure_table(@state_table)
     ensure_table(@status_table)
+    ensure_table(@generation_table)
     :ok
   end
 
@@ -98,8 +101,10 @@ defmodule QueryServiceEx.Projections.TenantProjections do
   @spec get_state(String.t(), String.t(), String.t()) :: {:ok, term()} | {:error, :not_found}
   def get_state(tenant_id, projection, entity_id)
       when is_binary(tenant_id) and is_binary(projection) and is_binary(entity_id) do
-    case lookup(@state_table, {tenant_id, projection, entity_id}) do
-      {:ok, state} -> {:ok, state}
+    with {:ok, generation} <- lookup(@generation_table, {tenant_id, projection}),
+         {:ok, state} <- lookup(@state_table, {tenant_id, projection, generation, entity_id}) do
+      {:ok, state}
+    else
       :error -> {:error, :not_found}
     end
   end
@@ -137,6 +142,45 @@ defmodule QueryServiceEx.Projections.TenantProjections do
     end)
   end
 
+  @doc """
+  Rebuild one enabled projection from this tenant's immutable event history.
+
+  History folds into isolated memory first. Current read-model remains available
+  until the fold succeeds, then the new state replaces it in one GenServer turn.
+  """
+  @spec rebuild(String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  def rebuild(tenant_id, template_name)
+      when is_binary(tenant_id) and is_binary(template_name) do
+    GenServer.call(__MODULE__, {:rebuild, tenant_id, template_name})
+  end
+
+  @doc "List replay jobs belonging to one tenant."
+  @spec list_replays(String.t()) :: [map()]
+  def list_replays(tenant_id) when is_binary(tenant_id) do
+    GenServer.call(__MODULE__, {:list_replays, tenant_id})
+  end
+
+  @doc "Read one replay job, scoped to its tenant."
+  @spec get_replay(String.t(), String.t()) :: {:ok, map()} | {:error, :not_found}
+  def get_replay(tenant_id, replay_id)
+      when is_binary(tenant_id) and is_binary(replay_id) do
+    GenServer.call(__MODULE__, {:get_replay, tenant_id, replay_id})
+  end
+
+  @doc "Cancel a running replay without replacing its current read-model."
+  @spec cancel_replay(String.t(), String.t()) :: {:ok, map()} | {:error, term()}
+  def cancel_replay(tenant_id, replay_id)
+      when is_binary(tenant_id) and is_binary(replay_id) do
+    GenServer.call(__MODULE__, {:cancel_replay, tenant_id, replay_id})
+  end
+
+  @doc "Remove a completed, failed, or cancelled replay from tenant history."
+  @spec delete_replay(String.t(), String.t()) :: :ok | {:error, term()}
+  def delete_replay(tenant_id, replay_id)
+      when is_binary(tenant_id) and is_binary(replay_id) do
+    GenServer.call(__MODULE__, {:delete_replay, tenant_id, replay_id})
+  end
+
   # -- Server callbacks --
 
   @impl GenServer
@@ -146,7 +190,7 @@ defmodule QueryServiceEx.Projections.TenantProjections do
     # Live updates fold into all tenants' enabled projections. We subscribe to a
     # per-tenant topic lazily the first time a tenant enables anything (a tenant
     # may not exist yet at boot). Track which tenant topics we are subscribed to.
-    {:ok, %{subscribed_tenants: MapSet.new()}}
+    {:ok, %{subscribed_tenants: MapSet.new(), builds: %{}, replays: %{}}}
   end
 
   @impl GenServer
@@ -156,13 +200,101 @@ defmodule QueryServiceEx.Projections.TenantProjections do
     :ets.insert(@status_table, {{tenant_id, template_name}, :building})
     state = ensure_tenant_subscription(state, tenant_id)
 
-    server = self()
-
-    Task.Supervisor.start_child(QueryServiceEx.Projections.BackfillSupervisor, fn ->
-      backfill(server, tenant_id, template)
-    end)
+    state = start_build(state, tenant_id, template, nil)
 
     {:reply, :ok, state}
+  end
+
+  @impl GenServer
+  def handle_call({:rebuild, tenant_id, template_name}, _from, state) do
+    key = {tenant_id, template_name}
+
+    cond do
+      not Catalog.valid?(template_name) ->
+        {:reply, {:error, :unknown_template}, state}
+
+      status(tenant_id, template_name) == nil ->
+        {:reply, {:error, :projection_not_enabled}, state}
+
+      Map.has_key?(state.builds, key) ->
+        {:reply, {:error, :already_running}, state}
+
+      true ->
+        {:ok, template} = Catalog.fetch(template_name)
+        replay = new_replay(template_name)
+        :ets.insert(@status_table, {key, :building})
+
+        state =
+          state
+          |> ensure_tenant_subscription(tenant_id)
+          |> put_in([:replays, replay.replay_id], Map.put(replay, :tenant_id, tenant_id))
+          |> start_build(tenant_id, template, replay.replay_id)
+
+        {:reply, {:ok, public_replay(replay)}, state}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:list_replays, tenant_id}, _from, state) do
+    replays =
+      state.replays
+      |> Map.values()
+      |> Enum.filter(&(&1.tenant_id == tenant_id))
+      |> Enum.sort_by(& &1.started_at, :desc)
+      |> Enum.map(&public_replay/1)
+
+    {:reply, replays, state}
+  end
+
+  @impl GenServer
+  def handle_call({:get_replay, tenant_id, replay_id}, _from, state) do
+    reply =
+      case Map.get(state.replays, replay_id) do
+        %{tenant_id: ^tenant_id} = replay -> {:ok, public_replay(replay)}
+        _ -> {:error, :not_found}
+      end
+
+    {:reply, reply, state}
+  end
+
+  @impl GenServer
+  def handle_call({:cancel_replay, tenant_id, replay_id}, _from, state) do
+    case Map.get(state.replays, replay_id) do
+      %{tenant_id: ^tenant_id, status: status} = replay when status in ["pending", "running"] ->
+        now = now_iso8601()
+        replay = %{replay | status: "cancelled", completed_at: now, updated_at: now}
+        key = {tenant_id, replay.projection_name}
+        :ets.insert(@status_table, {key, :ready})
+
+        state = %{
+          state
+          | replays: Map.put(state.replays, replay_id, replay),
+            builds: Map.delete(state.builds, key)
+        }
+
+        {:reply, {:ok, public_replay(replay)}, state}
+
+      %{tenant_id: ^tenant_id} ->
+        {:reply, {:error, :not_running}, state}
+
+      _ ->
+        {:reply, {:error, :not_found}, state}
+    end
+  end
+
+  @impl GenServer
+  def handle_call({:delete_replay, tenant_id, replay_id}, _from, state) do
+    case Map.get(state.replays, replay_id) do
+      %{tenant_id: ^tenant_id, status: status}
+      when status in ["completed", "failed", "cancelled"] ->
+        {:reply, :ok, %{state | replays: Map.delete(state.replays, replay_id)}}
+
+      %{tenant_id: ^tenant_id} ->
+        {:reply, {:error, :still_running}, state}
+
+      _ ->
+        {:reply, {:error, :not_found}, state}
+    end
   end
 
   @impl GenServer
@@ -170,29 +302,116 @@ defmodule QueryServiceEx.Projections.TenantProjections do
     # Drop the status, then all per-entity state rows for this projection.
     :ets.delete(@status_table, {tenant_id, template_name})
 
-    safe_match_delete(@state_table, {{tenant_id, template_name, :_}, :_})
+    :ets.delete(@generation_table, {tenant_id, template_name})
+    safe_match_delete(@state_table, {{tenant_id, template_name, :_, :_}, :_})
 
-    {:reply, :ok, state}
+    {:reply, :ok, %{state | builds: Map.delete(state.builds, {tenant_id, template_name})}}
   end
 
-  # Backfill completion: flip status to :ready (only if still enabled).
   @impl GenServer
-  def handle_cast({:backfill_done, tenant_id, projection}, state) do
-    case lookup(@status_table, {tenant_id, projection}) do
-      {:ok, _} ->
-        :ets.insert(@status_table, {{tenant_id, projection}, :ready})
+  def handle_cast({:build_progress, tenant_id, projection, token, processed, total}, state) do
+    key = {tenant_id, projection}
 
-        Logger.info("[TenantProjections] backfill ready",
-          tenant_id: tenant_id,
-          projection: projection
-        )
+    state =
+      case Map.get(state.builds, key) do
+        %{token: ^token, replay_id: replay_id} when is_binary(replay_id) ->
+          update_replay(state, replay_id, fn replay ->
+            total_events = total || replay.total_events
+            percentage = progress_percentage(processed, total_events)
 
-      :error ->
-        # Disabled mid-backfill; do not resurrect status.
-        :ok
-    end
+            %{
+              replay
+              | processed_events: processed,
+                total_events: total_events,
+                progress_percentage: percentage,
+                updated_at: now_iso8601()
+            }
+          end)
+
+        _ ->
+          state
+      end
 
     {:noreply, state}
+  end
+
+  @impl GenServer
+  def handle_cast({:build_done, tenant_id, projection, token, template, shadow, processed}, state) do
+    key = {tenant_id, projection}
+
+    case Map.get(state.builds, key) do
+      %{token: ^token, replay_id: replay_id, buffer: buffer} ->
+        final_shadow = Enum.reduce(Enum.reverse(buffer), shadow, &fold_into_map(&2, template, &1))
+        replace_projection_state(tenant_id, projection, token, final_shadow)
+        :ets.insert(@status_table, {key, :ready})
+
+        state = %{state | builds: Map.delete(state.builds, key)}
+
+        state =
+          if is_binary(replay_id) do
+            update_replay(state, replay_id, fn replay ->
+              now = now_iso8601()
+
+              %{
+                replay
+                | status: "completed",
+                  completed_at: now,
+                  updated_at: now,
+                  processed_events: processed,
+                  total_events: processed,
+                  progress_percentage: 100.0
+              }
+            end)
+          else
+            state
+          end
+
+        Logger.info("[TenantProjections] atomic rebuild ready",
+          tenant_id: tenant_id,
+          projection: projection,
+          events: processed
+        )
+
+        {:noreply, state}
+
+      _ ->
+        # Disabled, cancelled, or superseded while task was folding. Discard shadow.
+        {:noreply, state}
+    end
+  end
+
+  @impl GenServer
+  def handle_cast({:build_failed, tenant_id, projection, token, reason}, state) do
+    key = {tenant_id, projection}
+
+    case Map.get(state.builds, key) do
+      %{token: ^token, replay_id: replay_id} ->
+        # Existing state never moved, so it remains safe to serve.
+        :ets.insert(@status_table, {key, :ready})
+        state = %{state | builds: Map.delete(state.builds, key)}
+
+        state =
+          if is_binary(replay_id) do
+            update_replay(state, replay_id, fn replay ->
+              now = now_iso8601()
+
+              %{
+                replay
+                | status: "failed",
+                  completed_at: now,
+                  updated_at: now,
+                  error_message: to_string_reason(reason)
+              }
+            end)
+          else
+            state
+          end
+
+        {:noreply, state}
+
+      _ ->
+        {:noreply, state}
+    end
   end
 
   # Live event from the tenant-scoped "all" topic — fold into each enabled
@@ -202,11 +421,17 @@ defmodule QueryServiceEx.Projections.TenantProjections do
     case event["tenant_id"] || event[:tenant_id] do
       tenant_id when is_binary(tenant_id) ->
         fold_live_event(tenant_id, event)
-        {:noreply, state}
+        {:noreply, buffer_live_event(state, tenant_id, event)}
 
       _ ->
         {:noreply, state}
     end
+  end
+
+  @impl GenServer
+  def handle_info({:cleanup_generation, tenant_id, projection, generation}, state) do
+    safe_match_delete(@state_table, {{tenant_id, projection, generation, :_}, :_})
+    {:noreply, state}
   end
 
   @impl GenServer
@@ -239,20 +464,26 @@ defmodule QueryServiceEx.Projections.TenantProjections do
   end
 
   defp apply_event(tenant_id, projection, template, event) do
-    entity_id = template.entity_key.(event)
-    key = {tenant_id, projection, entity_id}
+    case lookup(@generation_table, {tenant_id, projection}) do
+      {:ok, generation} ->
+        entity_id = template.entity_key.(event)
+        key = {tenant_id, projection, generation, entity_id}
 
-    current =
-      case lookup(@state_table, key) do
-        {:ok, s} -> s
-        :error -> template.initial
-      end
+        current =
+          case lookup(@state_table, key) do
+            {:ok, s} -> s
+            :error -> template.initial
+          end
 
-    new_state = template.reduce.(current, event)
-    :ets.insert(@state_table, {key, new_state})
+        new_state = template.reduce.(current, event)
+        :ets.insert(@state_table, {key, new_state})
 
-    broadcast_state(tenant_id, projection, entity_id, new_state)
-    new_state
+        broadcast_state(tenant_id, projection, entity_id, new_state)
+        new_state
+
+      :error ->
+        :ok
+    end
   end
 
   defp broadcast_state(tenant_id, projection, entity_id, state) do
@@ -261,50 +492,97 @@ defmodule QueryServiceEx.Projections.TenantProjections do
     _ -> :ok
   end
 
-  # -- Internal: backfill --
+  # -- Internal: atomic builds --
 
-  defp backfill(server, tenant_id, template) do
+  defp start_build(state, tenant_id, template, replay_id) do
+    server = self()
+    token = make_ref()
+    key = {tenant_id, template.name}
+    cutoff = now_iso8601()
+
+    Task.Supervisor.start_child(QueryServiceEx.Projections.BackfillSupervisor, fn ->
+      build_projection(server, tenant_id, template, token, cutoff)
+    end)
+
+    put_in(state, [:builds, key], %{
+      token: token,
+      replay_id: replay_id,
+      cutoff: cutoff,
+      buffer: []
+    })
+  end
+
+  defp build_projection(server, tenant_id, template, token, cutoff) do
     projection = template.name
 
-    Logger.info("[TenantProjections] backfill start",
+    Logger.info("[TenantProjections] atomic rebuild start",
       tenant_id: tenant_id,
       projection: projection
     )
 
-    fold_history(tenant_id, template, 0, 0)
-    GenServer.cast(server, {:backfill_done, tenant_id, projection})
+    case fold_history(server, tenant_id, template, token, cutoff, 0, 0, %{}, 0) do
+      {:ok, shadow, processed} ->
+        GenServer.cast(
+          server,
+          {:build_done, tenant_id, projection, token, template, shadow, processed}
+        )
+
+      {:error, reason} ->
+        GenServer.cast(server, {:build_failed, tenant_id, projection, token, reason})
+    end
   rescue
     error ->
       Logger.error(
-        "[TenantProjections] backfill crashed: #{inspect(error)}",
+        "[TenantProjections] atomic rebuild crashed: #{inspect(error)}",
         tenant_id: tenant_id,
         projection: template.name
       )
 
-      # Leave status :building so a re-enable / refresh can retry; do not flip
-      # to ready on a partial fold.
-      :ok
+      GenServer.cast(server, {:build_failed, tenant_id, template.name, token, error})
   end
 
-  defp fold_history(_tenant_id, _template, offset, page_no)
+  defp fold_history(
+         _server,
+         _tenant_id,
+         _template,
+         _token,
+         _cutoff,
+         _offset,
+         page_no,
+         _shadow,
+         _count
+       )
        when page_no >= @max_backfill_pages do
-    Logger.warning("[TenantProjections] backfill hit max pages at offset #{offset}")
-    :ok
+    {:error, :max_backfill_pages_reached}
   end
 
-  defp fold_history(tenant_id, template, offset, page_no) do
-    params = %{limit: @backfill_page_size, offset: offset, order: "asc"}
+  defp fold_history(server, tenant_id, template, token, cutoff, offset, page_no, shadow, count) do
+    params = %{limit: @backfill_page_size, offset: offset, order: "asc", as_of: cutoff}
 
-    case query_events(tenant_id, params) do
-      {:ok, events} when is_list(events) ->
-        Enum.each(events, fn event ->
-          fold_into_state(tenant_id, template, event)
-        end)
+    case query_events_page(tenant_id, params) do
+      {:ok, events, total} when is_list(events) ->
+        next_shadow = Enum.reduce(events, shadow, &fold_into_map(&2, template, &1))
+        processed = count + length(events)
+
+        GenServer.cast(
+          server,
+          {:build_progress, tenant_id, template.name, token, processed, total}
+        )
 
         if length(events) < @backfill_page_size do
-          :ok
+          {:ok, next_shadow, processed}
         else
-          fold_history(tenant_id, template, offset + length(events), page_no + 1)
+          fold_history(
+            server,
+            tenant_id,
+            template,
+            token,
+            cutoff,
+            offset + length(events),
+            page_no + 1,
+            next_shadow,
+            processed
+          )
         end
 
       {:error, reason} ->
@@ -314,32 +592,132 @@ defmodule QueryServiceEx.Projections.TenantProjections do
           projection: template.name
         )
 
-        :ok
+        {:error, reason}
     end
   end
 
-  # Backfill fold writes directly to ETS (no live broadcast per historical event).
-  defp fold_into_state(tenant_id, template, event) do
+  defp fold_into_map(shadow, template, event) do
     entity_id = template.entity_key.(event)
-    key = {tenant_id, template.name, entity_id}
+    current = Map.get(shadow, entity_id, template.initial)
+    Map.put(shadow, entity_id, template.reduce.(current, event))
+  end
 
-    current =
-      case lookup(@state_table, key) do
-        {:ok, s} -> s
-        :error -> template.initial
+  # Defaults to Core's tenant-scoped event query; tests can inject a list source.
+  defp query_events_page(tenant_id, params) do
+    case Application.get_env(:query_service_ex, :tenant_projection_query_fun) do
+      fun when is_function(fun, 2) ->
+        case fun.(tenant_id, params) do
+          {:ok, events} when is_list(events) -> {:ok, events, nil}
+          other -> other
+        end
+
+      _ ->
+        case RustCoreClient.query_events_page(tenant_id, params) do
+          {:ok, body} ->
+            events = body["events"] || body[:events] || []
+            total = body["total_count"] || body[:total_count] || body["total"] || body[:total]
+            {:ok, events, total}
+
+          error ->
+            error
+        end
+    end
+  end
+
+  defp buffer_live_event(state, tenant_id, event) do
+    builds =
+      Enum.reduce(state.builds, state.builds, fn
+        {{^tenant_id, projection} = key, build}, acc ->
+          case Catalog.fetch(projection) do
+            {:ok, _template} ->
+              if after_cutoff?(event, build.cutoff) do
+                Map.put(acc, key, %{build | buffer: [event | build.buffer]})
+              else
+                acc
+              end
+
+            :error ->
+              acc
+          end
+
+        _, acc ->
+          acc
+      end)
+
+    %{state | builds: builds}
+  end
+
+  defp replace_projection_state(tenant_id, projection, generation, shadow) do
+    Enum.each(shadow, fn {entity_id, projection_state} ->
+      :ets.insert(
+        @state_table,
+        {{tenant_id, projection, generation, entity_id}, projection_state}
+      )
+
+      broadcast_state(tenant_id, projection, entity_id, projection_state)
+    end)
+
+    previous =
+      case lookup(@generation_table, {tenant_id, projection}) do
+        {:ok, value} -> value
+        :error -> nil
       end
 
-    :ets.insert(@state_table, {key, template.reduce.(current, event)})
-  end
+    # One pointer write publishes every new row together from readers' view.
+    :ets.insert(@generation_table, {{tenant_id, projection}, generation})
 
-  # The backfill source. Defaults to Core's tenant-scoped event query; tests can
-  # override with `config :query_service_ex, :tenant_projection_query_fun, fun/2`.
-  defp query_events(tenant_id, params) do
-    case Application.get_env(:query_service_ex, :tenant_projection_query_fun) do
-      fun when is_function(fun, 2) -> fun.(tenant_id, params)
-      _ -> RustCoreClient.query_events(tenant_id, params)
+    if previous do
+      Process.send_after(self(), {:cleanup_generation, tenant_id, projection, previous}, 60_000)
     end
   end
+
+  defp new_replay(projection_name) do
+    now = now_iso8601()
+
+    %{
+      replay_id: generate_id(),
+      projection_name: projection_name,
+      status: "running",
+      started_at: now,
+      updated_at: now,
+      completed_at: nil,
+      total_events: 0,
+      processed_events: 0,
+      failed_events: 0,
+      progress_percentage: 0.0,
+      events_per_second: 0.0,
+      error_message: nil
+    }
+  end
+
+  defp public_replay(replay), do: Map.delete(replay, :tenant_id)
+
+  defp update_replay(state, replay_id, fun) do
+    case Map.fetch(state.replays, replay_id) do
+      {:ok, replay} -> %{state | replays: Map.put(state.replays, replay_id, fun.(replay))}
+      :error -> state
+    end
+  end
+
+  defp progress_percentage(_processed, total) when total in [nil, 0], do: 0.0
+  defp progress_percentage(processed, total), do: min(processed / total * 100.0, 99.9)
+
+  defp generate_id do
+    :crypto.strong_rand_bytes(16)
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp now_iso8601, do: DateTime.utc_now() |> DateTime.to_iso8601()
+
+  defp after_cutoff?(event, cutoff) do
+    case event["timestamp"] || event[:timestamp] do
+      timestamp when is_binary(timestamp) -> timestamp > cutoff
+      _ -> true
+    end
+  end
+
+  defp to_string_reason(reason) when is_binary(reason), do: reason
+  defp to_string_reason(reason), do: inspect(reason)
 
   # -- Internal: ETS helpers --
 
@@ -372,9 +750,15 @@ defmodule QueryServiceEx.Projections.TenantProjections do
   end
 
   defp entity_count(tenant_id, projection) do
-    safe_select(@state_table, [
-      {{{tenant_id, projection, :"$1"}, :_}, [], [true]}
-    ])
-    |> length()
+    case lookup(@generation_table, {tenant_id, projection}) do
+      {:ok, generation} ->
+        safe_select(@state_table, [
+          {{{tenant_id, projection, generation, :"$1"}, :_}, [], [true]}
+        ])
+        |> length()
+
+      :error ->
+        0
+    end
   end
 end
