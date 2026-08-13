@@ -15,24 +15,31 @@ describe("POST /api/v1/demo/seed", () => {
     vi.unstubAllEnvs();
   });
 
-  it("targets Query Service instead of the Control Plane gateway", async () => {
+  it("seeds sample events into the authenticated workspace", async () => {
     vi.stubEnv("QUERY_SERVICE_URL", "https://query.example.test");
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(Response.json({ seeded: true, event_count: 1000 }, { status: 200 }));
+      .mockResolvedValue(
+        Response.json({ data: Array.from({ length: 60 }, () => ({})), count: 60 }, { status: 201 })
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await POST(seedRequest("session-token"));
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://query.example.test/api/v1/demo/seed",
+      "https://query.example.test/api/v1/events/batch",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({ authorization: "Bearer session-token" }),
+        body: expect.stringContaining('"event_type":"log.error"'),
       })
     );
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ seeded: true, event_count: 1000 });
+    await expect(response.json()).resolves.toEqual({
+      seeded: true,
+      event_count: 60,
+      message: "Sample events added to your workspace.",
+    });
   });
 
   it("returns an actionable error when Query Service is unavailable", async () => {

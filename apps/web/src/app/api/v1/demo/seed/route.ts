@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { buildDemoEvents } from "@/lib/demo/events";
 
 /**
- * Demo seeding lives on Query Service, not the branded Control Plane gateway.
- * Keep this route-specific proxy separate from the generic `/api/v1` proxy:
- * other v1 calls intentionally use the gateway, while `/demo/seed` must reach
- * Query Service directly.
+ * Seed a compact sample into the caller's own workspace. Older behavior called
+ * Core's public global seed endpoint, which wrote to tenant `default`; signed-in
+ * users then saw a success response and an empty tenant-scoped demo.
  */
 function getQueryServiceUrl(): string {
   return (
@@ -25,18 +25,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const response = await fetch(`${getQueryServiceUrl()}/api/v1/demo/seed`, {
+    const response = await fetch(`${getQueryServiceUrl()}/api/v1/events/batch`, {
       method: "POST",
       headers,
-      body: "{}",
+      body: JSON.stringify({ events: buildDemoEvents() }),
     });
     const body = await response.text();
 
-    return new NextResponse(body, {
-      status: response.status,
-      headers: {
-        "content-type": response.headers.get("content-type") || "application/json",
-      },
+    if (!response.ok) {
+      return new NextResponse(body, {
+        status: response.status,
+        headers: { "content-type": response.headers.get("content-type") || "application/json" },
+      });
+    }
+
+    const parsed = JSON.parse(body) as { count?: number; data?: unknown[] };
+    const eventCount = parsed.count ?? parsed.data?.length ?? 0;
+
+    return NextResponse.json({
+      seeded: true,
+      event_count: eventCount,
+      message: "Sample events added to your workspace.",
     });
   } catch {
     return NextResponse.json(

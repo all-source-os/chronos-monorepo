@@ -20,28 +20,26 @@ interface EventResult {
 
 interface ScoredResult {
   event: EventResult;
-  similarity: number;
+  relevance: number;
   matchReason: string;
 }
 
 const SUGGESTED_QUERIES = [
   "error 500",
-  "cat videos",
   "memory leak",
   "latency spike",
   "user signup",
-  "production deploy",
   "api timeout",
-  "database slow",
+  "database latency",
 ];
 
 const API_URL = "";
 
 /**
- * Compute a simulated similarity score based on text matching.
- * In a real setup this would use vector cosine similarity from Core.
+ * Deterministic lexical relevance over event type, entity, and payload.
+ * Keep this honest until Demo Zone calls a real semantic-search endpoint.
  */
-function computeSimilarity(query: string, event: EventResult): number {
+function computeRelevance(query: string, event: EventResult): number {
   const q = query.toLowerCase();
   const words = q.split(/\s+/).filter(Boolean);
   const eventStr = JSON.stringify(event.payload).toLowerCase();
@@ -62,17 +60,7 @@ function computeSimilarity(query: string, event: EventResult): number {
     if (entityStr.includes(word)) score += 0.1;
   }
 
-  // Boost if event has embedding (vector-indexed)
-  if (event.payload._embedding) {
-    score += 0.05;
-  }
-
-  // Recency boost (newer events score slightly higher)
-  const age = Date.now() - new Date(event.timestamp).getTime();
-  const recencyBoost = Math.max(0, 0.05 - age / (1000 * 60 * 60 * 24 * 30));
-  score += recencyBoost;
-
-  return Math.min(0.99, Math.max(0.01, score + Math.random() * 0.05));
+  return Math.min(1, Math.max(0, score));
 }
 
 function buildMatchReason(query: string, event: EventResult): string {
@@ -92,11 +80,8 @@ function buildMatchReason(query: string, event: EventResult): string {
       reasons.push(`Payload field matches "${word}"`);
     }
   }
-  if (event.payload._embedding) {
-    reasons.push("Vector embedding indexed (384-dim cosine similarity)");
-  }
   if (reasons.length === 0) {
-    reasons.push("Semantic similarity via embedding vector space");
+    reasons.push("No lexical match");
   }
   return reasons.join(" | ");
 }
@@ -118,18 +103,16 @@ function summarizeEvent(event: EventResult): string {
   if (typeof p.message === "string") return p.message;
   if (typeof p.query === "string") return `Search: "${p.query}"`;
   if (typeof p.action === "string") return `Action: ${p.action}`;
-  if (typeof p.endpoint === "string")
-    return `${p.endpoint} — p50: ${p.p50_ms}ms`;
+  if (typeof p.endpoint === "string") return `${p.endpoint} — p50: ${p.p50_ms}ms`;
   if (typeof p.cpu_percent === "number")
     return `CPU: ${(p.cpu_percent as number).toFixed(1)}% on ${p.host}`;
-  if (typeof p.used_gb === "number")
-    return `Memory: ${p.used_gb}GB / ${p.total_gb}GB on ${p.host}`;
+  if (typeof p.used_gb === "number") return `Memory: ${p.used_gb}GB / ${p.total_gb}GB on ${p.host}`;
   if (typeof p.email === "string") return `Signup: ${p.email} (${p.plan})`;
   if (typeof p.method === "string") return `Login via ${p.method}`;
   return event.event_type;
 }
 
-export function VectorQueryPlayground() {
+export function VectorQueryPlayground({ initialEvents = [] }: { initialEvents?: EventResult[] }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ScoredResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -169,9 +152,7 @@ export function VectorQueryPlayground() {
     }
     debounceRef.current = setTimeout(() => {
       const lower = text.toLowerCase();
-      const matches = SUGGESTED_QUERIES.filter((q) =>
-        q.toLowerCase().includes(lower)
-      ).slice(0, 3);
+      const matches = SUGGESTED_QUERIES.filter((q) => q.toLowerCase().includes(lower)).slice(0, 3);
       setSuggestions(matches);
       setShowSuggestions(matches.length > 0);
     }, 300);
@@ -196,32 +177,29 @@ export function VectorQueryPlayground() {
       const start = performance.now();
 
       try {
-        // Query events from Core via QS
-        const params = new URLSearchParams({ limit: "100" });
-        const res = await fetch(
-          `${API_URL}/api/v1/events/query?${params}`
-        );
+        let events = initialEvents;
+        if (events.length === 0) {
+          const params = new URLSearchParams({ limit: "100" });
+          const res = await fetch(`${API_URL}/api/events?${params}`);
+          if (!res.ok) throw new Error(`Query failed: ${res.statusText}`);
+          const data = await res.json();
+          events = data.events ?? data.data ?? [];
+        }
 
-        if (!res.ok) throw new Error(`Query failed: ${res.statusText}`);
-
-        const data = await res.json();
-        const events: EventResult[] = data.events ?? [];
-
-        // Score and rank results
         const scored: ScoredResult[] = events
           .map((event) => ({
             event,
-            similarity: computeSimilarity(searchQuery, event),
+            relevance: computeRelevance(searchQuery, event),
             matchReason: buildMatchReason(searchQuery, event),
           }))
-          .sort((a, b) => b.similarity - a.similarity)
+          .filter((result) => result.relevance > 0)
+          .sort((a, b) => b.relevance - a.relevance)
           .slice(0, 10);
 
         const elapsed = Math.round(performance.now() - start);
         setLatencyMs(elapsed);
         setResults(scored);
       } catch {
-        // Fallback: generate simulated results
         const elapsed = Math.round(performance.now() - start);
         setLatencyMs(elapsed);
         setResults([]);
@@ -229,7 +207,7 @@ export function VectorQueryPlayground() {
         setIsSearching(false);
       }
     },
-    []
+    [initialEvents]
   );
 
   const handleSubmit = useCallback(
@@ -250,19 +228,20 @@ export function VectorQueryPlayground() {
   );
 
   return (
-    <Card className="flex h-full flex-col" data-testid="vector-query-panel" role="region" aria-label="Vector query playground">
+    <Card
+      className="flex h-full flex-col"
+      data-testid="vector-query-panel"
+      role="region"
+      aria-label="Event search playground"
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-blue-500" />
-          <h3 className="text-sm font-semibold">Vector Query Playground</h3>
+          <h3 className="text-sm font-semibold">Event search</h3>
         </div>
         {latencyMs !== null && (
-          <Badge
-            variant="secondary"
-            className="font-mono text-[10px]"
-            data-testid="latency-badge"
-          >
+          <Badge variant="secondary" className="font-mono text-[10px]" data-testid="latency-badge">
             {latencyMs}ms
           </Badge>
         )}
@@ -281,12 +260,12 @@ export function VectorQueryPlayground() {
               onFocus={() => {
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
-              placeholder="Search like 'cat video' or 'error 500'"
+              placeholder="Search payloads, types, or entities"
               className={cn(
                 "w-full rounded-md border border-input bg-background py-2 pl-9 pr-9 text-sm",
                 "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               )}
-              aria-label="Vector search query"
+              aria-label="Event search query"
               data-testid="vector-search-input"
             />
             {query && (
@@ -333,15 +312,12 @@ export function VectorQueryPlayground() {
         </form>
 
         {/* Results area */}
-        <div
-          className="flex-1 overflow-y-auto"
-          data-testid="vector-results"
-        >
+        <div className="flex-1 overflow-y-auto" data-testid="vector-results">
           {!hasSearched ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
               <Search className="h-8 w-8 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground">
-                Type a query to search across your events using vector similarity
+                Search loaded events by payload, type, or entity
               </p>
               <div className="mt-2 flex flex-wrap justify-center gap-1.5">
                 {SUGGESTED_QUERIES.slice(0, 4).map((q) => (
@@ -361,9 +337,7 @@ export function VectorQueryPlayground() {
             <div className="flex h-full items-center justify-center">
               <div className="flex flex-col items-center gap-2">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-blue-500" />
-                <p className="text-xs text-muted-foreground">
-                  Searching vectors...
-                </p>
+                <p className="text-xs text-muted-foreground">Searching events…</p>
               </div>
             </div>
           ) : results.length === 0 ? (
@@ -381,9 +355,7 @@ export function VectorQueryPlayground() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       {/* Event summary */}
-                      <p className="truncate text-sm font-medium">
-                        {summarizeEvent(result.event)}
-                      </p>
+                      <p className="truncate text-sm font-medium">{summarizeEvent(result.event)}</p>
                       {/* Event type + entity */}
                       <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">
@@ -394,24 +366,22 @@ export function VectorQueryPlayground() {
                     </div>
 
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      {/* Similarity score */}
+                      {/* Lexical relevance score */}
                       <Badge
                         variant="secondary"
                         className={cn(
                           "font-mono text-[10px]",
-                          result.similarity >= 0.7
+                          result.relevance >= 0.7
                             ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                            : result.similarity >= 0.4
+                            : result.relevance >= 0.4
                               ? "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
                               : "bg-muted"
                         )}
                       >
-                        {(result.similarity * 100).toFixed(0)}%
+                        {(result.relevance * 100).toFixed(0)}% match
                       </Badge>
                       {/* Rank */}
-                      <span className="text-[10px] text-muted-foreground">
-                        #{index + 1}
-                      </span>
+                      <span className="text-[10px] text-muted-foreground">#{index + 1}</span>
                     </div>
                   </div>
 
@@ -423,9 +393,7 @@ export function VectorQueryPlayground() {
                     <button
                       type="button"
                       onClick={() =>
-                        setWhyPopover(
-                          whyPopover === result.event.id ? null : result.event.id
-                        )
+                        setWhyPopover(whyPopover === result.event.id ? null : result.event.id)
                       }
                       className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                       aria-label={`Why did "${summarizeEvent(result.event)}" match?`}
@@ -443,13 +411,16 @@ export function VectorQueryPlayground() {
                       data-testid="why-popover"
                     >
                       <p className="font-medium mb-1">Match Explanation</p>
-                      <p className="text-muted-foreground">
-                        {result.matchReason}
-                      </p>
+                      <p className="text-muted-foreground">{result.matchReason}</p>
                       {Array.isArray(result.event.payload._embedding) && (
                         <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                          Embedding: [{(result.event.payload._embedding as number[]).slice(0, 5).map((v: number) => v.toFixed(3)).join(", ")}
-                          , ...] ({String((result.event.payload._embedding as number[]).length)}-dim)
+                          Embedding: [
+                          {(result.event.payload._embedding as number[])
+                            .slice(0, 5)
+                            .map((v: number) => v.toFixed(3))
+                            .join(", ")}
+                          , ...] ({String((result.event.payload._embedding as number[]).length)}
+                          -dim)
                         </p>
                       )}
                     </div>

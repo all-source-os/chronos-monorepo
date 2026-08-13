@@ -2,12 +2,24 @@
 
 import { Button, Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { Brain, Flame, Loader2, Rocket, Swords, Zap } from "lucide-react";
+import {
+  AlertTriangle,
+  Brain,
+  Database,
+  Flame,
+  Loader2,
+  RefreshCw,
+  Rocket,
+  Swords,
+  Zap,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FadeIn } from "@/components/ui/fade-in";
+import type { Event } from "@/lib/api/client";
+import { normalizeDemoEvents } from "@/lib/demo/events";
 
 function DemoPanelLoading() {
   return (
@@ -74,8 +86,33 @@ export default function DemoPage() {
     viewParam === "mcp-showdown" ? "mcp-showdown" : viewParam === "prime" ? "prime" : "live-fire";
 
   const [seeding, setSeeding] = useState(false);
-  const [seeded, setSeeded] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [checkingEvents, setCheckingEvents] = useState(true);
+  const [eventError, setEventError] = useState<string | null>(null);
   const [seedError, setSeedError] = useState<string | null>(null);
+  const seeded = events.length > 0;
+
+  const loadEvents = useCallback(async () => {
+    setCheckingEvents(true);
+    setEventError(null);
+    try {
+      const response = await fetch("/api/events?limit=100", {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`Event query returned HTTP ${response.status}.`);
+      setEvents(normalizeDemoEvents(await response.json()));
+    } catch (error) {
+      setEventError(
+        error instanceof Error ? error.message : "Workspace events could not be loaded."
+      );
+    } finally {
+      setCheckingEvents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
 
   const setView = useCallback(
     (view: DemoView) => {
@@ -104,39 +141,40 @@ export default function DemoPage() {
       if (!data?.seeded) {
         throw new Error("Demo service did not confirm setup. Try again.");
       }
-      setSeeded(true);
+      await loadEvents();
     } catch (err) {
       setSeedError(err instanceof Error ? err.message : "Failed to seed demo data");
     } finally {
       setSeeding(false);
     }
-  }, []);
+  }, [loadEvents]);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Header */}
       <FadeIn delay={0.1} inView>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <Zap className="h-6 w-6 text-primary" />
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Demo Zone</h1>
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              <Zap className="h-4 w-4" />
+              Live product workbench
             </div>
-            <p className="mt-1 text-muted-foreground">
-              Experience AllSource in action — real data, real speed, real results.
+            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Demo Zone</h1>
+            <p className="mt-2 max-w-2xl text-base leading-7 text-muted-foreground">
+              Add sample events to your workspace, watch them arrive, then find them again.
             </p>
           </div>
 
           {/* View toggle + Build Your Own CTA */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center rounded-lg border border-border bg-muted/50 p-1">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="grid grid-cols-3 rounded-lg border border-border bg-muted/50 p-1">
               {VIEWS.map((view) => (
                 <button
                   type="button"
                   key={view.id}
                   onClick={() => setView(view.id)}
                   className={cn(
-                    "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     activeView === view.id
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground"
@@ -149,14 +187,12 @@ export default function DemoPage() {
                 </button>
               ))}
             </div>
-            {seeded && (
-              <Button asChild size="sm" data-testid="build-your-own-cta">
-                <Link href="/dashboard/demo/onboarding">
-                  <Rocket className="mr-2 h-4 w-4" />
-                  Build Your Own
-                </Link>
-              </Button>
-            )}
+            <Button asChild size="sm" data-testid="build-your-own-cta">
+              <Link href="/dashboard/demo/onboarding">
+                <Rocket className="h-4 w-4" />
+                Connect your app
+              </Link>
+            </Button>
           </div>
         </div>
       </FadeIn>
@@ -165,10 +201,13 @@ export default function DemoPage() {
       <FadeIn delay={0.2} inView>
         {activeView === "live-fire" ? (
           <LiveFireView
-            seeded={seeded}
+            events={events}
+            checkingEvents={checkingEvents}
+            eventError={eventError}
             seeding={seeding}
             seedError={seedError}
             onSeed={handleSeed}
+            onRetry={loadEvents}
           />
         ) : activeView === "prime" ? (
           <PrimeView />
@@ -197,55 +236,118 @@ interface ViewProps {
 
 function EmptyState({ seeding, seedError, onSeed }: Omit<ViewProps, "seeded">) {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center py-16">
-        <Zap className="mb-4 h-12 w-12 text-muted-foreground/50" />
-        <h2 className="mb-2 text-xl font-semibold">No demo data yet</h2>
-        <p className="mb-6 max-w-md text-center text-muted-foreground">
-          Seed your event store with 1,000 diverse events to experience the full Demo Zone —
-          real-time streaming, vector search, and speed comparisons.
-        </p>
-        <Button onClick={onSeed} disabled={seeding} size="lg">
-          {seeding ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Seeding...
-            </>
-          ) : (
-            <>
-              <Zap className="mr-2 h-4 w-4" />
-              Start Demo
-            </>
+    <Card className="overflow-hidden border-border/80 py-0">
+      <CardContent className="grid p-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+        <div className="p-6 md:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Empty workspace
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">Put real events on screen</h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+            Add 60 inspectable sample events to this workspace. They use your tenant boundary and
+            remain available in Events after this demo.
+          </p>
+          <Button onClick={onSeed} disabled={seeding} size="lg" className="mt-6">
+            {seeding ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Adding sample events…
+              </>
+            ) : (
+              <>
+                <Zap className="mr-2 h-4 w-4" />
+                Add sample events
+              </>
+            )}
+          </Button>
+          {seedError && (
+            <div
+              className="mt-4 max-w-md rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3"
+              role="alert"
+            >
+              <p className="text-sm font-medium text-destructive">Demo could not start</p>
+              <p className="mt-1 text-sm text-muted-foreground">{seedError}</p>
+            </div>
           )}
-        </Button>
-        {seedError && (
-          <div
-            className="mt-4 max-w-md rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center"
-            role="alert"
-          >
-            <p className="text-sm font-medium text-destructive">Demo could not start</p>
-            <p className="mt-1 text-sm text-muted-foreground">{seedError}</p>
-          </div>
-        )}
+        </div>
+        <aside className="border-t border-border bg-muted/20 p-6 lg:border-l lg:border-t-0 lg:p-8">
+          <Database className="h-5 w-5 text-primary" />
+          <p className="mt-4 text-sm font-semibold">What gets added</p>
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+            <li>Errors and API timeouts</li>
+            <li>Memory and latency signals</li>
+            <li>Signup activity</li>
+            <li>Stable fields for filtering</li>
+          </ul>
+          <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+            Existing events are never replaced or deleted.
+          </p>
+        </aside>
       </CardContent>
     </Card>
   );
 }
 
-function LiveFireView({ seeded, seeding, seedError, onSeed }: ViewProps) {
-  if (!seeded) {
+function LiveFireView({
+  events,
+  checkingEvents,
+  eventError,
+  seeding,
+  seedError,
+  onSeed,
+  onRetry,
+}: Omit<ViewProps, "seeded"> & {
+  events: Event[];
+  checkingEvents: boolean;
+  eventError: string | null;
+  onRetry: () => void;
+}) {
+  if (checkingEvents) {
+    return <DemoPanelLoading />;
+  }
+
+  if (eventError && events.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <div>
+              <h2 className="font-semibold">Workspace events unavailable</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{eventError}</p>
+            </div>
+          </div>
+          <Button variant="outline" onClick={onRetry} className="w-fit">
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (events.length === 0) {
     return <EmptyState seeding={seeding} seedError={seedError} onSeed={onSeed} />;
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[2fr_1.5fr_1.5fr]">
-      {/* Left: Event Stream (40%) */}
-      <LiveEventStreamPanel />
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <span className="font-semibold text-foreground">{events.length} events loaded</span>
+          <span className="text-muted-foreground"> · current workspace</span>
+        </div>
+        <Link href="/dashboard/events" className="font-medium text-primary hover:underline">
+          Inspect all events →
+        </Link>
+      </div>
 
-      {/* Middle: Vector Query (30%) */}
-      <VectorQueryPlayground />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.9fr)]">
+        <LiveEventStreamPanel initialEvents={events} />
 
-      {/* Right: Speed Dashboard (30%) */}
+        <VectorQueryPlayground initialEvents={events} />
+      </div>
+
       <SpeedSimplicityDashboard />
     </div>
   );

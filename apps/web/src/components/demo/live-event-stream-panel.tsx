@@ -2,7 +2,7 @@
 
 import { Button, Card, CardContent } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
-import { History, Lock, Pause, Play, Radio, Unlock, Wifi, WifiOff } from "lucide-react";
+import { History, Lock, Pause, Play, Radio, Unlock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePhoenixChannel } from "@/hooks/use-phoenix-channel";
 
@@ -63,11 +63,10 @@ function formatTime(ts: string): string {
 interface StatsState {
   currentRate: number; // events/sec
   peakRate: number;
-  latency: number; // ms
 }
 
-export function LiveEventStreamPanel() {
-  const [events, setEvents] = useState<StreamEvent[]>([]);
+export function LiveEventStreamPanel({ initialEvents = [] }: { initialEvents?: StreamEvent[] }) {
+  const [events, setEvents] = useState<StreamEvent[]>(initialEvents);
   const [isPaused, setIsPaused] = useState(false);
   const [scrollLock, setScrollLock] = useState(false);
   const [hoveredEvent, setHoveredEvent] = useState<StreamEvent | null>(null);
@@ -75,7 +74,6 @@ export function LiveEventStreamPanel() {
   const [stats, setStats] = useState<StatsState>({
     currentRate: 0,
     peakRate: 0,
-    latency: 0,
   });
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayedEventIds, setReplayedEventIds] = useState<Set<string>>(new Set());
@@ -83,6 +81,10 @@ export function LiveEventStreamPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const rateWindowRef = useRef<number[]>([]); // timestamps of events in last second
   const replayTimeoutRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    setEvents(initialEvents);
+  }, [initialEvents]);
 
   // Update throughput stats
   const recordEvent = useCallback((timestamp: number) => {
@@ -94,7 +96,6 @@ export function LiveEventStreamPanel() {
     setStats((prev) => ({
       currentRate: rate,
       peakRate: Math.max(prev.peakRate, rate),
-      latency: prev.latency,
     }));
   }, []);
 
@@ -105,34 +106,12 @@ export function LiveEventStreamPanel() {
     };
   }, []);
 
-  // Replay last 10 seconds of events
+  // Replay loaded events locally. This remains useful when WebSockets are not
+  // configured and avoids pretending an old event is part of the last 10s.
   const handleReplay = useCallback(async () => {
     setIsReplaying(true);
     setReplayedEventIds(new Set());
-
-    // Try fetching real events from Core via QS with time-range filter
-    let replayEvents: StreamEvent[] = [];
-    try {
-      const now = new Date();
-      const tenSecondsAgo = new Date(now.getTime() - 10_000);
-      const params = new URLSearchParams({
-        start_time: tenSecondsAgo.toISOString(),
-        end_time: now.toISOString(),
-      });
-      const res = await fetch(`/api/v1/events/query?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        replayEvents = data.events ?? [];
-      }
-    } catch {
-      // Fall through to use in-memory events
-    }
-
-    // Fallback: use events already in the stream from the last 10s
-    if (replayEvents.length === 0) {
-      const cutoff = Date.now() - 10_000;
-      replayEvents = events.filter((e) => new Date(e.timestamp).getTime() >= cutoff).reverse(); // oldest first for replay order
-    }
+    const replayEvents = events.filter((event) => !event.id.startsWith("replay_")).reverse();
 
     if (replayEvents.length === 0) {
       setIsReplaying(false);
@@ -187,13 +166,13 @@ export function LiveEventStreamPanel() {
     [isPaused, recordEvent]
   );
 
-  const { isConnected, connect } = usePhoenixChannel("events:all", {
+  const { isConnected, status } = usePhoenixChannel("events:all", {
     onEvent: handleChannelEvent,
   });
 
   // Auto-scroll when not locked
   useEffect(() => {
-    if (!scrollLock && containerRef.current) {
+    if (!scrollLock && events.length > 0 && containerRef.current) {
       containerRef.current.scrollTop = 0;
     }
   }, [events, scrollLock]);
@@ -212,11 +191,14 @@ export function LiveEventStreamPanel() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleMouseEnter = useCallback((event: StreamEvent, e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setTooltipPos({ x: rect.right + 8, y: rect.top });
-    setHoveredEvent(event);
-  }, []);
+  const handleMouseEnter = useCallback(
+    (event: StreamEvent, e: React.SyntheticEvent<HTMLElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setTooltipPos({ x: rect.right + 8, y: rect.top });
+      setHoveredEvent(event);
+    },
+    []
+  );
 
   const handleMouseLeave = useCallback(() => {
     setHoveredEvent(null);
@@ -234,16 +216,21 @@ export function LiveEventStreamPanel() {
         <div className="flex items-center gap-2">
           <div className="relative">
             <Radio className="h-4 w-4 text-red-500" />
-            {!isPaused && (
+            {isConnected && !isPaused && (
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-ping rounded-full bg-red-500" />
             )}
           </div>
-          <h3 className="text-sm font-semibold">Live Event Stream</h3>
-          {isConnected ? (
-            <Wifi className="h-3 w-3 text-green-500" aria-label="Connected" />
-          ) : (
-            <WifiOff className="h-3 w-3 text-muted-foreground" aria-label="Disconnected" />
-          )}
+          <h3 className="text-sm font-semibold">Event stream</h3>
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+              isConnected
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                : "border-border bg-muted/40 text-muted-foreground"
+            )}
+          >
+            {isConnected ? "Live" : status === "connecting" ? "Connecting" : "Stored"}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -252,18 +239,12 @@ export function LiveEventStreamPanel() {
             className="h-7 text-xs"
             onClick={handleReplay}
             disabled={isReplaying}
-            aria-label="Replay last 10s"
+            aria-label="Replay loaded events"
             data-testid="replay-button"
           >
             <History className={cn("mr-1 h-3 w-3", isReplaying && "animate-spin")} />
-            {isReplaying ? "Replaying..." : "Replay 10s"}
+            {isReplaying ? "Replaying…" : "Replay loaded"}
           </Button>
-          {!isConnected && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => connect()}>
-              <Wifi className="mr-1 h-3 w-3" />
-              Connect
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="icon"
@@ -289,11 +270,12 @@ export function LiveEventStreamPanel() {
       <div
         className="flex items-center gap-4 border-b border-border bg-muted/30 px-4 py-1.5 text-xs font-mono"
         data-testid="stats-bar"
-        aria-label="Event stream statistics"
-        aria-live="off"
       >
         <span>
-          Now:{" "}
+          Loaded: <span className="font-semibold text-foreground">{events.length}</span>
+        </span>
+        <span>
+          Live:{" "}
           <span className="font-semibold text-foreground">
             {stats.currentRate >= 1000
               ? `${(stats.currentRate / 1000).toFixed(1)}k`
@@ -308,9 +290,6 @@ export function LiveEventStreamPanel() {
             /sec
           </span>
         </span>
-        <span>
-          Latency: <span className="font-semibold text-foreground">{stats.latency}ms</span>
-        </span>
       </div>
 
       {/* Event list */}
@@ -324,21 +303,18 @@ export function LiveEventStreamPanel() {
         >
           {events.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              {isPaused
-                ? "Feed paused"
-                : isConnected
-                  ? "Waiting for events..."
-                  : "No events — WebSocket disconnected"}
+              {isPaused ? "Feed paused" : "No events loaded"}
             </div>
           ) : (
             <div className="divide-y divide-border/50">
               {events.map((event, index) => {
                 const category = categorizeEvent(event);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={event.id}
                     className={cn(
-                      "flex items-center gap-2 px-4 py-1.5 text-xs transition-colors cursor-default",
+                      "flex w-full items-center gap-2 px-4 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                       CATEGORY_ROW_COLORS[category],
                       replayedEventIds.has(event.id)
                         ? "ring-1 ring-purple-500/50 bg-purple-500/10"
@@ -347,6 +323,8 @@ export function LiveEventStreamPanel() {
                     data-replayed={replayedEventIds.has(event.id) || undefined}
                     onMouseEnter={(e) => handleMouseEnter(event, e)}
                     onMouseLeave={handleMouseLeave}
+                    onFocus={(e) => handleMouseEnter(event, e)}
+                    onBlur={handleMouseLeave}
                     data-testid="event-row"
                   >
                     {/* Category dot */}
@@ -371,7 +349,7 @@ export function LiveEventStreamPanel() {
                     <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
                       {formatTime(event.timestamp)}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
