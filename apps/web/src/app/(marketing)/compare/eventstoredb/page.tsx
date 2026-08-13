@@ -2,10 +2,8 @@
 
 import { buttonVariants, cn, Section } from "@allsource/ui";
 import { Check, ChevronRight, Minus, X } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 
 type Cell = "yes" | "no" | "partial" | string;
 
@@ -99,136 +97,132 @@ function CellIcon({ value }: { value: Cell }) {
 
 export default function CompareEventStoreDBPage() {
   return (
-    <>
-      <Header />
-      <main className="relative overflow-hidden">
-        {/* Hero */}
-        <Section className="relative pt-24 pb-16 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              AllSource vs EventStoreDB
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              AllSource and EventStoreDB are both event stores. AllSource answers queries in 11.9µs,
-              ships 73 MCP tools for AI agents, and starts at $19/month self-serve; EventStoreDB is
-              the older, cluster-priced incumbent with a longer enterprise track record. This page
-              compares performance, footprint, AI integration, and licensing.
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
-                Try AllSource <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-              <Link href="/docs" className={cn(buttonVariants({ variant: "outline" }))}>
-                Read the docs
-              </Link>
-            </div>
-          </motion.div>
-        </Section>
+    <div className="relative overflow-hidden">
+      {/* Hero */}
+      <Section className="relative pt-24 pb-16 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+            AllSource vs EventStoreDB
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            AllSource and EventStoreDB are both event stores. AllSource answers queries in 11.9µs,
+            ships 55+ tenant MCP tools (73 with fleet controls), and starts at $19/month self-serve;
+            EventStoreDB is the older, cluster-priced incumbent with a longer enterprise track
+            record. This page compares performance, footprint, AI integration, and licensing.
+          </p>
+          <div className="mt-8 flex items-center justify-center gap-4">
+            <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>
+              Try AllSource <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+            <Link href="/docs" className={cn(buttonVariants({ variant: "outline" }))}>
+              Read the docs
+            </Link>
+          </div>
+        </motion.div>
+      </Section>
 
-        {/* Comparison table */}
-        <Section className="pb-16">
-          <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/40 text-left">
-                  <tr>
-                    <th className="px-6 py-4 text-sm font-semibold">Feature</th>
-                    <th className="px-6 py-4 text-sm font-semibold">AllSource</th>
-                    <th className="px-6 py-4 text-sm font-semibold">EventStoreDB</th>
+      {/* Comparison table */}
+      <Section className="pb-16">
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/40 text-left">
+                <tr>
+                  <th className="px-6 py-4 text-sm font-semibold">Feature</th>
+                  <th className="px-6 py-4 text-sm font-semibold">AllSource</th>
+                  <th className="px-6 py-4 text-sm font-semibold">EventStoreDB</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((row) => (
+                  <tr key={row.feature} className="hover:bg-muted/20">
+                    <td className="px-6 py-4 align-top">
+                      <div className="text-sm font-medium">{row.feature}</div>
+                      {row.note && (
+                        <div className="mt-1 text-xs text-muted-foreground">{row.note}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 align-top">
+                      <CellIcon value={row.allsource} />
+                    </td>
+                    <td className="px-6 py-4 align-top">
+                      <CellIcon value={row.eventstoredb} />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {rows.map((row) => (
-                    <tr key={row.feature} className="hover:bg-muted/20">
-                      <td className="px-6 py-4 align-top">
-                        <div className="text-sm font-medium">{row.feature}</div>
-                        {row.note && (
-                          <div className="mt-1 text-xs text-muted-foreground">{row.note}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 align-top">
-                        <CellIcon value={row.allsource} />
-                      </td>
-                      <td className="px-6 py-4 align-top">
-                        <CellIcon value={row.eventstoredb} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Section>
+        </div>
+      </Section>
 
-        {/* When to pick which */}
-        <Section className="pb-16">
-          <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2">
-            <div className="rounded-xl border p-6">
-              <h3 className="mb-3 text-lg font-semibold">Pick AllSource if…</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  You need microsecond-latency projection reads
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  You're building AI agents that need persistent memory
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  You want an embedded mode, not a separate server
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  HTTP-native APIs matter to your stack
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  You want a small production footprint (~129MB total)
-                </li>
-              </ul>
-            </div>
-            <div className="rounded-xl border p-6">
-              <h3 className="mb-3 text-lg font-semibold">Pick EventStoreDB if…</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  You're deep in the .NET ecosystem and want mature tooling
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  Your team already runs it in production at scale
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  You rely on its subscription/persistent-subscription model
-                </li>
-              </ul>
-            </div>
+      {/* When to pick which */}
+      <Section className="pb-16">
+        <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-2">
+          <div className="rounded-xl border p-6">
+            <h3 className="mb-3 text-lg font-semibold">Pick AllSource if…</h3>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                You need microsecond-latency projection reads
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                You're building AI agents that need persistent memory
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                You want an embedded mode, not a separate server
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                HTTP-native APIs matter to your stack
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                You want a small production footprint (~129MB total)
+              </li>
+            </ul>
           </div>
-        </Section>
+          <div className="rounded-xl border p-6">
+            <h3 className="mb-3 text-lg font-semibold">Pick EventStoreDB if…</h3>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                You're deep in the .NET ecosystem and want mature tooling
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                Your team already runs it in production at scale
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                You rely on its subscription/persistent-subscription model
+              </li>
+            </ul>
+          </div>
+        </div>
+      </Section>
 
-        {/* CTA */}
-        <Section className="pb-24">
-          <div className="mx-auto max-w-2xl rounded-xl border bg-muted/20 p-8 text-center">
-            <h2 className="text-2xl font-bold">Want a deeper comparison?</h2>
-            <p className="mt-4 text-sm text-muted-foreground">
-              Run AllSource locally in under a minute and try the same workload you'd run on
-              EventStoreDB.
-            </p>
-            <div className="mt-6">
-              <Link href="/docs/quickstart" className={cn(buttonVariants({ variant: "default" }))}>
-                Quickstart <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-            </div>
+      {/* CTA */}
+      <Section className="pb-24">
+        <div className="mx-auto max-w-2xl rounded-xl border bg-muted/20 p-8 text-center">
+          <h2 className="text-2xl font-bold">Want a deeper comparison?</h2>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Run AllSource locally in under a minute and try the same workload you'd run on
+            EventStoreDB.
+          </p>
+          <div className="mt-6">
+            <Link href="/docs/quickstart" className={cn(buttonVariants({ variant: "default" }))}>
+              Quickstart <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
           </div>
-        </Section>
-      </main>
-      <Footer />
-    </>
+        </div>
+      </Section>
+    </div>
   );
 }

@@ -1,53 +1,41 @@
-"use client";
-
-import { BlurFade, Card, CardContent, Section } from "@allsource/ui";
-import { Clock, Database, Lock } from "lucide-react";
-import { motion } from "motion/react";
+import { Card, CardContent, Section } from "@allsource/ui";
+import { Bot, History, Search } from "lucide-react";
 
 const problems = [
   {
-    title: "AI Integration Gap",
+    title: "Agent context disappears",
     description:
-      "Your data is trapped behind rigid APIs. AI agents can't easily explore, analyze, or manage your event streams. The tools that exist weren't designed for autonomous workflows — your agents forget everything between sessions.",
-    icon: Lock,
+      "Conversation context ends with a session. Without durable storage, an agent cannot recover prior decisions, evidence, or state after a restart.",
+    icon: Bot,
   },
   {
-    title: "State Amnesia",
+    title: "Current state hides why",
     description:
-      "Traditional databases only store current state. When something goes wrong, you can't see how you got there. No history means no answers, no audit trail, and no ability to replay or debug.",
-    icon: Database,
+      "A row shows what is true now, not which changes produced it. Debugging and audit work then depend on scattered logs and application-specific fixes.",
+    icon: History,
   },
   {
-    title: "Temporal Blindness",
+    title: "Historical queries become projects",
     description:
-      "Time-based queries are afterthoughts. Want to know what your data looked like last Tuesday at 3pm? Good luck. Most systems weren't built for time-travel, and retrofitting is painful.",
-    icon: Clock,
+      "Reconstructing state at a past timestamp usually means joining logs, snapshots, and database records. An ordered event history makes that query explicit.",
+    icon: Search,
   },
 ];
 
-export default function Component() {
+export default function Problem() {
   return (
-    <Section title="The Problem" subtitle="AI agents deserve better than stateless amnesia">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-        {problems.map((problem, index) => (
-          <BlurFade key={problem.title} delay={0.2 + index * 0.1} inView>
-            <motion.div whileHover={{ y: -8, transition: { duration: 0.3 } }} className="h-full">
-              <Card className="h-full bg-background border border-transparent hover:border-destructive/20 shadow-none hover:shadow-lg hover:shadow-destructive/5 transition-all duration-300 group">
-                <CardContent className="p-6 space-y-4">
-                  <motion.div
-                    className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center group-hover:bg-destructive/20 transition-colors duration-300"
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                  >
-                    <problem.icon className="w-6 h-6 text-destructive transition-transform duration-300 group-hover:scale-110" />
-                  </motion.div>
-                  <h3 className="text-xl font-semibold group-hover:text-destructive transition-colors duration-300">
-                    {problem.title}
-                  </h3>
-                  <p className="text-muted-foreground">{problem.description}</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </BlurFade>
+    <Section title="What breaks without an event history" subtitle="Why teams add AllSource">
+      <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
+        {problems.map((problem) => (
+          <Card key={problem.title} className="h-full border-border bg-card shadow-none">
+            <CardContent className="space-y-4 p-6">
+              <div className="flex h-11 w-11 items-center justify-center border border-border bg-background">
+                <problem.icon className="h-5 w-5 text-primary" aria-hidden="true" />
+              </div>
+              <h3 className="text-xl font-semibold">{problem.title}</h3>
+              <p className="leading-7 text-muted-foreground">{problem.description}</p>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </Section>

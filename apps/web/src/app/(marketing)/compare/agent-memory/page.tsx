@@ -2,10 +2,8 @@
 
 import { Badge, buttonVariants, cn, Section } from "@allsource/ui";
 import { ChevronRight, Minus, Plus } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 
 // Five approaches to AI agent memory, ordered roughly by how "managed" each
 // is — least infrastructure first, most infrastructure last. AllSource Prime
@@ -69,7 +67,7 @@ const approaches: Approach[] = [
       "Trivial to inspect — open the file in any editor",
       "Version-controlled for free via git",
       "Zero infrastructure",
-      "Works offline, no service to babysit",
+      "Works offline without a separate service",
     ],
     loses: [
       "Manual merge conflicts when two agents (or an agent and a human) edit the same file",
@@ -182,70 +180,66 @@ function Card({ approach }: { approach: Approach }) {
 
 export default function CompareAgentMemoryPage() {
   return (
-    <>
-      <Header />
-      <main className="relative overflow-hidden">
-        <Section className="relative pt-24 pb-12 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-              Agent memory: five approaches, honestly compared
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              There are five common approaches to AI agent memory: built-in platform memory,
-              RAG/retrieval, file-based notes, a conventional database, and an event-sourced log.
-              Every team picks one, usually by accident. This page sets out where each approach
-              wins, where each breaks down, and how to choose deliberately.
-            </p>
-          </motion.div>
-        </Section>
+    <div className="relative overflow-hidden">
+      <Section className="relative pt-24 pb-12 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+            Agent memory: five approaches, honestly compared
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            There are five common approaches to AI agent memory: built-in platform memory,
+            RAG/retrieval, file-based notes, a conventional database, and an event-sourced log.
+            Every team picks one, usually by accident. This page sets out where each approach wins,
+            where each breaks down, and how to choose deliberately.
+          </p>
+        </motion.div>
+      </Section>
 
-        <Section className="pb-16">
-          <div className="mx-auto flex max-w-3xl flex-col gap-6">
-            {approaches.map((a) => (
-              <Card key={a.id} approach={a} />
-            ))}
-          </div>
-        </Section>
+      <Section className="pb-16">
+        <div className="mx-auto flex max-w-3xl flex-col gap-6">
+          {approaches.map((a) => (
+            <Card key={a.id} approach={a} />
+          ))}
+        </div>
+      </Section>
 
-        <Section className="pb-24">
-          <div className="mx-auto max-w-3xl rounded-xl border bg-muted/20 p-6">
-            <h2 className="mb-3 text-xl font-semibold">How to pick</h2>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                <strong className="text-foreground">Single-user, single-tool, low volume?</strong>{" "}
-                Platform memory or a CLAUDE.md file. Stop reading, start writing.
-              </li>
-              <li>
-                <strong className="text-foreground">
-                  Unstructured content, semantic search is the killer feature?
-                </strong>{" "}
-                Mem0 or Zep. Accept the truthiness tradeoff.
-              </li>
-              <li>
-                <strong className="text-foreground">
-                  Structured entities, no time-travel needs?
-                </strong>{" "}
-                Postgres + CRUD. You already know the playbook.
-              </li>
-              <li>
-                <strong className="text-foreground">
-                  Multi-tool, multi-user, audit-driven, or you want both graph and vector recall?
-                </strong>{" "}
-                Event-sourced.{" "}
-                <Link href="/prime" className="underline">
-                  AllSource Prime
-                </Link>{" "}
-                is one of the few productized options in this category.
-              </li>
-            </ul>
-          </div>
-        </Section>
-      </main>
-      <Footer />
-    </>
+      <Section className="pb-24">
+        <div className="mx-auto max-w-3xl rounded-xl border bg-muted/20 p-6">
+          <h2 className="mb-3 text-xl font-semibold">How to pick</h2>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li>
+              <strong className="text-foreground">Single-user, single-tool, low volume?</strong>{" "}
+              Platform memory or a CLAUDE.md file. Stop reading, start writing.
+            </li>
+            <li>
+              <strong className="text-foreground">
+                Unstructured content, semantic search is the killer feature?
+              </strong>{" "}
+              Mem0 or Zep. Accept the truthiness tradeoff.
+            </li>
+            <li>
+              <strong className="text-foreground">
+                Structured entities, no time-travel needs?
+              </strong>{" "}
+              Postgres + CRUD. You already know the playbook.
+            </li>
+            <li>
+              <strong className="text-foreground">
+                Multi-tool, multi-user, audit-driven, or you want both graph and vector recall?
+              </strong>{" "}
+              Event-sourced.{" "}
+              <Link href="/prime" className="underline">
+                AllSource Prime
+              </Link>{" "}
+              is one of the few productized options in this category.
+            </li>
+          </ul>
+        </div>
+      </Section>
+    </div>
   );
 }

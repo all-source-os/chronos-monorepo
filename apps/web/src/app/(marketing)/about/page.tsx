@@ -1,6 +1,7 @@
-import { BlurFade, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
+import { buttonVariants, Card, CardContent, cn } from "@allsource/ui";
 import { ArrowRight, Database, GitBranch, Zap } from "lucide-react";
 import Link from "next/link";
+import { FadeIn } from "@/components/ui/fade-in";
 import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
 
@@ -23,21 +24,21 @@ const principles = [
   {
     title: "Built for agents",
     icon: Zap,
-    body: "AI agents need persistent memory, not stateless context windows. The platform exposes 73 MCP tools so Claude, GPT, and custom agents can read and write durable history at 11.9μs query latency.",
+    body: "AI agents need persistent memory beyond a context window. A tenant connector exposes 55+ MCP tools for reading and writing durable history; fleet operators can enable 73 with administrative controls.",
   },
 ];
 
 export default function AboutPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">About AllSource</h1>
         <p className="text-lg text-muted-foreground">
-          A purpose-built event store and AI-native data platform.
+          Open-source event storage for durable system history and AI agent memory.
         </p>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <div className="prose prose-invert mt-10 max-w-none text-muted-foreground">
           <p>
             AllSource exists because the data layer underneath modern applications — and especially
@@ -61,15 +62,15 @@ export default function AboutPage() {
             monorepo, and the whole thing is designed to be embedded as easily as it's deployed.
           </p>
         </div>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">What we believe</h2>
-      </BlurFade>
+      </FadeIn>
 
       <div className="grid gap-4 md:grid-cols-3 mt-2">
         {principles.map((p, i) => (
-          <BlurFade key={p.title} delay={0.35 + i * 0.05} inView>
+          <FadeIn key={p.title} delay={0.35 + i * 0.05} inView>
             <Card className="h-full">
               <CardContent className="pt-6">
                 <p.icon className="h-6 w-6 text-foreground mb-3" />
@@ -77,11 +78,11 @@ export default function AboutPage() {
                 <p className="text-sm text-muted-foreground">{p.body}</p>
               </CardContent>
             </Card>
-          </BlurFade>
+          </FadeIn>
         ))}
       </div>
 
-      <BlurFade delay={0.5} inView>
+      <FadeIn delay={0.5} inView>
         <div className="mt-16 flex flex-wrap gap-3">
           <Link
             href="https://github.com/all-source-os/all-source"
@@ -98,7 +99,7 @@ export default function AboutPage() {
             Latest writing
           </Link>
         </div>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

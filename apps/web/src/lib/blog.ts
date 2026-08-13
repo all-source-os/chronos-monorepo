@@ -31,7 +31,7 @@ function parseFrontmatter(fileContent: string) {
   const frontmatterRegex = /---\s*([\s\S]*?)\s*---/;
   const match = frontmatterRegex.exec(fileContent);
 
-  if (!match || !match[1]) {
+  if (!match?.[1]) {
     return { data: {} as Post, content: fileContent };
   }
 
@@ -56,6 +56,20 @@ function getMDXFiles(dir: string) {
   return fs.readdirSync(dir).filter((file) => path.extname(file) === ".mdx");
 }
 
+function getContentDirectory() {
+  const candidates = [
+    path.resolve(process.cwd(), "content"),
+    path.resolve(process.cwd(), "apps", "web", "content"),
+  ];
+  const contentDir = candidates.find((candidate) => fs.existsSync(candidate));
+
+  if (!contentDir) {
+    throw new Error(`Blog content directory not found. Checked: ${candidates.join(", ")}`);
+  }
+
+  return contentDir;
+}
+
 export async function markdownToHTML(markdown: string) {
   const p = await unified()
     .use(remarkParse)
@@ -78,10 +92,10 @@ export async function markdownToHTML(markdown: string) {
 export async function getPost(slug: string) {
   // Sanitize slug to prevent path traversal: take only the filename component
   const sanitizedSlug = path.basename(slug);
-  const filePath = path.join("content", `${sanitizedSlug}.mdx`);
+  const contentDir = getContentDirectory();
+  const filePath = path.join(contentDir, `${sanitizedSlug}.mdx`);
   // Verify the resolved path is still within the content directory
-  const contentDir = path.resolve(process.cwd(), "content");
-  const resolvedPath = path.resolve(process.cwd(), filePath);
+  const resolvedPath = path.resolve(filePath);
   if (!resolvedPath.startsWith(contentDir + path.sep)) {
     throw new Error(`Invalid blog slug: ${slug}`);
   }
@@ -91,7 +105,7 @@ export async function getPost(slug: string) {
   if (!fs.existsSync(resolvedPath)) {
     return null;
   }
-  const source = fs.readFileSync(filePath, "utf-8");
+  const source = fs.readFileSync(resolvedPath, "utf-8");
   const { content: rawContent, data: metadata } = parseFrontmatter(source);
   const content = await markdownToHTML(rawContent);
   const defaultImage = `${siteConfig.url}/og?title=${encodeURIComponent(metadata.title)}`;
@@ -135,5 +149,5 @@ async function getAllPosts(dir: string) {
 }
 
 export async function getBlogPosts() {
-  return getAllPosts(path.join(process.cwd(), "content"));
+  return getAllPosts(getContentDirectory());
 }

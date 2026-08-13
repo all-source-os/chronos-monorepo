@@ -1,5 +1,4 @@
 import {
-  BlurFade,
   Carousel,
   CarouselContent,
   CarouselItem,
@@ -9,6 +8,7 @@ import {
 } from "@allsource/ui";
 import Image from "next/image";
 import { MdOutlineFormatQuote } from "react-icons/md";
+import { FadeIn } from "@/components/ui/fade-in";
 
 const companies = [
   "Google",
@@ -33,15 +33,15 @@ export default function Component() {
                 <div className="p-2 pb-5">
                   <div className="text-center">
                     <MdOutlineFormatQuote className="text-4xl text-themeDarkGray my-4 mx-auto" />
-                    <BlurFade delay={0.25} inView>
+                    <FadeIn delay={0.25} inView>
                       <h4 className="text-1xl font-semibold max-w-lg mx-auto px-10">
                         There is a lot of exciting stuff going on in the stars above us that make
                         astronomy so much fun. The truth is the universe is a constantly changing,
                         moving, some would say "living" thing because you just never know what you
                         are going to see on any given night of stargazing.
                       </h4>
-                    </BlurFade>
-                    <BlurFade delay={0.25 * 2} inView>
+                    </FadeIn>
+                    <FadeIn delay={0.25 * 2} inView>
                       <div className="mt-8">
                         <Image
                           width={0}
@@ -53,17 +53,17 @@ export default function Component() {
                           className="mx-auto w-auto h-[40px] grayscale opacity-30"
                         />
                       </div>
-                    </BlurFade>
+                    </FadeIn>
                     <div className="">
-                      <BlurFade delay={0.25 * 3} inView>
+                      <FadeIn delay={0.25 * 3} inView>
                         <h4 className="text-1xl font-semibold my-2">Leslie Alexander</h4>
-                      </BlurFade>
+                      </FadeIn>
                     </div>
-                    <BlurFade delay={0.25 * 4} inView>
+                    <FadeIn delay={0.25 * 4} inView>
                       <div className=" mb-3">
                         <span className="text-sm text-themeDarkGray">UI Designer</span>
                       </div>
-                    </BlurFade>
+                    </FadeIn>
                   </div>
                 </div>
               </CarouselItem>

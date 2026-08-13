@@ -1,41 +1,55 @@
-import { Section } from "@allsource/ui";
-import { Database, Play, Sparkles } from "lucide-react";
-import Features from "@/components/features-vertical";
+import { Card, CardContent, Section } from "@allsource/ui";
+import { Database, GitBranch, Search } from "lucide-react";
 
-const data = [
+const steps = [
   {
-    id: 1,
-    title: "1. Capture Everything",
+    number: "01",
+    title: "Write events",
     content:
-      "Send events via REST, WebSocket, or SDK. Every event is immutably stored with automatic schema validation. Nothing is ever lost or overwritten.",
-    image: "/assets/hero-screenshot.png",
-    icon: <Database className="w-6 h-6 text-primary" />,
+      "Send structured events through HTTP, WebSocket, an SDK, or MCP. AllSource appends accepted writes to an immutable stream.",
+    icon: Database,
   },
   {
-    id: 2,
-    title: "2. Process in Real-Time",
+    number: "02",
+    title: "Build useful views",
     content:
-      "Build pipelines that filter, transform, and route events as they arrive. Create projections and materialized views that stay in sync automatically.",
-    image: "/assets/hero-screenshot.png",
-    icon: <Play className="w-6 h-6 text-primary" />,
+      "Fold ordered events into projections for current state, analytics, or agent context. Rebuild a view from its source stream when logic changes.",
+    icon: GitBranch,
   },
   {
-    id: 3,
-    title: "3. Query Any Point in Time",
+    number: "03",
+    title: "Query and replay history",
     content:
-      "Reconstruct state at any timestamp. Replay sequences for debugging. Let AI agents analyze patterns across your entire history with 73 MCP tools.",
-    image: "/assets/hero-screenshot.png",
-    icon: <Sparkles className="w-6 h-6 text-primary" />,
+      "Read a stream at a sequence or timestamp, inspect provenance, and replay the exact changes behind an outcome.",
+    icon: Search,
   },
 ];
 
-export default function Component() {
+export default function HowItWorks() {
   return (
     <Section
-      title="How It Works"
-      subtitle="From events to an agent that remembers every event, in three steps"
+      title="From event write to durable context"
+      subtitle="The data path"
+      description="One ordered history supports application state, operational analysis, and agent memory."
     >
-      <Features data={data} />
+      <ol className="grid gap-6 lg:grid-cols-3">
+        {steps.map((step) => (
+          <li key={step.number}>
+            <Card className="h-full border-border bg-card shadow-none">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-sm font-semibold text-primary">
+                    {step.number}
+                  </span>
+                  <step.icon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                </div>
+                <h3 className="mt-8 text-xl font-semibold">{step.title}</h3>
+                <p className="mt-3 leading-7 text-muted-foreground">{step.content}</p>
+              </CardContent>
+            </Card>
+          </li>
+        ))}
+      </ol>
     </Section>
   );
 }

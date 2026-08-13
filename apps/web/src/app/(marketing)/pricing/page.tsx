@@ -70,7 +70,7 @@ export default async function PricingPage() {
   return (
     <div className="mx-auto w-full max-w-screen-xl px-4 lg:px-8">
       {/* Above the fold: promise, toggle, cards, enterprise strip, x402 lines. */}
-      <PricingSection catalog={catalog} />
+      <PricingSection catalog={catalog} headingLevel={1} title="AllSource hosted pricing" />
 
       {/* Below the fold: comparison matrix, Indie → Enterprise (no free plan). */}
       <Section title="Compare tiers" subtitle="Everything, side by side">

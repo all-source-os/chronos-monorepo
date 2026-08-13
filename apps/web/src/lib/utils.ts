@@ -53,10 +53,7 @@ export function constructMetadata({
       : { type: "website" as const };
 
   return {
-    title: {
-      template: `%s | ${siteConfig.name}`,
-      default: siteConfig.name,
-    },
+    title,
     description: description || siteConfig.description,
     keywords: siteConfig.keywords,
     openGraph: {

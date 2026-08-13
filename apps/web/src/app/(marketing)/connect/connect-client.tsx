@@ -1,6 +1,6 @@
 "use client";
 
-import { BlurFade, Button, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
+import { Button, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
 import {
   AlertTriangle,
   ArrowRight,
@@ -150,44 +150,32 @@ export function ConnectClient() {
   };
 
   return (
-    <>
-      <BlurFade delay={0.1} inView>
-        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
-          Connect to Claude Desktop
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          One click mints an API key scoped for Prime sync and renders a ready-to-paste config
-          snippet for Claude Desktop. No checklist back-and-forth with the model.
-        </p>
-      </BlurFade>
-
-      <div className="mt-10 space-y-6">
-        {/* Trial-claim card (bead t-e8b8). Renders when the URL carries
+    <div className="mt-10 space-y-6">
+      {/* Trial-claim card (bead t-e8b8). Renders when the URL carries
             a claim token regardless of session state — the unauth case
             tells the user they need to sign in first, then this same
             card surfaces the result. */}
-        {claimToken && (
-          <ClaimResultCard state={claim} sessionLoading={session.status === "loading"} />
-        )}
+      {claimToken && (
+        <ClaimResultCard state={claim} sessionLoading={session.status === "loading"} />
+      )}
 
-        {session.status === "loading" && (
-          <Card>
-            <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Checking your session…
-            </CardContent>
-          </Card>
-        )}
+      {session.status === "loading" && (
+        <Card>
+          <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Checking your session…
+          </CardContent>
+        </Card>
+      )}
 
-        {session.status === "unauthenticated" && <UnauthenticatedCard claimToken={claimToken} />}
+      {session.status === "unauthenticated" && <UnauthenticatedCard claimToken={claimToken} />}
 
-        {session.status === "authenticated" && key.status !== "ready" && (
-          <CreateKeyCard state={key} onCreate={handleCreate} />
-        )}
+      {session.status === "authenticated" && key.status !== "ready" && (
+        <CreateKeyCard state={key} onCreate={handleCreate} />
+      )}
 
-        {key.status === "ready" && <ReadyState apiKey={key.key} closeAfterMint={closeAfterMint} />}
-      </div>
-    </>
+      {key.status === "ready" && <ReadyState apiKey={key.key} closeAfterMint={closeAfterMint} />}
+    </div>
   );
 }
 
@@ -215,7 +203,7 @@ function UnauthenticatedCard({ claimToken }: { claimToken: string | null }) {
         </p>
         <div className="flex flex-wrap gap-2">
           <Link href={signupHref} className={cn(buttonVariants(), "gap-1.5")}>
-            Start free trial
+            Start 14-day trial
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link href={loginHref} className={cn(buttonVariants({ variant: "outline" }))}>

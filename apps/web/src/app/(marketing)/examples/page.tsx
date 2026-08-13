@@ -1,7 +1,8 @@
-import { BlurFade, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
+import { buttonVariants, Card, CardContent, cn } from "@allsource/ui";
 import { ArrowRight, Bot, ClipboardList, Code2, Layers, Radio, Terminal } from "lucide-react";
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
+import { FadeIn } from "@/components/ui/fade-in";
 import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
 
@@ -24,7 +25,7 @@ const codeExamples = [
     icon: Terminal,
     href: "/docs/mcp",
     blurb:
-      "Wire a Claude Desktop or any MCP-compatible client to AllSource in under five minutes. Config snippet, the 43 available tools, and what each one returns.",
+      "Connect Claude Desktop or another MCP client to AllSource. Includes the configuration, 55+ tenant-scoped tools, and the result returned by each tool.",
     badge: "docs",
   },
   {
@@ -82,22 +83,24 @@ const useCases = [
 export default function ExamplesPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <BlurFade delay={0.1} inView>
-        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">Examples</h1>
+      <FadeIn delay={0.1} inView>
+        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
+          Build with AllSource
+        </h1>
         <p className="text-lg text-muted-foreground">
           Working code, reference projects, and walkthroughs for the most common AllSource shapes.
         </p>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <h2 className="text-2xl font-semibold text-foreground mt-12 mb-4">Code snippets</h2>
-      </BlurFade>
+      </FadeIn>
 
       <div className="space-y-3">
         {codeExamples.map((ex, i) => {
           const isExternal = ex.href.startsWith("http");
           return (
-            <BlurFade key={ex.title} delay={0.25 + i * 0.05} inView>
+            <FadeIn key={ex.title} delay={0.25 + i * 0.05} inView>
               <Link
                 href={ex.href}
                 {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
@@ -120,22 +123,22 @@ export default function ExamplesPage() {
                   </CardContent>
                 </Card>
               </Link>
-            </BlurFade>
+            </FadeIn>
           );
         })}
       </div>
 
-      <BlurFade delay={0.45} inView>
+      <FadeIn delay={0.45} inView>
         <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">Reference projects</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Real services in the monorepo that consume AllSource as their data layer. Read the source
           to see how the pieces fit together end-to-end.
         </p>
-      </BlurFade>
+      </FadeIn>
 
       <div className="space-y-3">
         {referenceProjects.map((p, i) => (
-          <BlurFade key={p.title} delay={0.5 + i * 0.05} inView>
+          <FadeIn key={p.title} delay={0.5 + i * 0.05} inView>
             <Link href={p.href} target="_blank" rel="noopener noreferrer" className="block group">
               <Card className="transition-colors hover:border-foreground/20">
                 <CardContent className="pt-6">
@@ -152,19 +155,19 @@ export default function ExamplesPage() {
                 </CardContent>
               </Card>
             </Link>
-          </BlurFade>
+          </FadeIn>
         ))}
       </div>
 
-      <BlurFade delay={0.7} inView>
+      <FadeIn delay={0.7} inView>
         <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">Solution walkthroughs</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Long-form pages on how AllSource maps to specific problem shapes — closer to a tutorial
           than a snippet.
         </p>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.75} inView>
+      <FadeIn delay={0.75} inView>
         <div className="grid sm:grid-cols-2 gap-2">
           {useCases.map((uc) => (
             <Link
@@ -177,9 +180,9 @@ export default function ExamplesPage() {
             </Link>
           ))}
         </div>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.85} inView>
+      <FadeIn delay={0.85} inView>
         <div className="mt-12 flex flex-wrap gap-3">
           <Link href="/sdks" className={cn(buttonVariants({ variant: "default" }))}>
             Pick an SDK <ArrowRight className="ml-2 h-4 w-4" />
@@ -188,7 +191,7 @@ export default function ExamplesPage() {
             Read the docs
           </Link>
         </div>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

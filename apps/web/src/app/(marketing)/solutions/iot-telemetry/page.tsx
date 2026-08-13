@@ -4,7 +4,6 @@ import { buttonVariants, cn, Section } from "@allsource/ui";
 import {
   AlertTriangle,
   ChevronRight,
-  Cpu,
   Database,
   FileCheck,
   Layers,
@@ -13,30 +12,28 @@ import {
   Timer,
   Zap,
 } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 
 const features = [
   {
     title: "469K Events/sec Ingestion",
     description:
-      "Purpose-built for high-throughput sensor data. Ingest hundreds of thousands of readings per second from device fleets, factory floors, and connected vehicles without backpressure.",
+      "The published batch benchmark reaches 469K events/sec. Batch sensor readings from device fleets, factory floors, or connected vehicles into ordered streams.",
     icon: Zap,
     color: "from-orange-500/20 to-orange-500/5",
   },
   {
-    title: "WAL Durability — Zero Data Loss",
+    title: "Checksummed Write-Ahead Log",
     description:
-      "Every sensor reading is written to the Write-Ahead Log with CRC32 checksums and configurable fsync. Power failures, crashes, network partitions — no reading is ever lost.",
+      "Accepted sensor readings enter a write-ahead log with CRC32 integrity checks and configurable fsync before columnar persistence.",
     icon: Database,
     color: "from-amber-500/20 to-amber-500/5",
   },
   {
     title: "Time-Series Event Queries",
     description:
-      "Query sensor readings by time range, device ID, reading type, or any combination. Sub-microsecond indexed lookups make real-time dashboards trivial.",
+      "Query sensor readings by time range, device ID, reading type, or a combination. Published indexed-read benchmarks measure 11.9us p99 on the benchmark hardware.",
     icon: Timer,
     color: "from-yellow-500/20 to-yellow-500/5",
   },
@@ -65,129 +62,108 @@ const features = [
 
 export default function IotTelemetryPage() {
   return (
-    <>
-      <Header />
-      <main className="relative overflow-hidden">
-        {/* Hero */}
-        <Section className="relative pt-24 pb-16 text-center">
+    <div className="relative overflow-hidden">
+      {/* Hero */}
+      <Section className="relative pt-24 pb-16 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
+            <Thermometer className="h-4 w-4 text-orange-400" />
+            IoT & Telemetry
+          </span>
+          <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
+            Durable ingestion for sensor and device events
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            High-throughput ingestion with WAL durability for industrial IoT, connected vehicles,
+            and device fleets. Time-series queries and anomaly detection projections — no separate
+            TSDB needed.
+          </p>
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>
+              Start 14-day trial
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+            <Link
+              href="/docs/api"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+            >
+              API reference
+            </Link>
+          </div>
+
+          {/* Key Metrics */}
           <motion.div
+            className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
-              <Thermometer className="h-4 w-4 text-orange-400" />
-              IoT & Telemetry
-            </span>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
-              469K events per second.
-              <br />
-              <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                Every sensor. Every reading.
-              </span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              High-throughput ingestion with WAL durability for industrial IoT,
-              connected vehicles, and device fleets. Time-series queries and
-              anomaly detection projections — no separate TSDB needed.
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className={cn(buttonVariants({ size: "lg" }))}
+            {[
+              { value: "469K/s", label: "Ingestion Rate" },
+              { value: "11.9us", label: "Query Latency" },
+              { value: "0", label: "Readings Lost" },
+              { value: "Snappy", label: "Compression" },
+            ].map((metric) => (
+              <div
+                key={metric.label}
+                className="rounded-xl border bg-background/50 p-4 backdrop-blur-sm"
               >
-                Start free trial
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-              <Link
-                href="/docs/api"
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-              >
-                API reference
-              </Link>
-            </div>
-
-            {/* Key Metrics */}
-            <motion.div
-              className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              {[
-                { value: "469K/s", label: "Ingestion Rate" },
-                { value: "11.9us", label: "Query Latency" },
-                { value: "0", label: "Readings Lost" },
-                { value: "Snappy", label: "Compression" },
-              ].map((metric) => (
-                <div
-                  key={metric.label}
-                  className="rounded-xl border bg-background/50 p-4 backdrop-blur-sm"
-                >
-                  <div className="text-2xl font-bold text-orange-400">
-                    {metric.value}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {metric.label}
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-        </Section>
-
-        {/* Features */}
-        <Section className="pb-16">
-          <h2 className="mb-12 text-center text-3xl font-bold">
-            Built for the firehose
-          </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature, i) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                viewport={{ once: true }}
-                className="rounded-xl border p-6"
-              >
-                <div
-                  className={cn(
-                    "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
-                    feature.color,
-                  )}
-                >
-                  <feature.icon className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 font-semibold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </Section>
-
-        {/* Code Example */}
-        <Section className="pb-16">
-          <h2 className="mb-4 text-center text-3xl font-bold">
-            Batch ingest sensor readings
-          </h2>
-          <p className="mb-8 text-center text-muted-foreground">
-            Send thousands of readings in a single request from edge gateways
-          </p>
-          <div className="mx-auto max-w-3xl">
-            <div className="overflow-hidden rounded-xl border">
-              <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
-                <div className="h-3 w-3 rounded-full bg-red-500" />
-                <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                <div className="h-3 w-3 rounded-full bg-green-500" />
-                <span className="ml-4 font-mono text-sm text-neutral-400">
-                  sensor-ingest.sh
-                </span>
+                <div className="text-2xl font-bold text-orange-400">{metric.value}</div>
+                <div className="text-sm text-muted-foreground">{metric.label}</div>
               </div>
-              <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
-{`# Batch ingest sensor readings from an edge gateway
+            ))}
+          </motion.div>
+        </motion.div>
+      </Section>
+
+      {/* Features */}
+      <Section className="pb-16">
+        <h2 className="mb-12 text-center text-3xl font-bold">Built for the firehose</h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature, i) => (
+            <motion.div
+              key={feature.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+              viewport={{ once: true }}
+              className="rounded-xl border p-6"
+            >
+              <div
+                className={cn(
+                  "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
+                  feature.color
+                )}
+              >
+                <feature.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mb-2 font-semibold">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground">{feature.description}</p>
+            </motion.div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Code Example */}
+      <Section className="pb-16">
+        <h2 className="mb-4 text-center text-3xl font-bold">Batch ingest sensor readings</h2>
+        <p className="mb-8 text-center text-muted-foreground">
+          Send thousands of readings in a single request from edge gateways
+        </p>
+        <div className="mx-auto max-w-3xl">
+          <div className="overflow-hidden rounded-xl border">
+            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
+              <div className="h-3 w-3 rounded-full bg-red-500" />
+              <div className="h-3 w-3 rounded-full bg-yellow-500" />
+              <div className="h-3 w-3 rounded-full bg-green-500" />
+              <span className="ml-4 font-mono text-sm text-neutral-400">sensor-ingest.sh</span>
+            </div>
+            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
+              {`# Batch ingest sensor readings from an edge gateway
 curl -s -X POST https://api.all-source.xyz/api/v1/events \\
   -H "Authorization: Bearer $API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -227,54 +203,43 @@ curl -s https://api.all-source.xyz/api/v1/events/query \\
   }'
 
 # {"events": [...], "count": 3600}  — one reading per second, all durable`}
-              </pre>
-            </div>
+            </pre>
           </div>
-        </Section>
+        </div>
+      </Section>
 
-        {/* CTA */}
-        <Section className="pb-24 text-center">
-          <Radio className="mx-auto mb-4 h-12 w-12 text-orange-400" />
-          <h2 className="mb-4 text-3xl font-bold">
-            Your sensors deserve a real event store
-          </h2>
-          <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
-            Stop shoehorning telemetry into time-series databases that were not
-            built for event sourcing. Get durability, time-travel, and anomaly
-            detection in one engine.
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link
-              href="/signup"
-              className={cn(buttonVariants({ size: "lg" }))}
-            >
-              Start free trial
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-            <Link
-              href="/solutions/real-time-analytics"
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-            >
-              Real-time analytics
-            </Link>
-          </div>
-          <div className="mt-6 flex items-center justify-center gap-6 text-sm text-muted-foreground">
-            <Link href="/docs" className="underline">
-              Documentation
-            </Link>
-            <Link href="/docs/api" className="underline">
-              API Reference
-            </Link>
-            <Link
-              href="https://github.com/all-source-os/all-source"
-              className="underline"
-            >
-              GitHub
-            </Link>
-          </div>
-        </Section>
-      </main>
-      <Footer />
-    </>
+      {/* CTA */}
+      <Section className="pb-24 text-center">
+        <Radio className="mx-auto mb-4 h-12 w-12 text-orange-400" />
+        <h2 className="mb-4 text-3xl font-bold">Your sensors deserve a real event store</h2>
+        <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
+          Stop shoehorning telemetry into time-series databases that were not built for event
+          sourcing. Get durability, time-travel, and anomaly detection in one engine.
+        </p>
+        <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>
+            Start 14-day trial
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Link>
+          <Link
+            href="/solutions/real-time-analytics"
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+          >
+            Real-time analytics
+          </Link>
+        </div>
+        <div className="mt-6 flex items-center justify-center gap-6 text-sm text-muted-foreground">
+          <Link href="/docs" className="underline">
+            Documentation
+          </Link>
+          <Link href="/docs/api" className="underline">
+            API Reference
+          </Link>
+          <Link href="https://github.com/all-source-os/all-source" className="underline">
+            GitHub
+          </Link>
+        </div>
+      </Section>
+    </div>
   );
 }

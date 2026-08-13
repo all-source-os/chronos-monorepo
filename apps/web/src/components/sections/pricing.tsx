@@ -2,14 +2,15 @@
 
 import { buttonVariants, cn, Section } from "@allsource/ui";
 import { Check } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import { FaStar } from "react-icons/fa";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 import { siteConfig } from "@/lib/config";
 import {
   type Catalog,
   indexByTier,
+  PriceUnavailable,
   resolveAnnualTotal,
   resolveMonthly,
   resolveYearlyPerMonth,
@@ -26,13 +27,22 @@ const enterpriseTier = siteConfig.pricing.find((p) => p.isEnterprise);
 // `catalog` carries live LemonSqueezy prices (source of truth). When present,
 // its prices win over the static config prices; config is only a fallback for
 // when the catalog is unreachable.
-export default function PricingSection({ catalog }: { catalog?: Catalog | null }) {
+export default function PricingSection({
+  catalog,
+  headingLevel = 2,
+  title = "Pricing",
+}: {
+  catalog?: Catalog | null;
+  headingLevel?: 1 | 2;
+  title?: string;
+}) {
   const [isMonthly, setIsMonthly] = useState(true);
   const prices = indexByTier(catalog ?? null);
 
   return (
     <Section
-      title="Pricing"
+      title={title}
+      headingLevel={headingLevel}
       subtitle="Pay for the events your agents write. Start with a 14-day trial — no charge until it ends."
     >
       {/* Billing toggle — single unambiguous label per state. */}
@@ -78,6 +88,7 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
           const annualTotal = resolveAnnualTotal(cat);
           const displayPrice = isMonthly ? monthlyStr : yearlyStr;
           const isNumericPrice = displayPrice.startsWith("$");
+          const isPriceUnavailable = displayPrice === PriceUnavailable;
 
           return (
             <motion.div
@@ -110,7 +121,12 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
               <div>
                 <p className="text-base font-semibold text-muted-foreground">{plan.name}</p>
                 <p className="mt-6 flex items-end justify-center gap-x-1">
-                  <span className="text-5xl font-bold tracking-tight text-foreground">
+                  <span
+                    className={cn(
+                      "font-bold tracking-tight text-foreground",
+                      isPriceUnavailable ? "text-2xl" : "text-5xl"
+                    )}
+                  >
                     {displayPrice}
                   </span>
                   {isNumericPrice && (
@@ -122,13 +138,15 @@ export default function PricingSection({ catalog }: { catalog?: Catalog | null }
                 <p className="text-xs leading-5 text-muted-foreground">
                   {plan.isSelfHost
                     ? plan.period
-                    : isNumericPrice
-                      ? isMonthly
-                        ? "billed monthly"
-                        : annualTotal
-                          ? `billed annually (${annualTotal}/yr)`
-                          : "billed yearly"
-                      : ""}
+                    : isPriceUnavailable
+                      ? "Live catalog could not be reached"
+                      : isNumericPrice
+                        ? isMonthly
+                          ? "billed monthly"
+                          : annualTotal
+                            ? `billed annually (${annualTotal}/yr)`
+                            : "billed yearly"
+                        : ""}
                 </p>
 
                 {plan.x402 && (

@@ -10,10 +10,10 @@ import {
   Section,
 } from "@allsource/ui";
 import { Check, ChevronRight } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
 import Footer from "@/components/sections/footer";
 import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 import type { Competitor } from "../_data/competitors";
 import { ComparisonTable } from "./ComparisonTable";
 

@@ -16,10 +16,8 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 import { faqPageSchema } from "@/lib/structured-data";
 
 const capabilities = [
@@ -174,13 +172,12 @@ export default function QuantIntelligencePage() {
   );
 
   return (
-    <main className="min-h-screen">
+    <div className="min-h-screen">
       <script
         type="application/ld+json"
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <Header />
 
       {/* Hero */}
       <section className="relative overflow-hidden border-b bg-gradient-to-b from-background to-neutral-100 px-4 pb-20 pt-32 dark:to-neutral-900">
@@ -202,7 +199,7 @@ export default function QuantIntelligencePage() {
           >
             <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
               <Brain className="h-4 w-4 text-primary" />
-              Premium Analytics Layer
+              Market event analysis
             </span>
           </motion.div>
 
@@ -212,7 +209,7 @@ export default function QuantIntelligencePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            Quant Intelligence
+            Probability estimates from market event data
           </motion.h1>
 
           <motion.p
@@ -221,9 +218,8 @@ export default function QuantIntelligencePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            Turn raw market data into probability-based insights. From precomputed analytics to
-            AI-powered natural language queries — the data layer that powers smart trading
-            decisions.
+            Store price and signal events, compute calibrated probability views, and query those
+            results through dashboards, APIs, or an AI client.
           </motion.p>
 
           <motion.div
@@ -398,7 +394,7 @@ export default function QuantIntelligencePage() {
                         Coming Soon
                       </span>
                     )}
-                    <span className="text-neutral-500">// {endpoint.description}</span>
+                    <span className="text-neutral-500">{`// ${endpoint.description}`}</span>
                   </motion.div>
                 ))}
               </div>
@@ -601,8 +597,6 @@ FROM gap_days`}
           </motion.div>
         </div>
       </section>
-
-      <Footer />
-    </main>
+    </div>
   );
 }

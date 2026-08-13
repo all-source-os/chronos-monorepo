@@ -1,7 +1,8 @@
-import { Badge, BlurFade, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
+import { Badge, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
 import { ArrowRight, Check, Minus } from "lucide-react";
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
+import { FadeIn } from "@/components/ui/fade-in";
 
 const PRIME_VERSION = "0.21.4";
 
@@ -180,31 +181,30 @@ export default function PrimeLandingPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 py-24 lg:px-8">
       {/* Hero */}
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <Badge variant="outline" className="mb-4 text-xs font-mono">
           allsource-prime v{PRIME_VERSION} · MCP
         </Badge>
         <h1 className="mb-3 text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Memory for Claude, where your agents already work.
+          Persistent memory for Claude and other MCP clients
         </h1>
         <p className="text-lg text-muted-foreground">
-          AllSource Prime is the AI-native memory layer for Claude Desktop, Claude Code, and any MCP
-          client. Knowledge graph, vector recall, and compressed-index auto-injection — no CMS
-          chrome to babysit, no embedding API keys to rotate. Your agents read and write it
-          directly.
+          Prime stores knowledge-graph relationships, embeddings, provenance, and compressed context
+          in a local event store. Claude Desktop, Claude Code, and other MCP clients read and write
+          that memory directly.
         </p>
         <div className="mt-8 flex items-center gap-3">
           <Link href="#install" className={cn(buttonVariants({ variant: "default" }), "gap-1")}>
-            Install in 30 seconds <ArrowRight className="h-4 w-4" />
+            Install Prime <ArrowRight className="h-4 w-4" />
           </Link>
           <Link href="/docs/prime/mcp" className={cn(buttonVariants({ variant: "outline" }))}>
             MCP setup docs
           </Link>
         </div>
-      </BlurFade>
+      </FadeIn>
 
       {/* Install in 30s */}
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <section id="install" className="mt-16 scroll-mt-24">
           <h2 className="mb-2 text-2xl font-semibold text-foreground">
             Same memory, every agent surface
@@ -278,13 +278,13 @@ export default function PrimeLandingPage() {
             </CardContent>
           </Card>
         </section>
-      </BlurFade>
+      </FadeIn>
 
       {/* What you get */}
-      <BlurFade delay={0.25} inView>
+      <FadeIn delay={0.25} inView>
         <section className="mt-16">
           <h2 className="mb-2 text-2xl font-semibold text-foreground">
-            13 MCP tools Claude picks automatically
+            19 MCP tools Claude picks automatically
           </h2>
           <p className="mb-6 text-sm text-muted-foreground">
             You don&apos;t call these. Claude does — the tool descriptions are written for agent
@@ -318,10 +318,10 @@ export default function PrimeLandingPage() {
             </CardContent>
           </Card>
         </section>
-      </BlurFade>
+      </FadeIn>
 
       {/* Comparison */}
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         <section className="mt-16">
           <h2 className="mb-2 text-2xl font-semibold text-foreground">Why not just use a CMS?</h2>
           <p className="mb-6 text-sm text-muted-foreground">
@@ -369,10 +369,10 @@ export default function PrimeLandingPage() {
             editing UIs — pick them if humans are still your primary writers.
           </p>
         </section>
-      </BlurFade>
+      </FadeIn>
 
       {/* How it stores */}
-      <BlurFade delay={0.35} inView>
+      <FadeIn delay={0.35} inView>
         <section className="mt-16">
           <h2 className="mb-2 text-2xl font-semibold text-foreground">
             What&apos;s under the hood
@@ -419,10 +419,10 @@ export default function PrimeLandingPage() {
             </Link>
           </div>
         </section>
-      </BlurFade>
+      </FadeIn>
 
       {/* CTA */}
-      <BlurFade delay={0.4} inView>
+      <FadeIn delay={0.4} inView>
         <Card className="mt-16 border-dashed">
           <CardContent className="pt-6">
             <h3 className="mb-2 font-semibold text-foreground">Already running Claude?</h3>
@@ -436,7 +436,7 @@ export default function PrimeLandingPage() {
             </Link>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

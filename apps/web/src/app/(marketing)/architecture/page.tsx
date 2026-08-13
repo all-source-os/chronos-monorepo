@@ -1,6 +1,7 @@
-import { Badge, BlurFade } from "@allsource/ui";
+import { Badge } from "@allsource/ui";
 import { Suspense } from "react";
 import { C4Graph } from "@/components/architecture/C4Graph";
+import { FadeIn } from "@/components/ui/fade-in";
 
 // Fully static, public page — no auth, no tenant, no fetch. The C4 model is a
 // hand-authored static file; the graph hydrates client-side (react-force-graph
@@ -18,31 +19,29 @@ function GraphSkeleton() {
 export default function ArchitecturePage() {
   return (
     <div className="mx-auto w-full max-w-screen-xl px-4 py-24 lg:px-8">
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <Badge variant="outline" className="mb-4 font-mono text-xs">
           C4 · System Context + Containers
         </Badge>
         <h1 className="mb-3 max-w-3xl text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
-          The AI-agent suite on a durable event store.
+          AllSource system architecture
         </h1>
         <p className="max-w-3xl text-lg text-muted-foreground">
-          AllSource Core is a purpose-built Rust event store — WAL + Parquet + DashMap, durable
-          across restarts. On top of that one source of truth sits a suite of AI-agent products:
-          Prime agent memory, the prime-mcp server, the event-sourced chronis task CLI, and the
-          language SDKs. Explore it as an interactive C4 diagram — toggle between the System Context
-          and the deployable Containers, and click any bubble for details.
+          See how the Rust event store, Prime memory, MCP servers, Chronis task CLI, and language
+          SDKs connect. Switch between system-context and container views, then select a component
+          for its role and interfaces.
         </p>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <div className="mt-10">
           <Suspense fallback={<GraphSkeleton />}>
             <C4Graph />
           </Suspense>
         </div>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.25} inView>
+      <FadeIn delay={0.25} inView>
         <div className="mt-10 grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg border bg-muted/10 p-4">
             <div className="mb-1 text-sm font-semibold text-foreground">Core is the database</div>
@@ -69,7 +68,7 @@ export default function ArchitecturePage() {
             </p>
           </div>
         </div>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

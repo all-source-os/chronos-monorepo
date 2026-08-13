@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata: Metadata = constructMetadata({
-  title: "AllSource Prime — Memory for Claude, where your agents already work",
+  title: "AllSource Prime — Persistent Memory for Claude and MCP Clients",
   description:
-    "Install in 30 seconds. AllSource Prime is the AI-native memory layer for Claude Desktop, Claude Code, and any MCP client. Compressed-index auto-injection, hybrid recall, in-process embeddings — no separate CMS to babysit.",
+    "Store knowledge-graph relationships, embeddings, provenance, and compressed context for Claude Desktop, Claude Code, and other MCP clients.",
   canonical: "/prime",
 });
 

@@ -1,72 +1,84 @@
-"use client";
-
 import { buttonVariants, cn, Icons } from "@allsource/ui";
+import { Menu } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import Drawer from "@/components/drawer";
-import Menu from "@/components/menu";
 import { siteConfig } from "@/lib/config";
 
+const primaryNavigation = [
+  { href: "/platform/event-sourcing", label: "Event store" },
+  { href: "/prime", label: "Agent memory" },
+  { href: "/use-cases", label: "Use cases" },
+  { href: "/docs", label: "Docs" },
+  { href: "/pricing", label: "Pricing" },
+];
+
 export default function Header() {
-  const [addBorder, setAddBorder] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 20) {
-        setAddBorder(true);
-      } else {
-        setAddBorder(false);
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll);
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
-
   return (
-    <header className={"sticky top-0 z-50 py-2 bg-background/60 backdrop-blur"}>
-      <div className="flex justify-between items-center container mx-auto">
-        <Link href="/" title="brand-logo" className="relative mr-6 flex items-center space-x-2">
-          <Icons.logo className="w-auto h-[40px]" />
-          <span className="font-bold text-xl">{siteConfig.name}</span>
+    <header className="sticky top-0 z-50 border-b border-border/80 bg-background/95 backdrop-blur">
+      <div className="container mx-auto flex h-16 items-center justify-between gap-4">
+        <Link
+          href="/"
+          title="AllSource home"
+          className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Icons.logo className="h-9 w-9" aria-hidden="true" />
+          <span className="text-lg font-semibold tracking-tight">{siteConfig.name}</span>
         </Link>
 
-        <div className="hidden lg:block">
-          <div className="flex items-center ">
-            <nav className="mr-10">
-              <Menu />
-            </nav>
+        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
+          {primaryNavigation.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
 
-            <div className="gap-2 flex">
+        <div className="hidden items-center gap-2 lg:flex">
+          <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
+            Sign in
+          </Link>
+          <Link
+            href="/signup"
+            className={cn(buttonVariants({ variant: "default" }), "text-background")}
+          >
+            Start 14-day trial
+          </Link>
+        </div>
+
+        <details className="group relative lg:hidden">
+          <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-border px-3 text-sm font-medium marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Menu className="h-4 w-4" aria-hidden="true" />
+            Menu
+          </summary>
+          <div className="absolute right-0 top-12 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-border bg-background p-2 shadow-xl">
+            <nav aria-label="Mobile primary" className="grid gap-1">
+              {primaryNavigation.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="mt-2 grid gap-2 border-t border-border pt-2">
               <Link href="/login" className={buttonVariants({ variant: "outline" })}>
-                Login
+                Sign in
               </Link>
               <Link
                 href="/signup"
-                className={cn(
-                  buttonVariants({ variant: "default" }),
-                  "w-full sm:w-auto text-background flex gap-2"
-                )}
+                className={cn(buttonVariants({ variant: "default" }), "text-background")}
               >
-                <Icons.logo className="h-6 w-6" />
-                Start Free Trial
+                Start 14-day trial
               </Link>
             </div>
           </div>
-        </div>
-        <div className="mt-2 cursor-pointer block lg:hidden">
-          <Drawer />
-        </div>
+        </details>
       </div>
-      <hr
-        className={cn(
-          "absolute w-full bottom-0 transition-opacity duration-300 ease-in-out",
-          addBorder ? "opacity-100" : "opacity-0"
-        )}
-      />
     </header>
   );
 }

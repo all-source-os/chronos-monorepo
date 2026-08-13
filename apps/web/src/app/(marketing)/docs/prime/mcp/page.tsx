@@ -3,14 +3,16 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Prime MCP Setup",
   description:
-    "Configure AllSource Prime as an MCP server for Claude Desktop with auto-inject, per-project memory, and all 13 tools.",
+    "Configure AllSource Prime as an MCP server for Claude Desktop with auto-inject, per-project memory, and all 19 tools.",
   canonical: "/docs/prime/mcp",
 });
 
 export default function McpPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">MCP Setup</h1>
+      <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
+        Connect Prime to an MCP client
+      </h1>
       <p className="text-lg text-muted-foreground mb-10">
         Configure Prime as an MCP server for Claude Desktop with auto-inject, per-project memory,
         and advanced options.
@@ -139,7 +141,7 @@ allsource-prime --version  # allsource-prime 0.21.3`}
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">Tool Reference</h2>
           <p className="text-muted-foreground mb-3">
-            Prime exposes 13 MCP tools. Claude selects and calls them automatically based on
+            Prime exposes 19 MCP tools. Claude selects and calls them automatically based on
             conversation context.
           </p>
           <div className="overflow-x-auto">

@@ -1,6 +1,5 @@
-import { siteConfig } from "@/lib/config";
-import { constructMetadata } from "@/lib/utils";
 import Link from "next/link";
+import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
   title: "Prime — Agent Memory Engine",
@@ -13,8 +12,7 @@ const sections = [
   {
     title: "Quickstart",
     href: "/docs/prime/quickstart",
-    description:
-      "Install, configure Claude Desktop, and store your first memory in 2 minutes.",
+    description: "Install Prime, configure Claude Desktop, and store your first memory.",
   },
   {
     title: "Concepts",
@@ -31,8 +29,7 @@ const sections = [
   {
     title: "HTTP API",
     href: "/docs/prime/http",
-    description:
-      "REST endpoints for nodes, edges, vectors, recall, and the compressed index.",
+    description: "REST endpoints for nodes, edges, vectors, recall, and the compressed index.",
   },
   {
     title: "Embedded (Rust Library)",
@@ -49,8 +46,8 @@ export default function PrimeDocsPage() {
         Prime — Agent Memory Engine
       </h1>
       <p className="text-lg text-muted-foreground mb-4">
-        Knowledge graph + vector search + compressed index in one binary. Give
-        your AI agent persistent, cross-domain memory with temporal reasoning.
+        Knowledge graph + vector search + compressed index in one binary. Give your AI agent
+        persistent, cross-domain memory with temporal reasoning.
       </p>
       <div className="mb-10 rounded-lg border bg-muted/30 px-4 py-3 font-mono text-sm">
         cargo install allsource-prime
@@ -66,9 +63,7 @@ export default function PrimeDocsPage() {
             <h2 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors">
               {section.title}
             </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {section.description}
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
           </Link>
         ))}
       </div>

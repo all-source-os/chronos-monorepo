@@ -25,10 +25,9 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">2. Description of Service</h2>
           <p className="text-muted-foreground leading-relaxed">
-            AllSource provides an AI-native event store platform consisting of the Chronos event
-            store engine, query service, MCP server, control plane, and web dashboard. The Service
-            enables event sourcing, temporal queries, stream processing, and AI-assisted data
-            operations.
+            AllSource provides an event store platform consisting of the Chronos event store engine,
+            query service, MCP server, control plane, and web dashboard. The Service enables event
+            sourcing, temporal queries, stream processing, and AI-assisted data operations.
           </p>
         </section>
 
@@ -116,8 +115,9 @@ export default function TermsOfService() {
           <h2 className="text-xl font-semibold text-foreground mb-3">7. Intellectual Property</h2>
           <p className="text-muted-foreground leading-relaxed">
             The Service, including its source code, documentation, design, and branding, is owned by
-            AllSource and licensed under the Apache-2.0 License (enterprise components under BSL 1.1) where applicable. The AllSource name, logo,
-            and branding are trademarks of AllSource and may not be used without permission.
+            AllSource and licensed under the Apache-2.0 License (enterprise components under BSL
+            1.1) where applicable. The AllSource name, logo, and branding are trademarks of
+            AllSource and may not be used without permission.
           </p>
         </section>
 

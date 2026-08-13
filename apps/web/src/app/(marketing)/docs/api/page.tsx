@@ -54,24 +54,20 @@ const endpoints = [
 export default function ApiReferencePage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
-        API Reference
-      </h1>
+      <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">AllSource HTTP API</h1>
       <p className="text-lg text-muted-foreground mb-10">
-        AllSource Core exposes a REST API on port 3900. All data endpoints use
-        the <code className="text-sm bg-muted px-1.5 py-0.5 rounded">/api/v1/</code> prefix.
+        AllSource Core exposes a REST API on port 3900. All data endpoints use the{" "}
+        <code className="text-sm bg-muted px-1.5 py-0.5 rounded">/api/v1/</code> prefix.
       </p>
 
       <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
         <section>
-          <h2 className="text-xl font-semibold text-foreground mb-3">
-            Authentication
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground mb-3">Authentication</h2>
           <p className="text-muted-foreground leading-relaxed">
             Requests to the Query Service (port 3902) require a Bearer token in the{" "}
             <code className="text-sm bg-muted px-1.5 py-0.5 rounded">Authorization</code> header.
-            Direct Core access (port 3900) does not require authentication — it is
-            intended for internal service-to-service communication.
+            Direct Core access (port 3900) does not require authentication — it is intended for
+            internal service-to-service communication.
           </p>
           <pre className="mt-3 rounded-lg border border-border bg-muted/50 p-4 text-sm overflow-x-auto">
             <code>{`Authorization: Bearer <your-api-key>`}</code>
@@ -79,15 +75,10 @@ export default function ApiReferencePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-foreground mb-3">
-            Endpoints
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground mb-3">Endpoints</h2>
           <div className="space-y-3">
             {endpoints.map((ep) => (
-              <div
-                key={`${ep.method}-${ep.path}`}
-                className="rounded-lg border border-border p-4"
-              >
+              <div key={`${ep.method}-${ep.path}`} className="rounded-lg border border-border p-4">
                 <div className="flex items-center gap-3 mb-1">
                   <span
                     className={`inline-block rounded px-2 py-0.5 text-xs font-mono font-bold ${
@@ -98,9 +89,7 @@ export default function ApiReferencePage() {
                   >
                     {ep.method}
                   </span>
-                  <code className="text-sm font-mono text-foreground">
-                    {ep.path}
-                  </code>
+                  <code className="text-sm font-mono text-foreground">{ep.path}</code>
                 </div>
                 <p className="text-sm text-muted-foreground">{ep.description}</p>
               </div>
@@ -109,9 +98,7 @@ export default function ApiReferencePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-foreground mb-3">
-            Example: Ingest an Event
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground mb-3">Example: Ingest an Event</h2>
           <pre className="rounded-lg border border-border bg-muted/50 p-4 text-sm overflow-x-auto">
             <code>{`curl -X POST http://localhost:3900/api/v1/events \\
   -H "Content-Type: application/json" \\
@@ -127,12 +114,10 @@ export default function ApiReferencePage() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-foreground mb-3">
-            Full Reference
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground mb-3">Full Reference</h2>
           <p className="text-muted-foreground leading-relaxed">
-            For complete endpoint documentation including request/response schemas,
-            query parameters, and advanced features, see the{" "}
+            For complete endpoint documentation including request/response schemas, query
+            parameters, and advanced features, see the{" "}
             <a
               href="https://github.com/all-source-os/all-source/tree/main/docs"
               target="_blank"

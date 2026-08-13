@@ -1,15 +1,8 @@
 "use client";
 
-import {
-  Badge,
-  BlurFade,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@allsource/ui";
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@allsource/ui";
 import { useCallback, useEffect, useState } from "react";
+import { FadeIn } from "@/components/ui/fade-in";
 
 // 15s matches the HTML status page served directly by Control Plane.
 // CP probes every 10s internally, so 15s polling here stays fresh without
@@ -155,15 +148,15 @@ export default function StatusPage() {
 
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <BlurFade delay={0.1} inView>
+      <FadeIn delay={0.1} inView>
         <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">System Status</h1>
         <p className={`text-lg font-medium mb-2 ${overall.color}`}>{overall.label}</p>
         <p className="text-sm text-muted-foreground mb-8">
           Powered by event-sourced heartbeats — every probe is a permanent event in Core.
         </p>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.2} inView>
+      <FadeIn delay={0.2} inView>
         <Card>
           <CardHeader>
             <CardTitle>Services</CardTitle>
@@ -210,9 +203,9 @@ export default function StatusPage() {
             )}
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.3} inView>
+      <FadeIn delay={0.3} inView>
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Incident History</CardTitle>
@@ -259,7 +252,7 @@ export default function StatusPage() {
             )}
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
       {lastFetch && (
         <p className="text-xs text-muted-foreground mt-4 text-center">

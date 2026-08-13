@@ -1,7 +1,8 @@
-import { Badge, BlurFade, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
+import { Badge, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
+import { FadeIn } from "@/components/ui/fade-in";
 import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
 
@@ -61,17 +62,17 @@ const sdks = [
 export default function SDKsPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <BlurFade delay={0.1} inView>
-        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">SDKs</h1>
+      <FadeIn delay={0.1} inView>
+        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">AllSource SDKs</h1>
         <p className="text-lg text-muted-foreground">
           Official client SDKs in four languages. All ship from the AllSource monorepo and track the
           same version as the gateway and Core.
         </p>
-      </BlurFade>
+      </FadeIn>
 
       <div className="space-y-4 mt-10">
         {sdks.map((sdk, i) => (
-          <BlurFade key={sdk.lang} delay={0.15 + i * 0.05} inView>
+          <FadeIn key={sdk.lang} delay={0.15 + i * 0.05} inView>
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-baseline justify-between mb-3">
@@ -104,11 +105,11 @@ export default function SDKsPage() {
                 </Link>
               </CardContent>
             </Card>
-          </BlurFade>
+          </FadeIn>
         ))}
       </div>
 
-      <BlurFade delay={0.5} inView>
+      <FadeIn delay={0.5} inView>
         <Card className="mt-8 border-dashed">
           <CardContent className="pt-6">
             <h3 className="font-semibold text-foreground mb-2">Why some SDKs aren't on npm/PyPI</h3>
@@ -121,9 +122,9 @@ export default function SDKsPage() {
             </p>
           </CardContent>
         </Card>
-      </BlurFade>
+      </FadeIn>
 
-      <BlurFade delay={0.55} inView>
+      <FadeIn delay={0.55} inView>
         <div className="mt-10 flex flex-wrap gap-3">
           <Link href="/docs/api" className={cn(buttonVariants({ variant: "default" }))}>
             API Reference <ArrowRight className="ml-2 h-4 w-4" />
@@ -135,7 +136,7 @@ export default function SDKsPage() {
             Changelog
           </Link>
         </div>
-      </BlurFade>
+      </FadeIn>
     </div>
   );
 }

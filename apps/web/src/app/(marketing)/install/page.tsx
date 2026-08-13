@@ -1,7 +1,7 @@
 import { ArrowRight, Sparkles, Terminal } from "lucide-react";
 import Link from "next/link";
-import { integrations } from "@/lib/integrations";
 import { siteConfig } from "@/lib/config";
+import { integrations } from "@/lib/integrations";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
@@ -22,9 +22,9 @@ export default function InstallHubPage() {
         Install Prime in your tools
       </h1>
       <p className="max-w-2xl text-lg text-muted-foreground">
-        {siteConfig.name} Prime is AI-native memory over the Model Context Protocol. It works with
-        any MCP-compliant client — the same hosted memory across every tool your agents touch. Pick
-        yours below for a copy-paste setup.
+        {siteConfig.name} Prime provides durable memory over the Model Context Protocol. It works
+        with any MCP-compliant client — the same hosted memory across every tool your agents touch.
+        Pick yours below for a copy-paste setup.
       </p>
 
       {/* Shared onboarding entry points — the two ways every tool connects. */}
@@ -35,8 +35,8 @@ export default function InstallHubPage() {
             Hosted memory
           </div>
           <p className="text-sm text-muted-foreground">
-            Mint an API key and Prime syncs to your AllSource tenant. The same key works across every
-            client — watch nodes appear live in the dashboard.
+            Mint an API key and Prime syncs to your AllSource tenant. The same key works across
+            every client — watch nodes appear live in the dashboard.
           </p>
           <Link
             href="/connect?source=install-hub"
@@ -57,7 +57,10 @@ export default function InstallHubPage() {
               cargo install allsource-prime
             </code>{" "}
             and keep memory on disk at{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">~/.prime/memory</code>.
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              ~/.prime/memory
+            </code>
+            .
           </p>
           <Link
             href="/docs/prime/mcp"
@@ -85,8 +88,8 @@ export default function InstallHubPage() {
         <Link href="/docs/prime" className="underline underline-offset-4 hover:text-foreground">
           AllSource SDK
         </Link>{" "}
-        for graph, vector, and recall calls. A hosted MCP-over-HTTP endpoint (connect a client
-        with no local binary) is on the roadmap.
+        for graph, vector, and recall calls. A hosted MCP-over-HTTP endpoint (connect a client with
+        no local binary) is on the roadmap.
       </div>
 
       {/* Per-tool grid — each card links to its own install page. */}

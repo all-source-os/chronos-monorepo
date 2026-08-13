@@ -7,7 +7,8 @@
  * Claim discipline (see CLAUDE.md + prompt 013):
  *   - AllSource cells are sourced from product facts: durable WAL+Parquet event
  *     store, 11.9μs recall, 469K events/sec, Apache-2.0/self-host, x402 per-call
- *     pricing, 73 MCP tools. These are defensible against our own docs.
+ *     pricing, 55+ tenant MCP tools (73 with fleet controls). These are
+ *     defensible against our own docs.
  *   - Competitor cells mirror the homepage matrix (`sections/social-proof.tsx`)
  *     where that matrix took a position, and otherwise read "unknown" / "varies"
  *     rather than inventing a number. NEVER fabricate competitor figures.
@@ -110,9 +111,9 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
     },
     {
       feature: "MCP tools for AI agents",
-      allsource: "73 tools",
+      allsource: "55+ tenant / 73 fleet",
       competitor: competitorCells.mcp ?? "unknown",
-      note: "A Model Context Protocol server ships out of the box for Claude and other MCP clients.",
+      note: "The tenant connector ships 55+ tools. Fleet and administrative tiers bring the exposed total to 73.",
     },
     {
       feature: "x402 per-call agent payments",
@@ -140,7 +141,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     verdict:
       "mem0 is a memory layer that bolts onto your LLM app. AllSource is a durable event store underneath it — you keep full provenance and time-travel instead of a lossy summary.",
     metaDescription:
-      "AllSource vs mem0: a durable WAL+Parquet event store with 11.9μs recall, full event provenance, embedded mode, 73 MCP tools, and x402 per-call pricing vs a managed LLM memory layer. Honest, sourced comparison.",
+      "AllSource vs mem0: compare an event store with durable history, provenance, embedded mode, MCP access, and x402 pricing against a managed LLM memory layer.",
     pickAllsource: [
       "You need every memory write to be auditable and replayable, not summarized away",
       "You want microsecond recall over a durable log, not a network round-trip to a memory API",
@@ -173,7 +174,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Can I self-host both AllSource and mem0?",
         answer:
-          "Yes. AllSource is Apache-2.0 licensed and self-hostable, and mem0's core is open source. AllSource additionally ships an embedded in-process mode and a 73-tool MCP server out of the box.",
+          "Yes. AllSource is Apache-2.0 licensed and self-hostable, and mem0's core is open source. AllSource also ships an embedded in-process mode and 55+ tenant-scoped MCP tools, rising to 73 with fleet controls.",
       },
       {
         question: "Does AllSource keep full event history like mem0?",
@@ -189,7 +190,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     verdict:
       "Letta (formerly MemGPT) gives agents a stateful memory loop. AllSource gives that loop a durable, queryable foundation — full event history with 11.9μs recall instead of memory you have to manage in-context.",
     metaDescription:
-      "AllSource vs Letta (MemGPT): a durable WAL+Parquet event store with 11.9μs recall, full provenance, embedded mode, 73 MCP tools, and x402 pricing vs a stateful agent framework. Sourced, no fabricated numbers.",
+      "AllSource vs Letta (MemGPT): compare a durable event store with provenance, embedded mode, MCP access, and x402 pricing against a stateful agent framework.",
     pickAllsource: [
       "You want a durable store of record under your agents, not just an in-context memory manager",
       "You need point-in-time queries and full replay for audit or debugging",
@@ -222,7 +223,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "What is the difference between Letta and AllSource?",
         answer:
-          "Letta orchestrates an agent and its working memory. AllSource is infrastructure: a Rust WAL + Parquet event store with full provenance, embedded mode, and a 73-tool MCP server. They operate at different layers and can be combined.",
+          "Letta orchestrates an agent and its working memory. AllSource is infrastructure: a Rust WAL + Parquet event store with full provenance, embedded mode, and 55+ tenant-scoped MCP tools. They operate at different layers and can be combined.",
       },
       {
         question: "Does AllSource replace Letta?",
@@ -238,7 +239,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     verdict:
       "Zep adds a temporal memory service for chat history. AllSource makes temporal a property of the whole store — every event is replayable, with 11.9μs recall and an embedded or self-hosted deployment.",
     metaDescription:
-      "AllSource vs Zep: a durable WAL+Parquet event store with 11.9μs recall, full provenance, embedded mode, 73 MCP tools, and x402 pricing vs a temporal memory service for LLM apps. Honest, sourced comparison.",
+      "AllSource vs Zep: compare a durable event store with provenance, embedded mode, MCP access, and x402 pricing against a temporal memory service for LLM apps.",
     pickAllsource: [
       "You want temporal queries across all your data, not only chat memory",
       "You need full event provenance and replay, plus microsecond recall",
@@ -402,7 +403,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       },
       {
         feature: "MCP server for AI agents",
-        allsource: "73 event/memory tools",
+        allsource: "55+ tenant / 73 fleet tools",
         competitor: "30 SQL tools",
         note: "Both ship a first-party MCP server. stoolap's 30 tools are a SQL surface (query, execute, transactions, schema, vacuum); AllSource's are event-store/agent-memory verbs (ingest, recall, projections, anomaly detection).",
       },

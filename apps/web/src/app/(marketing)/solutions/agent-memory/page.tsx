@@ -16,10 +16,8 @@ import {
   Terminal,
   Zap,
 } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 import { faqPageSchema } from "@/lib/structured-data";
 
 const capabilities = [
@@ -177,8 +175,7 @@ export default function AgentMemoryPage() {
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <Header />
-      <main className="relative overflow-hidden">
+      <div className="relative overflow-hidden">
         {/* Hero */}
         <Section className="relative pt-24 pb-16 text-center">
           <motion.div
@@ -187,17 +184,13 @@ export default function AgentMemoryPage() {
             transition={{ duration: 0.6 }}
           >
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              Give your AI agent memory that
-              <br />
-              <span className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                remembers every event
-              </span>
+              Durable graph and vector memory for AI agents
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Knowledge graph + vector search + compressed index in one binary. No cloud dependency.
-              No monthly fees. 12μs queries.
+              Store graph relationships, embeddings, compressed context, and provenance in one local
+              binary. Connect through 19 Prime MCP tools or the HTTP API.
             </p>
-            <div className="mt-8 flex items-center justify-center gap-4">
+            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <div className="rounded-lg border bg-muted/50 px-4 py-2 font-mono text-sm">
                 cargo install allsource-prime
               </div>
@@ -215,7 +208,7 @@ export default function AgentMemoryPage() {
         <Section className="pb-16">
           <div className="mx-auto max-w-2xl">
             <h2 className="mb-4 text-center text-2xl font-semibold">
-              30 seconds to persistent memory
+              Connect Prime to Claude Desktop
             </h2>
             <div className="rounded-lg border bg-muted/30 p-6">
               <p className="mb-3 text-sm text-muted-foreground">
@@ -232,7 +225,7 @@ export default function AgentMemoryPage() {
 }`}
               </pre>
               <p className="mt-3 text-sm text-muted-foreground">
-                13 MCP tools: graph CRUD, vector search, hybrid recall, compressed index, temporal
+                19 MCP tools: graph CRUD, vector search, hybrid recall, compressed index, temporal
                 queries.
               </p>
             </div>
@@ -380,7 +373,7 @@ export default function AgentMemoryPage() {
         <Section className="pb-24 text-center">
           <h2 className="mb-4 text-3xl font-bold">Start remembering</h2>
           <p className="mb-8 text-muted-foreground">One command. No cloud account. No API key.</p>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <div className="rounded-lg border bg-muted/50 px-6 py-3 font-mono text-sm">
               <Terminal className="mr-2 inline h-4 w-4" />
               cargo install allsource-prime
@@ -401,8 +394,7 @@ export default function AgentMemoryPage() {
             </Link>
           </div>
         </Section>
-      </main>
-      <Footer />
+      </div>
     </>
   );
 }

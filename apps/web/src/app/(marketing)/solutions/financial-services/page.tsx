@@ -9,15 +9,11 @@ import {
   CreditCard,
   Database,
   Landmark,
-  Lock,
   Scale,
-  Shield,
   Users,
 } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 
 const features = [
   {
@@ -51,14 +47,14 @@ const features = [
   {
     title: "Sub-Microsecond Reconciliation",
     description:
-      "Reconcile accounts across systems with 11.9us query latency. Cross-reference transaction logs from multiple sources and flag discrepancies instantly.",
+      "Reconcile accounts across systems with published 11.9us p99 read latency. Cross-reference transaction logs from multiple sources and flag discrepancies as new events arrive.",
     icon: CreditCard,
     color: "from-cyan-500/20 to-cyan-500/5",
   },
   {
     title: "Multi-Tenant Isolation for Client Accounts",
     description:
-      "Each client account is a separate tenant with isolated event streams. RBAC ensures relationship managers see only their clients. Zero data leakage between accounts.",
+      "Tenant IDs scope event streams, while role-based API permissions limit which client accounts a user or service can query.",
     icon: Users,
     color: "from-sky-500/20 to-sky-500/5",
   },
@@ -66,102 +62,86 @@ const features = [
 
 export default function FinancialServicesPage() {
   return (
-    <>
-      <Header />
-      <main className="relative overflow-hidden">
-        {/* Hero */}
-        <Section className="relative pt-24 pb-16 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
-              <Landmark className="h-4 w-4 text-emerald-400" />
-              Financial Services
-            </span>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
-              Every transaction. Every state.
-              <br />
-              <span className="bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent">
-                Every moment in time.
-              </span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Immutable transaction history for banking, payments, and trading.
-              Time-travel any account balance. Complete audit trail with
-              cryptographic integrity.
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className={cn(buttonVariants({ size: "lg" }))}
-              >
-                Start free trial
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-              <Link
-                href="/solutions/audit-compliance"
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-              >
-                Audit & compliance details
-              </Link>
-            </div>
-          </motion.div>
-        </Section>
-
-        {/* Features */}
-        <Section className="pb-16">
-          <h2 className="mb-12 text-center text-3xl font-bold">
-            The transaction log your regulators expect
-          </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature, i) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.08 }}
-                viewport={{ once: true }}
-                className="rounded-xl border p-6"
-              >
-                <div
-                  className={cn(
-                    "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
-                    feature.color,
-                  )}
-                >
-                  <feature.icon className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 font-semibold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {feature.description}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </Section>
-
-        {/* Code Example */}
-        <Section className="pb-16">
-          <h2 className="mb-4 text-center text-3xl font-bold">
-            Time-travel any account balance
-          </h2>
-          <p className="mb-8 text-center text-muted-foreground">
-            Reconstruct the exact balance at any point in history
+    <div className="relative overflow-hidden">
+      {/* Hero */}
+      <Section className="relative pt-24 pb-16 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
+            <Landmark className="h-4 w-4 text-emerald-400" />
+            Financial Services
+          </span>
+          <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
+            Reconstruct transaction and account history
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            Append transaction changes as ordered events, rebuild an account balance at a past
+            sequence, and trace a result back to the events that produced it.
           </p>
-          <div className="mx-auto max-w-3xl">
-            <div className="overflow-hidden rounded-xl border">
-              <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
-                <div className="h-3 w-3 rounded-full bg-red-500" />
-                <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                <div className="h-3 w-3 rounded-full bg-green-500" />
-                <span className="ml-4 font-mono text-sm text-neutral-400">
-                  balance-timetravel.sh
-                </span>
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>
+              Start 14-day trial
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Link>
+            <Link
+              href="/solutions/audit-compliance"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+            >
+              Audit & compliance details
+            </Link>
+          </div>
+        </motion.div>
+      </Section>
+
+      {/* Features */}
+      <Section className="pb-16">
+        <h2 className="mb-12 text-center text-3xl font-bold">
+          The transaction log your regulators expect
+        </h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature, i) => (
+            <motion.div
+              key={feature.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+              viewport={{ once: true }}
+              className="rounded-xl border p-6"
+            >
+              <div
+                className={cn(
+                  "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
+                  feature.color
+                )}
+              >
+                <feature.icon className="h-5 w-5" />
               </div>
-              <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
-{`# What was account balance at market close on March 15th?
+              <h3 className="mb-2 font-semibold">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground">{feature.description}</p>
+            </motion.div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Code Example */}
+      <Section className="pb-16">
+        <h2 className="mb-4 text-center text-3xl font-bold">Time-travel any account balance</h2>
+        <p className="mb-8 text-center text-muted-foreground">
+          Reconstruct the exact balance at any point in history
+        </p>
+        <div className="mx-auto max-w-3xl">
+          <div className="overflow-hidden rounded-xl border">
+            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
+              <div className="h-3 w-3 rounded-full bg-red-500" />
+              <div className="h-3 w-3 rounded-full bg-yellow-500" />
+              <div className="h-3 w-3 rounded-full bg-green-500" />
+              <span className="ml-4 font-mono text-sm text-neutral-400">balance-timetravel.sh</span>
+            </div>
+            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
+              {`# What was account balance at market close on March 15th?
 curl -s https://api.all-source.xyz/api/v1/events/query \\
   -H "Authorization: Bearer $API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -183,53 +163,40 @@ curl -s https://api.all-source.xyz/api/v1/projections/account-balance \\
 # {"projection": {"balance": 1247892.43, "currency": "USD",
 #   "last_tx": "2026-03-15T15:59:47Z", "tx_count": 2341}}
 # Reconciliation complete — balances match to the cent`}
-              </pre>
-            </div>
+            </pre>
           </div>
-        </Section>
+        </div>
+      </Section>
 
-        {/* CTA */}
-        <Section className="pb-24 text-center">
-          <Banknote className="mx-auto mb-4 h-12 w-12 text-emerald-400" />
-          <h2 className="mb-4 text-3xl font-bold">
-            Your ledger of record
-          </h2>
-          <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
-            Immutable transactions, instant time-travel, and regulatory
-            compliance built into the storage engine. Not bolted on after.
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <Link
-              href="/signup"
-              className={cn(buttonVariants({ size: "lg" }))}
-            >
-              Start free trial
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Link>
-            <Link
-              href="/docs/api"
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
-            >
-              API reference
-            </Link>
-          </div>
-          <div className="mt-6 flex items-center justify-center gap-6 text-sm text-muted-foreground">
-            <Link href="/docs" className="underline">
-              Documentation
-            </Link>
-            <Link href="/solutions/audit-compliance" className="underline">
-              Audit & Compliance
-            </Link>
-            <Link
-              href="https://github.com/all-source-os/all-source"
-              className="underline"
-            >
-              GitHub
-            </Link>
-          </div>
-        </Section>
-      </main>
-      <Footer />
-    </>
+      {/* CTA */}
+      <Section className="pb-24 text-center">
+        <Banknote className="mx-auto mb-4 h-12 w-12 text-emerald-400" />
+        <h2 className="mb-4 text-3xl font-bold">Your ledger of record</h2>
+        <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
+          Immutable transactions, instant time-travel, and regulatory compliance built into the
+          storage engine. Not bolted on after.
+        </p>
+        <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>
+            Start 14-day trial
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Link>
+          <Link href="/docs/api" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
+            API reference
+          </Link>
+        </div>
+        <div className="mt-6 flex items-center justify-center gap-6 text-sm text-muted-foreground">
+          <Link href="/docs" className="underline">
+            Documentation
+          </Link>
+          <Link href="/solutions/audit-compliance" className="underline">
+            Audit & Compliance
+          </Link>
+          <Link href="https://github.com/all-source-os/all-source" className="underline">
+            GitHub
+          </Link>
+        </div>
+      </Section>
+    </div>
   );
 }

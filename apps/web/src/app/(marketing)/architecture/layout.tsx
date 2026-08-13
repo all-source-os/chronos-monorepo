@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata: Metadata = constructMetadata({
@@ -11,11 +9,5 @@ export const metadata: Metadata = constructMetadata({
 });
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <Header />
-      <main>{children}</main>
-      <Footer />
-    </>
-  );
+  return children;
 }

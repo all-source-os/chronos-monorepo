@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Badge, BlurFade, Card, CardContent } from "@allsource/ui";
+import { Badge, Card, CardContent } from "@allsource/ui";
+import { FadeIn } from "@/components/ui/fade-in";
 import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
 
@@ -71,16 +72,18 @@ export default async function ChangelogPage() {
 
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <BlurFade delay={0.1} inView>
-        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">Changelog</h1>
+      <FadeIn delay={0.1} inView>
+        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
+          AllSource release notes
+        </h1>
         <p className="text-lg text-muted-foreground mb-8">
-          Release history and updates for {siteConfig.name}
+          Shipped changes, fixes, and compatibility notes for {siteConfig.name}.
         </p>
-      </BlurFade>
+      </FadeIn>
 
       <div className="space-y-6">
         {entries.map((entry, i) => (
-          <BlurFade key={entry.version} delay={0.15 + i * 0.05} inView>
+          <FadeIn key={entry.version} delay={0.15 + i * 0.05} inView>
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-4">
@@ -104,7 +107,7 @@ export default async function ChangelogPage() {
                 ))}
               </CardContent>
             </Card>
-          </BlurFade>
+          </FadeIn>
         ))}
       </div>
     </div>

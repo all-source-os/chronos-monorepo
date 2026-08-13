@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
 import { constructMetadata } from "@/lib/utils";
 
 // The only marketing route that shipped without metadata — it inherited the
@@ -18,11 +16,5 @@ interface StatusLayoutProps {
 }
 
 export default async function Layout({ children }: StatusLayoutProps) {
-  return (
-    <>
-      <Header />
-      <main>{children}</main>
-      <Footer />
-    </>
-  );
+  return children;
 }

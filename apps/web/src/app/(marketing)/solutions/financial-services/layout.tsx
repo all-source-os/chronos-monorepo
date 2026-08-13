@@ -4,7 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata: Metadata = constructMetadata({
   title: "Financial Services — Transaction Logs with Temporal Consistency",
   description:
-    "Immutable transaction history for banking, payments, and trading. Time-travel any account balance. Complete audit trail with cryptographic integrity. SOC2-ready.",
+    "Append transaction changes as ordered events, reconstruct account state at a past sequence, and trace a result to its source events.",
   canonical: "/solutions/financial-services",
 });
 

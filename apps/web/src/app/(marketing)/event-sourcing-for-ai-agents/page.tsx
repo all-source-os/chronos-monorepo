@@ -2,8 +2,6 @@ import { buttonVariants, cn } from "@allsource/ui";
 import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
 import { BLOG_CATEGORIES, type BlogCategory, getBlogPosts, type Post } from "@/lib/blog";
 import { breadcrumbSchema } from "@/lib/structured-data";
 import { constructMetadata } from "@/lib/utils";
@@ -64,8 +62,7 @@ export default async function EventSourcingForAiAgentsPage() {
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
-      <Header />
-      <main className="relative overflow-hidden">
+      <div className="relative overflow-hidden">
         <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
           {/* Hero */}
           <header className="mb-12">
@@ -106,8 +103,8 @@ export default async function EventSourcingForAiAgentsPage() {
                 <em>as_of</em> a past moment, first-class.
               </li>
               <li>
-                <strong>AI-native access</strong> — 73 MCP tools, plus x402 per-call payments for
-                autonomous agents.
+                <strong>MCP access</strong> — 55+ tenant-scoped tools, rising to 73 when fleet and
+                administrative controls are enabled.
               </li>
             </ul>
           </section>
@@ -189,8 +186,7 @@ export default async function EventSourcingForAiAgentsPage() {
             </div>
           </section>
         </div>
-      </main>
-      <Footer />
+      </div>
     </>
   );
 }

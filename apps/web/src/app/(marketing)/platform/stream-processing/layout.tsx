@@ -4,7 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata: Metadata = constructMetadata({
   title: "Stream Processing — Real-Time Pipelines with Filter, Map, and Reduce",
   description:
-    "Build real-time event pipelines that filter, transform, and route events at 469K/sec. Projections, materialized views, and WebSocket streaming. Rust-powered, zero external deps.",
+    "Filter, map, reduce, enrich, route, and aggregate event streams inside AllSource. Build projections and publish live updates over WebSocket.",
   canonical: "/platform/stream-processing",
 });
 

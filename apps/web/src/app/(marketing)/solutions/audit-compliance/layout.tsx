@@ -4,7 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata: Metadata = constructMetadata({
   title: "Audit & Compliance — Immutable Event History for Regulators",
   description:
-    "Complete audit trails with cryptographic integrity. Reconstruct any past state in seconds, not days. SOC2-ready event sourcing with RBAC, policy enforcement, and full provenance.",
+    "Preserve ordered changes with integrity checks, reconstruct past state, trace provenance, and apply role-based access and policy enforcement.",
   canonical: "/solutions/audit-compliance",
 });
 

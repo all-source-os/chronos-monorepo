@@ -1,49 +1,55 @@
-import { Section } from "@allsource/ui";
-import { Bot, GitBranch, History, Zap } from "lucide-react";
-import Features from "@/components/features-horizontal";
+import { Card, CardContent, Section } from "@allsource/ui";
+import { Bot, GitBranch, History, Search } from "lucide-react";
 
-const data = [
+const capabilities = [
   {
-    id: 1,
-    title: "Perfect Memory",
+    title: "Immutable streams",
     content:
-      "Never lose a change. Every event is immutable, versioned, and instantly queryable. Your application remembers everything.",
-    video: "/assets/gif-live-stream.mp4",
-    icon: <History className="h-6 w-6 text-primary" />,
+      "Keep each accepted change in sequence instead of overwriting the record that came before it.",
+    icon: History,
   },
   {
-    id: 2,
-    title: "Temporal Queries",
+    title: "Point-in-time queries",
     content:
-      "Query any point in history with 11.9μs latency. Reconstruct past states, compare timelines, debug with complete context.",
-    video: "/assets/gif-event-explorer.mp4",
-    icon: <Zap className="h-6 w-6 text-primary" />,
+      "Ask what a stream contained at a sequence or timestamp and reconstruct the matching state.",
+    icon: Search,
   },
   {
-    id: 3,
-    title: "Event Replay",
+    title: "Projection rebuilds",
     content:
-      "Replay any sequence of events. Rebuild projections, test what-if scenarios, audit any decision path.",
-    video: "/assets/gif-onboarding.mp4",
-    icon: <GitBranch className="h-6 w-6 text-primary" />,
+      "Replay existing events into new read models without migrating or rewriting source history.",
+    icon: GitBranch,
   },
   {
-    id: 4,
-    title: "AI Integration",
+    title: "MCP access for agents",
     content:
-      "73 MCP tools for Claude and GPT. Your AI agents don't just store data—they understand your application's history.",
-    video: "/assets/gif-api-key.mp4",
-    icon: <Bot className="h-6 w-6 text-primary" />,
+      "Give an MCP client 55+ tenant-scoped tools for event reads and writes; fleet operators can enable 73 tools with administrative controls.",
+    icon: Bot,
   },
 ];
 
-export default function Component() {
+export default function Features() {
   return (
     <Section
-      title="Time-travel your data."
-      subtitle="Not just storage—complete memory for your applications"
+      title="What you can do with stored history"
+      subtitle="Core capabilities"
+      description="Each capability uses the same append-only event model, whether AllSource runs hosted or on your infrastructure."
     >
-      <Features collapseDelay={5000} linePosition="bottom" data={data} />
+      <div className="grid gap-6 md:grid-cols-2">
+        {capabilities.map((capability) => (
+          <Card key={capability.title} className="border-border bg-card shadow-none">
+            <CardContent className="flex gap-4 p-6">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-border bg-background">
+                <capability.icon className="h-5 w-5 text-primary" aria-hidden="true" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold">{capability.title}</h3>
+                <p className="mt-2 leading-7 text-muted-foreground">{capability.content}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </Section>
   );
 }

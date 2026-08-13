@@ -1,32 +1,29 @@
+import Link from "next/link";
 import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
-import Link from "next/link";
 
 export const metadata = constructMetadata({
   title: "Documentation",
-  description: `Documentation for ${siteConfig.name} — the AI-native event store for temporal data intelligence.`,
+  description: `Documentation for ${siteConfig.name} event storage, stream processing, MCP access, and Prime agent memory.`,
   canonical: "/docs",
 });
 
 const cards = [
   {
     title: "Getting Started",
-    description:
-      "Set up AllSource Core, ingest your first events, and query them in minutes.",
+    description: "Set up AllSource Core, ingest your first events, and query them in minutes.",
     href: "https://github.com/all-source-os/all-source#quick-start",
     external: true,
   },
   {
     title: "API Reference",
-    description:
-      "REST endpoints for events, projections, schemas, snapshots, and pipelines.",
+    description: "REST endpoints for events, projections, schemas, snapshots, and pipelines.",
     href: "/docs/api",
     external: false,
   },
   {
     title: "MCP Integration",
-    description:
-      "Connect AllSource to Claude Desktop with the Model Context Protocol server.",
+    description: "Connect AllSource to Claude Desktop with the Model Context Protocol server.",
     href: "/docs/mcp",
     external: false,
   },
@@ -46,8 +43,7 @@ const cards = [
   },
   {
     title: "SDKs",
-    description:
-      "Client libraries for Rust, Go, Python, and TypeScript.",
+    description: "Client libraries for Rust, Go, Python, and TypeScript.",
     href: "https://github.com/all-source-os/all-source#sdks",
     external: true,
   },
@@ -60,8 +56,7 @@ const cards = [
   },
   {
     title: "GitHub Repository",
-    description:
-      "Source code, issues, discussions, and contribution guidelines.",
+    description: "Source code, issues, discussions, and contribution guidelines.",
     href: "https://github.com/all-source-os/all-source",
     external: true,
   },
@@ -71,11 +66,10 @@ export default function DocsPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
       <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
-        Documentation
+        AllSource documentation
       </h1>
       <p className="text-lg text-muted-foreground mb-10">
-        Everything you need to build with AllSource — from quickstart guides to
-        full API reference.
+        Everything you need to build with AllSource — from quickstart guides to full API reference.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -98,14 +92,10 @@ export default function DocsPage() {
               <h2 className="font-semibold text-foreground mb-1">
                 {card.title}
                 {card.external && (
-                  <span className="ml-1 text-muted-foreground text-sm">
-                    &#8599;
-                  </span>
+                  <span className="ml-1 text-muted-foreground text-sm">&#8599;</span>
                 )}
               </h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {card.description}
-              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed">{card.description}</p>
             </Component>
           );
         })}

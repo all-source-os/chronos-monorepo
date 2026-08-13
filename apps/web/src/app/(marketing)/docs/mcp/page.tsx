@@ -66,7 +66,9 @@ const TOOL_COUNTS = [
 export default function McpPage() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
-      <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">MCP Integration</h1>
+      <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
+        Connect AI agents over MCP
+      </h1>
       <p className="text-lg text-muted-foreground mb-10">
         AllSource ships a Model Context Protocol (MCP) connector so AI agents — Claude Desktop,
         Cursor, or anything that speaks MCP — can ingest, query, and reason over your event store in

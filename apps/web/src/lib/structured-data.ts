@@ -29,7 +29,7 @@ export function organizationSchema() {
       url: `${siteConfig.url}/logo.png`,
     },
     description:
-      "AI-native event store for temporal data intelligence. 469K events/sec, 11.9us queries, 73 MCP tools.",
+      "Open-source event store for durable history and AI memory. 469K events/sec, 11.9us p99 recall, 55+ tenant MCP tools and 73 with fleet controls.",
     sameAs,
     contactPoint: {
       "@type": "ContactPoint",
@@ -163,7 +163,7 @@ export function softwareApplicationSchema() {
     applicationSubCategory: "Event store / agent memory",
     operatingSystem: "Linux, macOS, Windows (Docker), or fully hosted",
     description:
-      "AllSource is an AI-native event store: it records every state change as an immutable event and lets an agent query any point in its own history. Durable by design — a write-ahead log with CRC32 checksums, Parquet columnar persistence, and an in-memory concurrent map for reads.",
+      "AllSource is an open-source event store: it records each state change as an immutable event and lets applications or agents query prior state. A write-ahead log with CRC32 checksums and Parquet files provide persistence; an in-memory concurrent map serves reads.",
     publisher: { "@id": ORG_ID },
     offers,
   };

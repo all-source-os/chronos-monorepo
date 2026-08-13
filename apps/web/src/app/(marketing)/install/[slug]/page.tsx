@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { InstallPage } from "@/components/install/install-page";
-import { getIntegration, integrations } from "@/lib/integrations";
 import { siteConfig } from "@/lib/config";
+import { getIntegration, integrations } from "@/lib/integrations";
 import { constructMetadata } from "@/lib/utils";
 
 // One route, every per-tool install page. Adding a tool to lib/integrations.ts

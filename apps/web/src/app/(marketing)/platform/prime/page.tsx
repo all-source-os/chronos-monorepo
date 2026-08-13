@@ -13,10 +13,8 @@ import {
   Unplug,
   Zap,
 } from "lucide-react";
-import { motion } from "motion/react";
 import Link from "next/link";
-import Footer from "@/components/sections/footer";
-import Header from "@/components/sections/header";
+import { staticMotion as motion } from "@/components/ui/static-motion";
 
 const features = [
   {
@@ -50,7 +48,7 @@ const features = [
   {
     title: "12us Projection Lookups",
     description:
-      "DashMap concurrent reads deliver sub-microsecond projection lookups. Lock-free architecture means recall queries never block event ingestion, even under heavy write load.",
+      "A concurrent in-memory map serves projection reads separately from event ingestion. Published recall benchmarks measure 11.9us p99 on the benchmark hardware.",
     icon: Timer,
     color: "from-yellow-500/20 to-yellow-500/5",
   },
@@ -121,180 +119,166 @@ const coreBullets = [
 
 export default function PrimePage() {
   return (
-    <>
-      <Header />
-      <main className="pt-24">
-        {/* Hero */}
-        <Section className="pb-8">
-          <motion.div
-            className="mx-auto max-w-3xl text-center"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm text-purple-400">
-              <Brain className="h-4 w-4" />
-              Add-on Module
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              Give your AI agents
-              <br />
-              <span className="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
-                cross-domain memory
-              </span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-              Prime is an optional module that adds knowledge graphs, vector search, and
-              agent recall to the AllSource event store. Hybrid retrieval across graph
-              traversal, HNSW embeddings, and temporal context — in 12 microseconds.
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <Link
-                href="/docs/prime"
-                className={cn(buttonVariants({ variant: "default" }))}
-              >
-                Add Prime to your stack <ChevronRight className="ml-1 h-4 w-4" />
-              </Link>
-              <Link
-                href="/platform/event-sourcing"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
-                Learn about Core
-              </Link>
-            </div>
-          </motion.div>
-        </Section>
-
-        {/* Key metrics */}
-        <Section className="py-12">
-          <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 text-center sm:grid-cols-4">
-            {[
-              { value: "12us", label: "recall latency", sub: "hybrid search p99" },
-              { value: "3", label: "search strategies", sub: "vector + graph + temporal" },
-              { value: "2x", label: "recall accuracy", sub: "with compressed index" },
-              { value: "0", label: "network hops", sub: "embedded NIF mode" },
-            ].map((stat) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 10 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-              >
-                <div className="text-3xl font-bold text-purple-400">{stat.value}</div>
-                <div className="text-sm font-medium text-foreground">{stat.label}</div>
-                <div className="text-xs text-muted-foreground">{stat.sub}</div>
-              </motion.div>
-            ))}
-          </div>
-        </Section>
-
-        {/* Features grid */}
-        <Section
-          title="Everything an AI agent needs to remember"
-          subtitle="Knowledge graph event store meets vector search — purpose-built for durable agent memory in Rust"
-          className="py-16"
+    <div className="pt-24">
+      {/* Hero */}
+      <Section className="pb-8">
+        <motion.div
+          className="mx-auto max-w-3xl text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
         >
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feat, i) => (
-              <motion.div
-                key={feat.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                viewport={{ once: true }}
-                className="rounded-xl border p-6"
-              >
-                <div
-                  className={cn(
-                    "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
-                    feat.color
-                  )}
-                >
-                  <feat.icon className="h-5 w-5" />
-                </div>
-                <h3 className="mb-2 text-lg font-semibold">{feat.title}</h3>
-                <p className="text-sm text-muted-foreground">{feat.description}</p>
-              </motion.div>
-            ))}
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm text-purple-400">
+            <Brain className="h-4 w-4" />
+            Add-on Module
           </div>
-        </Section>
-
-        {/* Code example */}
-        <Section
-          title="One API call. Full context."
-          subtitle="The Recall API combines graph traversal, vector similarity, and temporal ordering into a single ranked response"
-          className="py-16"
-        >
-          <motion.div
-            className="mx-auto max-w-3xl overflow-hidden rounded-xl border bg-[#0c0c14]"
-            initial={{ opacity: 0, scale: 0.98 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-          >
-            <div className="flex items-center gap-2 border-b px-4 py-3">
-              <div className="h-3 w-3 rounded-full bg-red-500" />
-              <div className="h-3 w-3 rounded-full bg-yellow-500" />
-              <div className="h-3 w-3 rounded-full bg-green-500" />
-              <span className="ml-2 text-xs text-muted-foreground">Terminal</span>
-            </div>
-            <pre className="overflow-x-auto p-6 text-sm leading-relaxed text-gray-300">
-              <code>{codeExample}</code>
-            </pre>
-          </motion.div>
-        </Section>
-
-        {/* Works with Core */}
-        <Section
-          title="Works with the Core event store"
-          subtitle="Prime is a projection layer — all data is derived from events that Core already persists"
-          className="py-16"
-        >
-          <div className="mx-auto max-w-2xl space-y-6">
-            {coreBullets.map((bullet, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -10 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.08 }}
-                viewport={{ once: true }}
-                className="flex items-start gap-4"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/50">
-                  <bullet.icon className="h-5 w-5 text-purple-400" />
-                </div>
-                <p className="text-muted-foreground">{bullet.text}</p>
-              </motion.div>
-            ))}
-          </div>
-        </Section>
-
-        {/* CTA */}
-        <Section className="py-16 text-center">
-          <h2 className="text-3xl font-bold">
-            Add durable memory to your AI agents
-          </h2>
-          <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Prime plugs into any AllSource Core deployment. Knowledge graphs, vector
-            search, and compressed recall — no external dependencies, no separate
-            database.
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
+            Knowledge graph and vector recall for AI agents
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            Prime is an optional module that adds knowledge graphs, vector search, and agent recall
+            to the AllSource event store. Combine graph traversal, HNSW embeddings, provenance, and
+            temporal context in one memory layer.
           </p>
-          <div className="mt-8 flex items-center justify-center gap-4">
-            <Link
-              href="/docs/prime"
-              className={cn(buttonVariants({ variant: "default", size: "lg" }))}
-            >
-              Add Prime to your stack
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link href="/docs/prime" className={cn(buttonVariants({ variant: "default" }))}>
+              Add Prime to your stack <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
             <Link
               href="/platform/event-sourcing"
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+              className={cn(buttonVariants({ variant: "outline" }))}
             >
-              Learn about the Core event store
+              Learn about Core
             </Link>
           </div>
-        </Section>
-      </main>
-      <Footer />
-    </>
+        </motion.div>
+      </Section>
+
+      {/* Key metrics */}
+      <Section className="py-12">
+        <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 text-center sm:grid-cols-4">
+          {[
+            { value: "12us", label: "recall latency", sub: "hybrid search p99" },
+            { value: "3", label: "search strategies", sub: "vector + graph + temporal" },
+            { value: "2x", label: "recall accuracy", sub: "with compressed index" },
+            { value: "0", label: "network hops", sub: "embedded NIF mode" },
+          ].map((stat) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <div className="text-3xl font-bold text-purple-400">{stat.value}</div>
+              <div className="text-sm font-medium text-foreground">{stat.label}</div>
+              <div className="text-xs text-muted-foreground">{stat.sub}</div>
+            </motion.div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Features grid */}
+      <Section
+        title="Everything an AI agent needs to remember"
+        subtitle="Knowledge graph event store meets vector search — purpose-built for durable agent memory in Rust"
+        className="py-16"
+      >
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((feat, i) => (
+            <motion.div
+              key={feat.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              viewport={{ once: true }}
+              className="rounded-xl border p-6"
+            >
+              <div
+                className={cn(
+                  "mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
+                  feat.color
+                )}
+              >
+                <feat.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mb-2 text-lg font-semibold">{feat.title}</h3>
+              <p className="text-sm text-muted-foreground">{feat.description}</p>
+            </motion.div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Code example */}
+      <Section
+        title="One API call. Full context."
+        subtitle="The Recall API combines graph traversal, vector similarity, and temporal ordering into a single ranked response"
+        className="py-16"
+      >
+        <motion.div
+          className="mx-auto max-w-3xl overflow-hidden rounded-xl border bg-[#0c0c14]"
+          initial={{ opacity: 0, scale: 0.98 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+        >
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <div className="h-3 w-3 rounded-full bg-red-500" />
+            <div className="h-3 w-3 rounded-full bg-yellow-500" />
+            <div className="h-3 w-3 rounded-full bg-green-500" />
+            <span className="ml-2 text-xs text-muted-foreground">Terminal</span>
+          </div>
+          <pre className="overflow-x-auto p-6 text-sm leading-relaxed text-gray-300">
+            <code>{codeExample}</code>
+          </pre>
+        </motion.div>
+      </Section>
+
+      {/* Works with Core */}
+      <Section
+        title="Works with the Core event store"
+        subtitle="Prime is a projection layer — all data is derived from events that Core already persists"
+        className="py-16"
+      >
+        <div className="mx-auto max-w-2xl space-y-6">
+          {coreBullets.map((bullet, i) => (
+            <motion.div
+              key={bullet.text}
+              initial={{ opacity: 0, x: -10 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.08 }}
+              viewport={{ once: true }}
+              className="flex items-start gap-4"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/50">
+                <bullet.icon className="h-5 w-5 text-purple-400" />
+              </div>
+              <p className="text-muted-foreground">{bullet.text}</p>
+            </motion.div>
+          ))}
+        </div>
+      </Section>
+
+      {/* CTA */}
+      <Section className="py-16 text-center">
+        <h2 className="text-3xl font-bold">Add durable memory to your AI agents</h2>
+        <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
+          Prime plugs into any AllSource Core deployment. Knowledge graphs, vector search, and
+          compressed recall — no external dependencies, no separate database.
+        </p>
+        <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <Link
+            href="/docs/prime"
+            className={cn(buttonVariants({ variant: "default", size: "lg" }))}
+          >
+            Add Prime to your stack
+          </Link>
+          <Link
+            href="/platform/event-sourcing"
+            className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
+          >
+            Learn about the Core event store
+          </Link>
+        </div>
+      </Section>
+    </div>
   );
 }

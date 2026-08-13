@@ -62,7 +62,7 @@ export default function drawerDemo() {
             )}
           >
             <Icons.logo className="h-6 w-6" />
-            Start Free Trial
+            Start 14-day trial
           </Link>
         </DrawerFooter>
       </DrawerContent>

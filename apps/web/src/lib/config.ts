@@ -2,7 +2,7 @@ export const BLUR_FADE_DELAY = 0.15;
 
 export const siteConfig = {
   name: "AllSource",
-  description: "AI-native event store for temporal data intelligence",
+  description: "Open-source event store for durable system history and AI agent memory",
   // Single source of truth for the headline performance numbers. Both the
   // homepage demo chrome and the below-the-fold stat strip read from here so
   // the values can never desync — and so they can be rendered at their FINAL
@@ -66,14 +66,13 @@ export const siteConfig = {
           },
           {
             href: "/docs/mcp",
-            title: "AI-Native Tools",
+            title: "MCP Tools for Agents",
             description: "55+ MCP tools for Claude Desktop integration (73 for fleet operators).",
           },
           {
             href: "/prime",
             title: "Prime — Memory for Claude",
-            description:
-              "Persistent agent memory via MCP. Install in 30 seconds, no embedding API needed.",
+            description: "Persistent agent memory over MCP with in-process embeddings.",
           },
           {
             href: "/solutions/quant-intelligence",
@@ -328,7 +327,7 @@ export const siteConfig = {
     {
       question: "What is AllSource?",
       answer:
-        "AllSource is a high-performance, AI-native event store designed for temporal data intelligence. It provides event sourcing capabilities with 469K events/sec ingestion and sub-microsecond query latency, making it ideal for audit trails, real-time analytics, and AI agent workflows.",
+        "AllSource is an open-source event store. It appends immutable events, rebuilds state from those events, and exposes history to applications and AI agents through HTTP, SDKs, and MCP.",
     },
     {
       question: "How does AllSource compare to traditional databases?",
@@ -338,17 +337,17 @@ export const siteConfig = {
     {
       question: "What is the MCP Server integration?",
       answer:
-        "AllSource includes an MCP (Model Context Protocol) Server that integrates directly with Claude Desktop. A tenant connector exposes 55+ tools by default, rising to 73 for fleet operators who enable the control-plane and system-admin tiers. This allows AI agents to manage events, run analytics, detect anomalies, manage backups, monitor health, and perform complex operations autonomously - making it truly AI-native from the ground up.",
+        "AllSource includes an MCP (Model Context Protocol) server for Claude Desktop and other MCP clients. A tenant connector exposes 55+ event and memory tools. Fleet operators can enable 73 tools by adding control-plane and system-administration access.",
     },
     {
       question: "How secure is my data?",
       answer:
-        "AllSource is enterprise-ready with multi-tenancy, RBAC (4 roles, 7 permissions), JWT authentication, policy enforcement, and comprehensive audit logging. All operations include dry-run preview capabilities and full audit trails.",
+        "Hosted AllSource separates tenant data and supports JWT authentication, role-based access, policy enforcement, and audit logs. Administrative operations include dry-run previews where the API supports them.",
     },
     {
       question: "Can I self-host AllSource?",
       answer:
-        "Yes! AllSource is open-source (Apache-2.0; enterprise features under BSL 1.1) with minimal footprint (~129 MB for all services). We provide Docker images, Helm charts, and Kubernetes manifests for easy deployment. The cloud offering handles infrastructure management for teams who prefer a managed solution.",
+        "Yes. The core is Apache-2.0 licensed, while designated enterprise features use BSL 1.1. Docker images, Helm charts, and Kubernetes manifests are available in the repository; hosted plans operate the services for you.",
     },
     {
       question: "What is Quant Intelligence?",
