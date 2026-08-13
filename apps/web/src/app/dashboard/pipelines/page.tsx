@@ -8,25 +8,40 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@allsource/ui";
 import { cn } from "@allsource/ui/utils";
 import {
+  ArrowRight,
+  BarChart3,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
+  Database,
   GitBranch,
+  Hash,
   Layers,
   Loader2,
   MoreHorizontal,
   Plus,
+  Table2,
   Trash2,
+  X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { LoadError } from "@/components/dashboard/load-error";
-import { FadeIn } from "@/components/ui/fade-in";
-import { useDashboardStats } from "@/hooks/use-dashboard-stats";
-import { apiClient, type Projection, type ProjectionTemplate } from "@/lib/api/client";
+import {
+  apiClient,
+  type Projection,
+  type ProjectionKind,
+  type ProjectionTemplate,
+} from "@/lib/api/client";
 
 const ProjectionStateView = dynamic(
   () =>
@@ -46,59 +61,296 @@ const ProjectionStateView = dynamic(
 );
 
 function statusColor(status: Projection["status"]) {
-  return status === "ready" ? "bg-green-500" : "bg-yellow-500";
+  return status === "ready" ? "bg-emerald-500" : "bg-amber-500";
 }
 
-// entity_table templates that fold ONE ETS row per entity_id (rather than a
-// tenant-wide summary) need an entity_id filter to read state. active-entities
-// is entity_table but tenant-wide, so it does NOT.
-function isPerEntityTemplate(p: Projection): boolean {
-  return p.kind === "entity_table" && p.name !== "active-entities";
+function projectionKindLabel(kind: ProjectionKind | null) {
+  switch (kind) {
+    case "counter":
+      return "Counter";
+    case "breakdown":
+      return "Breakdown";
+    case "timeseries":
+      return "Time series";
+    case "entity_table":
+      return "Entity view";
+    default:
+      return "Read model";
+  }
+}
+
+function projectionKindIcon(kind: ProjectionKind | null) {
+  switch (kind) {
+    case "counter":
+      return Hash;
+    case "breakdown":
+      return BarChart3;
+    case "timeseries":
+      return CalendarDays;
+    case "entity_table":
+      return Table2;
+    default:
+      return Layers;
+  }
+}
+
+// entity_table templates that fold one row per entity_id need an entity_id
+// filter to read state. active-entities is tenant-wide, so it does not.
+function isPerEntityTemplate(projection: Projection): boolean {
+  return projection.kind === "entity_table" && projection.name !== "active-entities";
+}
+
+function ProjectionTemplateOption({
+  template,
+  isBusy,
+  disabled,
+  onEnable,
+}: {
+  template: ProjectionTemplate;
+  isBusy: boolean;
+  disabled: boolean;
+  onEnable: () => void;
+}) {
+  const Icon = projectionKindIcon(template.kind);
+
+  return (
+    <button
+      type="button"
+      onClick={onEnable}
+      disabled={disabled}
+      className="group flex min-h-32 w-full flex-col rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/50 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+      aria-label={`Enable ${template.title} projection`}
+    >
+      <div className="flex w-full items-start justify-between gap-4">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50 text-foreground">
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors group-hover:text-primary">
+          {isBusy ? "Enabling" : "Enable"}
+          {isBusy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <ArrowRight
+              className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          )}
+        </span>
+      </div>
+      <span className="mt-4 font-semibold text-foreground">{template.title}</span>
+      <span className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+        {template.description}
+      </span>
+      <span className="mt-auto pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {projectionKindLabel(template.kind)}
+      </span>
+    </button>
+  );
+}
+
+function ProjectionFlow() {
+  const steps = [
+    { icon: Database, label: "Source", value: "Event history" },
+    { icon: GitBranch, label: "Fold", value: "Projection template" },
+    { icon: Table2, label: "Result", value: "Queryable state" },
+  ];
+
+  return (
+    <div className="grid border-t border-border bg-muted/15 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+      {steps.map((step, index) => {
+        const Icon = step.icon;
+        return (
+          <div key={step.label} className="contents">
+            <div className="flex items-center gap-3 px-5 py-4">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  {step.label}
+                </p>
+                <p className="mt-0.5 text-sm font-medium">{step.value}</p>
+              </div>
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className="hidden items-center text-muted-foreground/60 md:flex"
+                aria-hidden="true"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyProjectionWorkspace({
+  templates,
+  busy,
+  onEnable,
+}: {
+  templates: ProjectionTemplate[];
+  busy: string | null;
+  onEnable: (name: string) => void;
+}) {
+  return (
+    <Card className="overflow-hidden border-border/80 py-0">
+      <div className="grid lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.7fr)]">
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                Start with a template
+              </p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight md:text-2xl">
+                Choose your first read model
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                AllSource folds existing events, then keeps your view current as new events arrive.
+                Pick the question you want answered first.
+              </p>
+            </div>
+            {templates.length > 0 && (
+              <Badge variant="outline" className="w-fit shrink-0 tabular-nums">
+                {templates.length} available
+              </Badge>
+            )}
+          </div>
+
+          {templates.length > 0 ? (
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {templates.map((template) => (
+                <ProjectionTemplateOption
+                  key={template.name}
+                  template={template}
+                  isBusy={busy === template.name}
+                  disabled={busy !== null}
+                  onEnable={() => onEnable(template.name)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-6 rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
+              Projection catalog is empty. Retry after templates become available.
+            </div>
+          )}
+        </div>
+
+        <aside className="border-t border-border bg-muted/20 p-6 lg:border-l lg:border-t-0 lg:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            What happens next
+          </p>
+          <ol className="mt-5 space-y-5">
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold">
+                1
+              </span>
+              <div>
+                <p className="text-sm font-medium">History is folded</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Existing tenant events build initial state.
+                </p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold">
+                2
+              </span>
+              <div>
+                <p className="text-sm font-medium">New events stay in sync</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  State updates continuously after backfill.
+                </p>
+              </div>
+            </li>
+            <li className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold">
+                3
+              </span>
+              <div>
+                <p className="text-sm font-medium">Rebuild from source</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Replay history without changing source events.
+                </p>
+              </div>
+            </li>
+          </ol>
+          <div className="mt-6 border-t border-border pt-5">
+            <Link
+              href="/dashboard/events"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              View event history
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+        </aside>
+      </div>
+      <ProjectionFlow />
+    </Card>
+  );
 }
 
 function ProjectionCard({
   projection,
+  isBusy,
   onDisable,
 }: {
   projection: Projection;
+  isBusy: boolean;
   onDisable: () => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const building = projection.status === "building";
+  const Icon = projectionKindIcon(projection.kind);
 
   return (
-    <Card className="transition-all hover:shadow-md">
-      <CardHeader className="flex flex-row items-start justify-between pb-2">
-        <div className="flex items-start gap-3">
-          <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600">
-            <Layers className="h-4 w-4" />
+    <Card className="gap-0 overflow-hidden border-border/80 py-0">
+      <CardHeader className="flex flex-row items-start justify-between border-b border-border bg-muted/15 py-5">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-primary">
+            <Icon className="h-4 w-4" aria-hidden="true" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="text-base">{projection.title || projection.name}</CardTitle>
-              <span
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  statusColor(projection.status),
-                  building && "animate-pulse"
-                )}
-              />
+              <Badge variant="outline" className="gap-1.5 font-normal capitalize">
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    statusColor(projection.status),
+                    building && "animate-pulse"
+                  )}
+                  aria-hidden="true"
+                />
+                {building ? "Building" : "Ready"}
+              </Badge>
             </div>
-            <CardDescription className="mt-1">
+            <CardDescription className="mt-1.5 line-clamp-2 leading-5">
               {projection.description || projection.name}
             </CardDescription>
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative ml-3 shrink-0">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
             onClick={() => setShowMenu(!showMenu)}
+            disabled={isBusy}
+            aria-label={`Actions for ${projection.title || projection.name}`}
+            aria-expanded={showMenu}
           >
-            <MoreHorizontal className="h-4 w-4" />
+            {isBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <MoreHorizontal className="h-4 w-4" />
+            )}
           </Button>
 
           {showMenu && (
@@ -116,7 +368,7 @@ function ProjectionCard({
                     setShowMenu(false);
                     onDisable();
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-muted"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-destructive hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Trash2 className="h-4 w-4" />
                   Disable
@@ -127,47 +379,32 @@ function ProjectionCard({
         </div>
       </CardHeader>
 
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-muted-foreground">Status</p>
-            <Badge variant={building ? "secondary" : "default"} className="mt-1 capitalize">
-              {building ? (
-                <>
-                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                  Building
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-1 h-3 w-3" />
-                  Ready
-                </>
-              )}
-            </Badge>
-          </div>
-          <div>
-            <p className="text-muted-foreground">Template</p>
-            <p className="mt-1 font-mono text-xs">{projection.name}</p>
-          </div>
+      <CardContent className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <span className="font-mono text-muted-foreground">{projection.name}</span>
+          <span className="font-medium text-muted-foreground">
+            {projectionKindLabel(projection.kind)}
+          </span>
         </div>
 
-        {/* Ready cards expand to show the folded read-model. Building cards are
-            not expandable until the backfill finishes. */}
         {building ? (
-          <p className="mt-4 text-xs text-muted-foreground">
-            Folding your event history… the read-model will be viewable once ready.
-          </p>
+          <div className="mt-5 flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-500" />
+            Folding event history. State appears when backfill completes.
+          </div>
         ) : (
           <>
             <button
               type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-4 flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              onClick={() => setExpanded((value) => !value)}
+              className="mt-5 flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-expanded={expanded}
             >
               <ChevronDown
                 className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+                aria-hidden="true"
               />
-              {expanded ? "Hide read-model" : "View read-model"}
+              {expanded ? "Hide current state" : "View current state"}
             </button>
             {expanded && (
               <ProjectionStateView
@@ -183,17 +420,66 @@ function ProjectionCard({
   );
 }
 
+function ProjectionPicker({
+  open,
+  templates,
+  busy,
+  onOpenChange,
+  onEnable,
+}: {
+  open: boolean;
+  templates: ProjectionTemplate[];
+  busy: string | null;
+  onOpenChange: (open: boolean) => void;
+  onEnable: (name: string) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="relative max-h-[85vh] max-w-2xl overflow-y-auto"
+        onClose={() => onOpenChange(false)}
+        aria-labelledby="projection-picker-title"
+        aria-describedby="projection-picker-description"
+      >
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Close projection picker"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <DialogHeader className="pr-8">
+          <DialogTitle id="projection-picker-title">Add a read model</DialogTitle>
+          <DialogDescription id="projection-picker-description">
+            Choose a curated projection. AllSource backfills history, then updates state as events
+            arrive.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {templates.map((template) => (
+            <ProjectionTemplateOption
+              key={template.name}
+              template={template}
+              isBusy={busy === template.name}
+              disabled={busy !== null}
+              onEnable={() => onEnable(template.name)}
+            />
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function PipelinesPage() {
   const [projections, setProjections] = useState<Projection[]>([]);
   const [templates, setTemplates] = useState<ProjectionTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const { stats } = useDashboardStats();
-  // Reuse the dashboard's REAL tenant-scoped event total (summed from
-  // /api/event-types) rather than recomputing — 0 means an honest empty tenant.
-  const hasNoEvents = stats.events.total === 0;
 
   const refresh = useCallback(async () => {
     const response = await apiClient.listProjections();
@@ -203,6 +489,7 @@ export default function PipelinesPage() {
 
   const load = useCallback(async () => {
     setIsLoading(true);
+    setHasLoaded(false);
     setPageError(null);
     try {
       const [list, catalog] = await Promise.all([
@@ -213,6 +500,7 @@ export default function PipelinesPage() {
       if (catalog.error) throw new Error(catalog.error.message);
       setProjections(list.data?.projections ?? []);
       setTemplates(catalog.data?.templates ?? []);
+      setHasLoaded(true);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : "Projection data is unavailable.");
     } finally {
@@ -224,8 +512,8 @@ export default function PipelinesPage() {
     load();
   }, [load]);
 
-  const enabledNames = new Set(projections.map((p) => p.name));
-  const available = templates.filter((t) => !enabledNames.has(t.name));
+  const enabledNames = new Set(projections.map((projection) => projection.name));
+  const available = templates.filter((template) => !enabledNames.has(template.name));
 
   const handleEnable = async (template: string) => {
     setShowAdd(false);
@@ -256,171 +544,123 @@ export default function PipelinesPage() {
     }
   };
 
-  const readyCount = projections.filter((p) => p.status === "ready").length;
-  const buildingCount = projections.filter((p) => p.status === "building").length;
+  const readyCount = projections.filter((projection) => projection.status === "ready").length;
+  const buildingCount = projections.filter((projection) => projection.status === "building").length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <FadeIn delay={0.1} inView>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Projections</h1>
-            <p className="mt-1 text-muted-foreground">
-              Enable read-models built from your event stream
-            </p>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <header className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-3xl">
+          <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            <GitBranch className="h-4 w-4" aria-hidden="true" />
+            Read-model workspace
           </div>
-          <div className="relative">
-            <Button onClick={() => setShowAdd(!showAdd)} disabled={available.length === 0}>
-              <Plus className="mr-2 h-4 w-4" />
-              Enable Projection
-            </Button>
-            {showAdd && available.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  className="fixed inset-0 z-40 cursor-default"
-                  onClick={() => setShowAdd(false)}
-                  aria-label="Close projection picker"
-                />
-                <div className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-popover p-1 shadow-lg">
-                  {available.map((t) => (
-                    <button
-                      key={t.name}
-                      type="button"
-                      onClick={() => handleEnable(t.name)}
-                      className="flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
-                    >
-                      <span className="font-medium">{t.title}</span>
-                      <span className="text-xs text-muted-foreground">{t.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Projections</h1>
+          <p className="mt-2 max-w-2xl text-base leading-7 text-muted-foreground">
+            Turn event history into queryable current state. Each projection stays updated as new
+            events arrive.
+          </p>
         </div>
-      </FadeIn>
+        {hasLoaded &&
+          projections.length > 0 &&
+          (available.length > 0 ? (
+            <Button onClick={() => setShowAdd(true)} className="w-fit shrink-0">
+              <Plus className="h-4 w-4" />
+              Add read model
+            </Button>
+          ) : (
+            <Badge variant="outline" className="w-fit shrink-0 gap-2 px-3 py-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              All templates enabled
+            </Badge>
+          ))}
+      </header>
 
       {pageError && (
         <LoadError title="Projections could not be updated" message={pageError} onRetry={load} />
       )}
 
-      {/* Zero-events hint — projections build from the event stream, so they
-          stay empty until events arrive. Be honest rather than letting a user
-          enable a projection and stare at a meaningless "Ready / 0". */}
-      {!isLoading && !pageError && hasNoEvents && (
-        <FadeIn delay={0.15} inView>
-          <Card className="border-yellow-500/30 bg-yellow-500/5">
-            <CardContent className="flex items-start gap-3 p-4">
-              <GitBranch className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600" />
-              <div className="text-sm">
-                <p className="font-medium">You have no events yet</p>
-                <p className="mt-0.5 text-muted-foreground">
-                  Projections build a read-model from your event stream — they will stay empty until
-                  events arrive.{" "}
-                  <Link href="/dashboard/events" className="text-primary hover:underline">
-                    Ingest your first events
-                  </Link>{" "}
-                  to see them populate.
-                </p>
+      {isLoading && (
+        <div className="grid gap-4 md:grid-cols-2" role="status" aria-label="Loading projections">
+          {["first", "second", "third", "fourth"].map((placeholder) => (
+            <Card key={placeholder} className="gap-4 p-6">
+              <div className="h-9 w-9 animate-pulse rounded-md bg-muted" />
+              <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-full animate-pulse rounded bg-muted" />
+              <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!isLoading && hasLoaded && projections.length === 0 && (
+        <EmptyProjectionWorkspace templates={available} busy={busy} onEnable={handleEnable} />
+      )}
+
+      {!isLoading && hasLoaded && projections.length > 0 && (
+        <>
+          <section
+            aria-label="Projection status"
+            className="flex flex-col gap-4 rounded-xl border border-border bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <p className="font-semibold">Enabled read models</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Monitor backfills and inspect current state.
+              </p>
+            </div>
+            <dl className="flex items-center gap-6 sm:gap-8">
+              <div>
+                <dt className="text-xs text-muted-foreground">Enabled</dt>
+                <dd className="mt-0.5 text-xl font-semibold tabular-nums">{projections.length}</dd>
               </div>
-            </CardContent>
-          </Card>
-        </FadeIn>
-      )}
+              <div>
+                <dt className="text-xs text-muted-foreground">Ready</dt>
+                <dd className="mt-0.5 text-xl font-semibold tabular-nums text-emerald-500">
+                  {readyCount}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Building</dt>
+                <dd className="mt-0.5 text-xl font-semibold tabular-nums text-amber-500">
+                  {buildingCount}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
-      {/* Status Overview */}
-      {!pageError && (
-        <FadeIn delay={0.2} inView>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                  <Layers className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{projections.length}</p>
-                  <p className="text-sm text-muted-foreground">Enabled</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{readyCount}</p>
-                  <p className="text-sm text-muted-foreground">Ready</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/10">
-                  <Loader2 className="h-5 w-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{buildingCount}</p>
-                  <p className="text-sm text-muted-foreground">Building</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </FadeIn>
-      )}
-
-      {/* Projections Grid */}
-      <FadeIn delay={0.3} inView>
-        {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {["first", "second"].map((placeholder) => (
-              <Card key={placeholder}>
-                <CardContent className="p-6 space-y-4">
-                  <div className="h-6 w-40 animate-pulse rounded bg-muted" />
-                  <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="h-8 animate-pulse rounded bg-muted" />
-                    <div className="h-8 animate-pulse rounded bg-muted" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : pageError ? null : (
           <div className="grid gap-4 md:grid-cols-2">
             {projections.map((projection) => (
               <ProjectionCard
                 key={projection.name}
-                projection={
-                  busy === projection.name ? { ...projection, status: "building" } : projection
-                }
+                projection={projection}
+                isBusy={busy === projection.name}
                 onDisable={() => handleDisable(projection.name)}
               />
             ))}
           </div>
-        )}
-      </FadeIn>
 
-      {/* Empty state */}
-      {!isLoading && !pageError && projections.length === 0 && (
-        <FadeIn delay={0.3} inView>
-          <Card className="p-12 text-center">
-            <GitBranch className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-            <h3 className="text-lg font-medium">No projections enabled</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Enable a projection template to build a read-model from your events
-            </p>
-            {available.length > 0 && (
-              <Button className="mt-4" onClick={() => setShowAdd(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Enable Projection
-              </Button>
-            )}
-          </Card>
-        </FadeIn>
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-muted-foreground">
+              Need to rebuild state after projection logic changes?
+            </span>
+            <Button asChild variant="outline" size="sm" className="w-fit">
+              <Link href="/dashboard/tools/replay">
+                Open Replay Studio
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </>
       )}
+
+      <ProjectionPicker
+        open={showAdd}
+        templates={available}
+        busy={busy}
+        onOpenChange={setShowAdd}
+        onEnable={handleEnable}
+      />
     </div>
   );
 }
