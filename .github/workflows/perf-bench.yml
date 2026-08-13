@@ -113,7 +113,11 @@ jobs:
       # bench aborts with "Failed to run benchmarks: No such file or directory".
       # The runner version MUST match the iai-callgrind crate version (0.14).
       - name: Install iai-callgrind-runner
-        run: cargo install iai-callgrind-runner --version 0.14.2 --locked
+        # MUST match the iai-callgrind dev-dependency in apps/core/Cargo.toml and
+        # apps/prime-mcp/Cargo.toml. The runner refuses to run against a newer
+        # crate ("iai-callgrind-runner (x) is older than iai-callgrind (y)"), so
+        # bumping the crate without bumping this reds the bench job.
+        run: cargo install iai-callgrind-runner --version 0.16.1 --locked
 
       - name: Run iai-callgrind and compare to main baseline
         id: bench

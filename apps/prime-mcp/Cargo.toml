@@ -51,7 +51,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 [dev-dependencies]
 divan = "0.1"
-iai-callgrind = "0.14"
+iai-callgrind = "0.16"
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
 wiremock = "0.6"

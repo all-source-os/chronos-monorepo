@@ -79,7 +79,9 @@ fastembed = { version = "5" }
 # Compression
 flate2 = "1.0"
 # Cross-platform advisory file locks (single-writer data-dir guard)
-fs4 = "0.13"
+# 1.x needs an explicit `sync` feature: the blocking API moved out of the
+# removed `fs_std` module to the crate root and is now feature-gated.
+fs4 = { version = "1.1", features = ["sync"] }
 futures = "0.3"
 http = "1.4"
 instant-distance = { version = "0.6" }

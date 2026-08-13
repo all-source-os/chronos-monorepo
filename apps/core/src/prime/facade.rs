@@ -11,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use fs4::fs_std::FileExt;
+use fs4::{FileExt, TryLockError};
 
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
@@ -125,10 +125,15 @@ fn acquire_data_dir_lock(data_dir: &Path) -> Result<DataDirAccess> {
             ))
         })?;
 
-    match FileExt::try_lock_exclusive(&file) {
-        Ok(true) => Ok(DataDirAccess::Writer(DataDirLock { _file: file })),
-        Ok(false) => Ok(DataDirAccess::Replica),
-        Err(e) => {
+    // fs4 1.x mirrors std's stabilised `File::try_lock`: success is `Ok(())`,
+    // and contention is `Err(WouldBlock)` rather than the old `Ok(false)`.
+    // Keep the two failure modes apart — collapsing them would either brick a
+    // lone process on a lock-less filesystem or admit a second writer.
+    match FileExt::try_lock(&file) {
+        Ok(()) => Ok(DataDirAccess::Writer(DataDirLock { _file: file })),
+        // Someone else holds the lock: this instance is a read-only replica.
+        Err(TryLockError::WouldBlock) => Ok(DataDirAccess::Replica),
+        Err(TryLockError::Error(e)) => {
             tracing::warn!(
                 error = %e,
                 path = %lock_path.display(),
