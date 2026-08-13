@@ -144,7 +144,12 @@ thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
 toml.workspace = true
-toon-format = { version = "0.4", optional = true }
+# default-features = false: toon-format's default feature is `cli`, which pulls
+# an entire TUI stack (clap, ratatui, crossterm, arboard, tiktoken-rs) plus
+# syntect -> plist -> quick-xml. Core calls only `encode`/`decode` from the
+# library, so none of that is reachable — and quick-xml 0.38 carries
+# RUSTSEC-2026-0194/0195 with no upgrade path while syntect pins it.
+toon-format = { version = "0.4", optional = true, default-features = false }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
 tracing.workspace = true

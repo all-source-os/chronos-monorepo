@@ -52,7 +52,11 @@ defmodule QueryServiceEx.MixProject do
     [
       # HTTP Client for Rust Core
       {:tesla, "~> 1.11"},
-      {:hackney, "~> 1.20"},
+      # 4.x, not 1.x: hackney 1.25.0 carries four advisories (one high —
+      # `ssl:connect/2` post-handshake upgrade has no timeout) all first patched
+      # in 4.0.1. Tesla declares `~> 1.21 or ~> 4.0 and >= 4.0.2`, so the 4.x
+      # line is a supported adapter target.
+      {:hackney, "~> 4.7"},
       {:jason, "~> 1.4"},
       {:req, "~> 0.5"},
 
