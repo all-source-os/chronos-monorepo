@@ -5,7 +5,6 @@ import {
   Activity,
   BarChart3,
   ChevronRight,
-  Cpu,
   Database,
   Gauge,
   Layers,
@@ -17,44 +16,44 @@ import { staticMotion as motion } from "@/components/ui/static-motion";
 
 const features = [
   {
-    title: "11.9us p99 Query Latency",
+    title: "Tenant-Scoped HTTP Reads",
     description:
-      "The published reference benchmark measured 11.9us p99 projection reads through the in-memory concurrent map. Results depend on hardware, dataset, and query path.",
+      "Serve event queries, stream discovery, schemas, projection state, and replay jobs through authenticated request-response endpoints.",
     icon: Zap,
     color: "from-cyan-500/20 to-cyan-500/5",
   },
   {
-    title: "Projections & Materialized Views",
+    title: "Rebuildable Read Models",
     description:
-      "Define projections that automatically aggregate events into queryable views. Running totals, counters, session metrics — all updated in real-time as events arrive.",
+      "Fold each tenant's Core stream into current-state projections. Rebuild them from durable history when projection logic changes.",
     icon: Layers,
     color: "from-blue-500/20 to-blue-500/5",
   },
   {
-    title: "WebSocket Live Streaming",
+    title: "Phoenix Realtime Channels",
     description:
-      "Subscribe to event streams over WebSocket. Dashboards update in real-time without polling. Filter by event type, entity, or custom predicates server-side.",
+      "Subscribe at `/ws` to tenant-scoped event, entity, event-type, or projection topics. Push live updates without polling.",
     icon: Radio,
     color: "from-indigo-500/20 to-indigo-500/5",
   },
   {
-    title: "Concurrent In-Memory Reads",
+    title: "Analytics Endpoints",
     description:
-      "A sharded concurrent map serves hot reads while ingestion continues. End-to-end capacity depends on filters, payloads, API hops, and hardware, so set SLOs from your own load test.",
-    icon: Cpu,
+      "Expose frequency, summary, correlation, percentile, standard-deviation, sliding-window, and session-window reads with query quotas.",
+    icon: BarChart3,
     color: "from-teal-500/20 to-teal-500/5",
   },
   {
-    title: "Parquet Columnar Storage",
+    title: "One Durable Core",
     description:
-      "Historical data compresses into Parquet files with Snappy compression. Columnar layout means analytical queries scan only the columns they need.",
+      "Query Service does not become another database. Core retains events and metadata; Query Service caches and read models remain disposable.",
     icon: Database,
     color: "from-sky-500/20 to-sky-500/5",
   },
   {
-    title: "Prometheus Metrics Built-In",
+    title: "Read-Plane Observability",
     description:
-      "Export event throughput, query latency percentiles, projection lag, and storage metrics for Prometheus and your own Grafana dashboards.",
+      "Inspect HTTP performance, WebSocket connections, projection replay lag, analytics cache state, and backend health.",
     icon: Gauge,
     color: "from-violet-500/20 to-violet-500/5",
   },
@@ -72,14 +71,14 @@ export default function RealTimeAnalyticsPage() {
         >
           <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
             <Activity className="h-4 w-4 text-cyan-400" />
-            Real-Time Analytics
+            Query Service read plane
           </span>
           <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
-            Query live event streams and materialized views
+            Four read shapes. One source history.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Build projections and materialized views from ordered streams, then push new events to
-            dashboards over WebSocket without a separate analytics copy.
+            AllSource Query Service separates tenant-scoped HTTP queries, Phoenix realtime channels,
+            analytics endpoints, and rebuildable projections over durable Core events.
           </p>
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>
@@ -102,10 +101,10 @@ export default function RealTimeAnalyticsPage() {
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             {[
-              { value: "11.9us", label: "p99 Latency" },
-              { value: "469K/s", label: "Ingestion" },
-              { value: "WAL", label: "Crash Recovery" },
-              { value: "WS", label: "Live Streams" },
+              { value: "HTTP", label: "Request reads" },
+              { value: "/ws", label: "Live channels" },
+              { value: "7", label: "Analytics routes" },
+              { value: "Core", label: "Durable source" },
             ].map((metric) => (
               <div
                 key={metric.label}
@@ -121,9 +120,7 @@ export default function RealTimeAnalyticsPage() {
 
       {/* Features */}
       <Section className="pb-16">
-        <h2 className="mb-12 text-center text-3xl font-bold">
-          From ingestion to insight in microseconds
-        </h2>
+        <h2 className="mb-12 text-center text-3xl font-bold">Match read path to consumer</h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature, i) => (
             <motion.div
@@ -151,9 +148,9 @@ export default function RealTimeAnalyticsPage() {
 
       {/* Code Example */}
       <Section className="pb-16">
-        <h2 className="mb-4 text-center text-3xl font-bold">Query events in real-time</h2>
+        <h2 className="mb-4 text-center text-3xl font-bold">Three interfaces, one source</h2>
         <p className="mb-8 text-center text-muted-foreground">
-          Time-range queries, projections, and live streaming — all from one API
+          Query Service scopes every read to a tenant while Core remains source of truth
         </p>
         <div className="mx-auto max-w-3xl">
           <div className="overflow-hidden rounded-xl border">
@@ -161,34 +158,25 @@ export default function RealTimeAnalyticsPage() {
               <div className="h-3 w-3 rounded-full bg-red-500" />
               <div className="h-3 w-3 rounded-full bg-yellow-500" />
               <div className="h-3 w-3 rounded-full bg-green-500" />
-              <span className="ml-4 font-mono text-sm text-neutral-400">analytics-query.sh</span>
+              <span className="ml-4 font-mono text-sm text-neutral-400">
+                query-service-paths.txt
+              </span>
             </div>
             <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
-              {`# Query events in a time range — returns in microseconds
-curl -s https://api.all-source.xyz/api/v1/events/query \\
+              {`# 1. HTTP — request-response event query
+curl -s "https://your-query-service.example.com/api/events/query?event_type=page_view&limit=100" \\
   -H "Authorization: Bearer $API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "event_type": "page_view",
-    "start_time": "2026-04-16T00:00:00Z",
-    "end_time": "2026-04-16T23:59:59Z",
-    "limit": 1000
-  }'
-
-# {"events": [...], "count": 847}
-# Published Core indexed-read reference: 11.9us p99
-
-# Get a live projection — materialized view updated on every event
-curl -s https://api.all-source.xyz/api/v1/projections/daily-active-users \\
   -H "Authorization: Bearer $API_KEY"
 
-# {"projection": {"name": "daily-active-users", "value": 12847, ...}}
-
-# Stream events in real-time via WebSocket
-wscat -c "wss://api.all-source.xyz/api/v1/events/stream" \\
+# 2. Analytics — cached, quota-aware aggregation
+curl -s "https://your-query-service.example.com/api/analytics/summary" \\
   -H "Authorization: Bearer $API_KEY"
-# > {"subscribe": {"event_type": "page_view"}}
-# < {"event": {"type": "page_view", "data": {...}, "timestamp": "..."}}`}
+
+# 3. Realtime — Phoenix Channel at /ws
+const socket = new Socket("wss://your-query-service.example.com/ws", {
+  params: { token: authToken }
+});
+socket.channel("events:all", {}).join();`}
             </pre>
           </div>
         </div>
@@ -197,10 +185,10 @@ wscat -c "wss://api.all-source.xyz/api/v1/events/stream" \\
       {/* CTA */}
       <Section className="pb-24 text-center">
         <BarChart3 className="mx-auto mb-4 h-12 w-12 text-cyan-400" />
-        <h2 className="mb-4 text-3xl font-bold">Query current projections directly</h2>
+        <h2 className="mb-4 text-3xl font-bold">Choose read path, not another database</h2>
         <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
-          Query live event streams and materialized views, then stream updates to dashboards over
-          WebSocket. Keep a separate warehouse when your analysis needs one.
+          Use HTTP for request-response reads, Phoenix Channels for live delivery, analytics routes
+          for aggregations, and projections for current state. Every path derives from Core.
         </p>
         <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>

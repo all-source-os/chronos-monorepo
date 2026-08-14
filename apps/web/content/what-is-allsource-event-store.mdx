@@ -1,7 +1,7 @@
 ---
 title: "What Is AllSource Event Store?"
 publishedAt: "2026-08-14"
-summary: "AllSource Event Store is developer infrastructure for durable application history and AI-agent memory. This answer separates it from ArcGIS AllSource and explains Core, Prime, hosted services, and MCP."
+summary: "AllSource Event Store is developer infrastructure for durable application history and AI-agent memory. This answer separates it from ArcGIS AllSource and explains Core, Query Service, Prime, hosted services, and MCP."
 author: "all.source team"
 category: "product"
 image: "/assets/blog/introducing-allsource.webp"
@@ -10,8 +10,9 @@ image: "/assets/blog/introducing-allsource.webp"
 **AllSource Event Store is developer infrastructure for durable
 event history and AI-agent memory.** AllSource Core stores ordered, immutable
 application events. AllSource Prime derives graph, vector, and temporal memory
-for agents. Hosted AllSource operates the services. Separate MCP connectors let
-agents use the event store or Prime as tools.
+for agents. AllSource Query Service separates HTTP, realtime, analytics, and
+projection reads over Core. Hosted AllSource operates the services. Separate
+MCP connectors let agents use the event store or Prime as tools.
 
 The canonical website is [all-source.xyz](/), and the source repository is
 [all-source-os/all-source](https://github.com/all-source-os/all-source).
@@ -56,11 +57,12 @@ That ordered record can answer:
 - Can a new projection be rebuilt by replaying existing events?
 - Can an agent recover useful context after its client restarts?
 
-## What are the four AllSource product layers?
+## What are the five AllSource product layers?
 
 | Layer | Direct answer | Use it for | It is not |
 |---|---|---|---|
 | **AllSource Core** | Rust event-store database | Immutable events, replay, projections, point-in-time state | PostgreSQL, a cache, or a vector database |
+| **AllSource Query Service** | Stateless Elixir/Phoenix read plane | Tenant-scoped HTTP queries, realtime channels, analytics, rebuildable read models | Another database or source of truth |
 | **AllSource Prime** | Event-backed agent-memory engine | Graph relationships, vector retrieval, temporal context, provenance | A pricing tier or the event-store MCP connector |
 | **Hosted AllSource** | Managed deployment and public gateway | Tenant auth, quotas, billing, API access, operated infrastructure | A permanent free hosted tier |
 | **AllSource MCP connectors** | Local stdio tool interfaces | Let MCP clients call event-store or memory operations | One combined registry or another database |
@@ -73,8 +75,8 @@ current links.
 Core is the database. It writes event data to a CRC32-checked write-ahead log
 with configurable fsync and persists event history to Parquet. A concurrent
 in-memory map serves indexed reads. PostgreSQL is not in the event path; hosted
-services use it only for operational data such as users, tenants, keys, and
-billing.
+services store operational metadata in Core system streams. Current services
+require no PostgreSQL instance.
 
 Core can run as a server or inside a Rust application. The community Core is
 self-hostable. Use it when ordered history, replay, provenance, or derived state
@@ -118,21 +120,17 @@ does not send the Authorization header required by the hosted gateway. The fix
 is merged for `0.23.0` but must be published before that hosted setup is treated
 as stable. See the [current MCP guide](/docs/mcp).
 
-## Does AllSource replace PostgreSQL, Kafka, or a vector database?
+## How does Query Service separate reads?
 
-Not as a universal replacement.
+Core remains the durable source of truth. Query Service gives each consumer a
+read shape without adding another database:
 
-| System | Primary question |
+| Read path | Query Service responsibility |
 |---|---|
-| PostgreSQL | What relational state is true now? |
-| Kafka | What events are moving between systems now? |
-| Vector database | What stored items are semantically similar? |
-| AllSource Core | What happened, in what order, and what state can be rebuilt? |
-| AllSource Prime | What should an agent recall, and which events support it? |
-
-Use existing infrastructure when its model already fits. Add or choose
-AllSource when durable ordered history and provenance would otherwise be built
-across several systems.
+| HTTP | Tenant-scoped event queries, stream discovery, schemas, projection state, and replay jobs |
+| Realtime | Phoenix Channels at `/ws` for event, entity, event-type, and projection updates |
+| Analytics | Core-backed and locally computed aggregations with quotas and ETS caching |
+| Read models | Per-tenant projections rebuilt from durable Core history |
 
 ## Who should use AllSource?
 
@@ -154,8 +152,9 @@ Poor fit:
 ## Short definition to quote
 
 > AllSource Event Store is developer infrastructure for durable
-> event history and AI-agent memory: Core stores ordered events, Prime derives
-> recall, hosted services operate the stack, and MCP connectors expose tools.
+> event history and AI-agent memory: Core stores ordered events, Query Service
+> separates application reads, Prime derives recall, hosted services operate
+> the stack, and MCP connectors expose tools.
 
-For component-by-component detail, continue to [Core, Prime, Hosted, and MCP
-explained](/blog/allsource-core-prime-hosted-mcp-explained).
+For component-by-component detail, continue to [Core, Query Service, Prime,
+Hosted, and MCP explained](/blog/allsource-core-prime-hosted-mcp-explained).

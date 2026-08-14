@@ -1,4 +1,4 @@
-export type ProductVerticalId = "core" | "prime" | "hosted" | "mcp";
+export type ProductVerticalId = "core" | "query" | "prime" | "hosted" | "mcp";
 
 export type ProductVertical = {
   id: ProductVerticalId;
@@ -24,11 +24,24 @@ export const productVerticals: readonly ProductVertical[] = [
     role: "Store",
     path: "/platform/event-sourcing",
     directAnswer:
-      "Rust event-store database for ordered, immutable application events, replay, projections, and point-in-time inspection.",
+      "Rust event-store database for ordered, immutable application events, replay, and point-in-time inspection.",
     stores:
-      "Application events in a CRC32-checked WAL, Parquet persistence, and concurrent read projections.",
+      "Application events and system metadata in a CRC32-checked WAL, Parquet persistence, and concurrent indexes.",
     useWhen: "Your application needs durable history, provenance, replay, or event-sourced state.",
     notThis: "Not PostgreSQL, a vector database, a cache, or the hosted control plane.",
+  },
+  {
+    id: "query",
+    name: "AllSource Query Service",
+    role: "Read",
+    path: "/solutions/real-time-analytics",
+    directAnswer:
+      "Stateless Elixir/Phoenix read plane that separates tenant-scoped HTTP queries, realtime channels, analytics endpoints, and rebuildable read models over Core events.",
+    stores:
+      "No durable source data; ETS caches and per-tenant read models are rebuilt from Core's event history.",
+    useWhen:
+      "Applications need different read shapes for request-response APIs, live interfaces, analytics, or current-state projections.",
+    notThis: "Not another database and never the source of truth for accepted events.",
   },
   {
     id: "prime",
@@ -51,7 +64,7 @@ export const productVerticals: readonly ProductVertical[] = [
     directAnswer:
       "Managed AllSource deployment with tenant provisioning, authentication, quotas, billing, and public API access.",
     stores:
-      "Tenant events in Core; operational account and billing metadata remain outside the event path.",
+      "Tenant events and operational metadata in Core; Query Service keeps only rebuildable caches and read models.",
     useWhen: "You want AllSource without operating the stateful services yourself.",
     notThis: "Not a permanent free tier and not a public MCP-over-HTTP endpoint.",
   },
@@ -75,7 +88,7 @@ export const allsourceIdentity = {
   shortName: "AllSource",
   domain: "all-source.xyz",
   directAnswer:
-    "AllSource Event Store is developer infrastructure for durable event history and AI-agent memory. Core stores ordered application events; Prime derives agent memory; hosted services operate the stack; MCP connectors expose tools to agents.",
+    "AllSource Event Store is developer infrastructure for durable event history and AI-agent memory. Core stores ordered events; Query Service separates HTTP, realtime, analytics, and projection reads; Prime derives agent memory; hosted services operate the stack; MCP connectors expose tools.",
   disambiguation:
     "It is the developer product at all-source.xyz and github.com/all-source-os/all-source. It is not Esri ArcGIS AllSource, the all-source intelligence discipline, or unrelated audience-data and logistics companies using a similar name.",
 } as const;
@@ -84,6 +97,11 @@ export const productIdentityFaqs = [
   {
     question: "What is AllSource?",
     answer: allsourceIdentity.directAnswer,
+  },
+  {
+    question: "What does AllSource Query Service do?",
+    answer:
+      "Query Service is the stateless read plane over Core. It serves tenant-scoped HTTP queries, Phoenix Channel realtime streams, analytics endpoints, and rebuildable per-tenant projections without becoming another database.",
   },
   {
     question: "Is AllSource the same product as ArcGIS AllSource?",
@@ -101,9 +119,9 @@ export const productIdentityFaqs = [
       "No. AllSource Core is an event store. Prime includes vector retrieval as one part of agent memory, alongside graph relationships, temporal context, and source-event provenance.",
   },
   {
-    question: "Does AllSource replace PostgreSQL?",
+    question: "Does AllSource require PostgreSQL?",
     answer:
-      "Not generally. Use AllSource when ordered history, replay, point-in-time state, or provenance is primary. PostgreSQL remains a strong default for relational current-state workloads. Hosted AllSource itself uses PostgreSQL for operational metadata, never for the Core event path.",
+      "No. Core stores events and event-sourced operational metadata. Query Service derives tenant-scoped reads from Core, so current AllSource services require no PostgreSQL instance.",
   },
   {
     question: "Are AllSource MCP and Prime MCP the same connector?",

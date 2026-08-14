@@ -17,12 +17,13 @@ function source(relativePath: string): string {
 }
 
 describe("GEO canonical product facts", () => {
-  it("publishes one disambiguated entity and four bounded product layers", () => {
+  it("publishes one disambiguated entity and five bounded product layers", () => {
     expect(siteConfig.productName).toBe("AllSource Event Store");
     expect(allsourceIdentity.domain).toBe("all-source.xyz");
     expect(allsourceIdentity.disambiguation).toContain("Esri ArcGIS AllSource");
     expect(productVerticals.map(({ id, role }) => [id, role])).toEqual([
       ["core", "Store"],
+      ["query", "Read"],
       ["prime", "Remember"],
       ["hosted", "Operate"],
       ["mcp", "Connect"],
@@ -34,9 +35,10 @@ describe("GEO canonical product facts", () => {
     expect(organization.disambiguatingDescription).toContain("Esri ArcGIS AllSource");
 
     const productMap = productVerticalListSchema(productVerticals);
-    expect(productMap.numberOfItems).toBe(4);
+    expect(productMap.numberOfItems).toBe(5);
     expect(productMap.itemListElement.map(({ name }) => name)).toEqual([
       "AllSource Core",
+      "AllSource Query Service",
       "AllSource Prime",
       "Hosted AllSource",
       "AllSource MCP connectors",
@@ -56,6 +58,7 @@ describe("GEO canonical product facts", () => {
     expect(answerSurfaces).toContain("AllSource Event Store");
     expect(answerSurfaces).toContain("ArcGIS AllSource");
     expect(answerSurfaces).toContain("AllSource Core");
+    expect(answerSurfaces).toContain("AllSource Query Service");
     expect(answerSurfaces).toContain("AllSource Prime");
     expect(answerSurfaces).toContain("Hosted AllSource");
     expect(answerSurfaces).not.toMatch(/55\+\s+MCP/i);

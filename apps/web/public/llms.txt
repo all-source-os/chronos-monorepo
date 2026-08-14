@@ -12,9 +12,10 @@
 ## What is AllSource?
 AllSource Event Store is developer infrastructure for durable
 event history and AI-agent memory. AllSource Core stores ordered application
-events. AllSource Prime derives graph, vector, and temporal memory. Hosted
-AllSource operates tenant-scoped services. Separate MCP connectors expose
-event-store or Prime tools to agents.
+events. AllSource Query Service separates tenant-scoped HTTP, realtime,
+analytics, and projection reads over Core. AllSource Prime derives graph,
+vector, and temporal memory. Hosted AllSource operates tenant-scoped services.
+Separate MCP connectors expose event-store or Prime tools to agents.
 
 Canonical identity: https://www.all-source.xyz and
 https://github.com/all-source-os/all-source. This product is NOT Esri ArcGIS
@@ -33,6 +34,9 @@ access raises it to 73.
 ## Product map
 - AllSource Core: Rust event-store database. It owns WAL + Parquet event
   persistence, indexed reads, projections, replay, and point-in-time state.
+- AllSource Query Service: stateless Elixir/Phoenix read plane. It serves
+  tenant-scoped HTTP queries, Phoenix realtime channels, analytics endpoints,
+  and rebuildable projections over Core. It stores no durable source data.
 - AllSource Prime: agent-memory engine. It owns graph, vector, temporal, and
   compressed-index retrieval with source-event provenance. It is not a plan.
 - Hosted AllSource: operated services for tenant auth, quotas, billing, and
@@ -113,6 +117,10 @@ discovery_source is ignored, not rejected. Nothing about the response changes.
 Response: 200 OK with event ID.
 
 ## How to query events
+
+Hosted HTTP reads pass through Query Service, which resolves tenant context
+and delegates durable event access to Core. Query Service also provides `/ws`
+Phoenix Channels, analytics routes, and per-tenant projection reads.
 
   GET https://api.all-source.xyz/api/v1/events/query?event_type=user.action&limit=10&order=desc
   Authorization: Bearer <api_key>

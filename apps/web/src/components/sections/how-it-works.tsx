@@ -13,14 +13,14 @@ const steps = [
     number: "02",
     title: "Build useful views",
     content:
-      "Fold ordered events into projections for current state, analytics, or agent context. Rebuild a view from its source stream when logic changes.",
+      "Query Service folds ordered Core events into tenant-scoped current-state projections and separates HTTP, realtime, and analytics reads.",
     icon: GitBranch,
   },
   {
     number: "03",
     title: "Query and replay history",
     content:
-      "Read a stream at a sequence or timestamp, inspect provenance, and replay the exact changes behind an outcome.",
+      "Serve request-response queries, push live channel updates, run analytics, or rebuild a read model from the same source history.",
     icon: Search,
   },
 ];

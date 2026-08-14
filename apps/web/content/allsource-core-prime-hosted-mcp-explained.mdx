@@ -1,15 +1,16 @@
 ---
-title: "AllSource Core, Prime, Hosted, and MCP Explained"
+title: "AllSource Core, Query Service, Prime, Hosted, and MCP Explained"
 publishedAt: "2026-08-14"
-summary: "Core stores events. Prime derives agent memory. Hosted AllSource operates the services. MCP connectors expose tools. This guide defines each boundary and the data path between them."
+summary: "Core stores events. Query Service separates reads. Prime derives agent memory. Hosted AllSource operates services. MCP connectors expose tools."
 author: "all.source team"
 category: "product"
 image: "/assets/blog/how-allsource-core-works.webp"
 ---
 
-AllSource has four product layers with different jobs:
+AllSource has five product layers with different jobs:
 
 - **AllSource Core stores durable application events.**
+- **AllSource Query Service serves HTTP, realtime, analytics, and projection reads.**
 - **AllSource Prime derives durable agent memory.**
 - **Hosted AllSource operates tenant-scoped infrastructure.**
 - **AllSource MCP connectors expose event or memory operations as tools.**
@@ -21,15 +22,15 @@ each layer one name and one job.
 ## Product map
 
 ```text
-Applications ── HTTP / WebSocket / SDK ── Hosted gateway ── AllSource Core
-                                                              ▲
-AI agents ── MCP client ── Prime or event-store connector ─────┘
+Applications ── HTTP / WebSocket / SDK ── Query Service ── AllSource Core
+Hosted control plane ── auth / tenancy / billing ────────────────┘
+AI agents ── MCP client ── Prime or event-store connector ───────┘
 ```
 
-Core is the durable record. Prime, application projections, analytics, and
-tools operate from that record. Hosted services supply the public operating
-boundary. Connectors transport calls; they do not store an independent copy of
-the event database.
+Core is durable record. Query Service supplies tenant-scoped read shapes from
+that record. Prime derives agent context. Hosted services supply public
+operating boundary. Connectors transport calls; none stores an independent
+copy of event database.
 
 ## AllSource Core: store
 
@@ -48,7 +49,7 @@ inspection.
 
 ### Core does not own
 
-- hosted user accounts or billing;
+- hosted account, tenant, or billing workflows;
 - agent-memory ranking;
 - public multi-tenant authentication;
 - MCP client configuration.
@@ -59,6 +60,22 @@ Core.
 
 Read [how AllSource Core works](/blog/how-allsource-core-works) for storage-path
 detail.
+
+## AllSource Query Service: read
+
+**Direct answer:** AllSource Query Service is a stateless Elixir/Phoenix read
+plane over Core. It separates four consumption paths:
+
+- tenant-scoped HTTP queries and projection state;
+- Phoenix Channel event and projection updates at `/ws`;
+- Core-backed and locally computed analytics endpoints;
+- rebuildable per-tenant projections and replay jobs.
+
+Query Service keeps ETS caches and read models, not durable source data. Core
+remains source of truth, so Query Service state can be rebuilt after restart.
+
+Read [Query Service read paths](/solutions/real-time-analytics) for interfaces
+and boundaries.
 
 ## AllSource Prime: remember
 
@@ -94,8 +111,8 @@ Read [AllSource Prime](/prime) for current installation and operating modes.
 services. It supplies tenant provisioning, authentication, quotas, billing,
 and public API access.
 
-Tenant events remain in Core. Operational metadata—users, tenants, credentials,
-plans, and billing—is managed separately and does not become the event store.
+Tenant events and operational metadata remain in Core system streams. Query
+Service keeps only rebuildable caches and read models.
 
 Hosted use begins with a 14-day trial. Paid GBP prices come from the live
 billing catalog; hardcoded articles are not the charging source of truth. There
@@ -136,20 +153,19 @@ Chronis is an agent-native task tracker built on the AllSource event model. It
 is a reference application and CLI, not another database layer.
 
 Audit, analytics, financial-services, IoT, SaaS, and quant pages describe
-workloads using Core and hosted query capabilities. They are solution routes,
-not new storage engines.
+workloads using Core durability and Query Service read paths. They are solution
+routes, not new storage engines.
 
 ## Which layer should I start with?
 
 | Need | Start here |
 |---|---|
 | Durable application history or CQRS | Core |
+| HTTP, realtime, analytics, or projection reads | Query Service |
 | Cross-session agent memory with provenance | Prime |
 | Managed infrastructure and public API | Hosted AllSource |
 | Claude or another MCP client needs event tools | Event-store MCP |
 | Claude or another MCP client needs memory tools | Prime MCP |
-| You only need relational CRUD | PostgreSQL or another relational database |
-| You only need semantic nearest-neighbour search | A vector database may be enough |
 
 For the short canonical definition and name disambiguation, use [What is
 AllSource Event Store?](/what-is-allsource).

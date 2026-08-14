@@ -11,6 +11,21 @@ technology: Elixir
 
 **AI-Native Event Processing & Projections on the BEAM**
 
+Query Service is AllSource's stateless, tenant-facing read plane over Core. It
+separates four consumption paths without creating another database:
+
+- **HTTP reads:** event queries, stream discovery, projection state, schemas,
+  and replay jobs;
+- **Realtime reads:** tenant-scoped event and projection updates through
+  Phoenix Channels at `/ws`;
+- **Analytics reads:** Core-backed and Query Service-computed aggregations with
+  quotas and ETS caching;
+- **Read models:** rebuildable per-tenant projections folded from durable Core
+  events.
+
+Core remains source of truth. Query Service caches and projection state can be
+rebuilt from Core after restart.
+
 Migrated from Clojure to leverage the BEAM VM's superior concurrency and OTP supervision for real-time event processing.
 
 ## 🎯 Why Elixir?
@@ -134,4 +149,3 @@ docker run -p 3902:3902 \
 ```
 
 **Built with ❤️ on the BEAM** 🦎✨
-

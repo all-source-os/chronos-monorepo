@@ -73,7 +73,7 @@ Clients → Control Plane / Query Service → Core (Rust, port 3900)
 ```
 
 - **Core** = the database. Source of truth for events, users, tenants, API keys, configuration, subscriptions, quotas, and billing metadata.
-- **Query Service** = stateless API gateway with tenant-scoped caches and read-model compute.
+- **Query Service** = stateless tenant-facing read plane. It separates HTTP queries, Phoenix Channel realtime delivery, analytics endpoints, and rebuildable per-tenant projections over Core events. Caches and read models are disposable; Core remains durable source of truth.
 - **Control Plane** = public auth, onboarding, billing, and administration layer that persists through Core.
 - **PostgreSQL** = not required or deployed by current AllSource services.
 

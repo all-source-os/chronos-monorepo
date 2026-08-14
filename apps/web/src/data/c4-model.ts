@@ -15,8 +15,8 @@
 //   • The 5 Fly.io backends are: allsource-core, allsource-query,
 //     allsource-control-plane, allsource-auth, allsource-prime.
 //     The web frontend is on Vercel (www.all-source.xyz).
-//   • Topology: Clients → Query Service (gateway: auth, billing, routing) →
-//     Core. Control Plane owns public auth + billing.
+//   • Topology: Clients → Control Plane / Query Service → Core. Control Plane
+//     owns public auth + billing; Query Service owns tenant-facing read paths.
 //
 // When unsure about a relationship, OMIT it rather than guess.
 // ---------------------------------------------------------------------------
@@ -199,11 +199,12 @@ const containerNodes: C4Node[] = [
     type: "container",
     tech: "Elixir / Phoenix",
     description:
-      "API gateway — the front door for clients. Auth, billing checks, and routing to Core.",
+      "Stateless read plane over Core — tenant-scoped HTTP, realtime, analytics, and projections.",
     responsibilities: [
-      "Validates API keys and scopes requests to a tenant.",
-      "Routes writes to the Core leader, reads round-robin across followers.",
-      "Enforces quotas and meters usage for billing.",
+      "Serves tenant-scoped event, stream, schema, and projection reads over HTTP.",
+      "Broadcasts Core events and projection updates through Phoenix Channels at /ws.",
+      "Provides Core-backed and locally computed analytics endpoints with ETS caching.",
+      "Maintains rebuildable per-tenant projections and replay jobs; durable data remains in Core.",
     ],
     fly: true,
   },
@@ -328,7 +329,11 @@ const containerNodes: C4Node[] = [
 
 const containerEdges: C4Edge[] = [
   // gateway → core
-  { source: "query-service", target: "core", label: "reads/writes events via /api/v1" },
+  {
+    source: "query-service",
+    target: "core",
+    label: "queries events; builds read models; subscribes to live stream",
+  },
   { source: "core", target: "core-storage", label: "persists events (WAL + Parquet)" },
 
   // control plane

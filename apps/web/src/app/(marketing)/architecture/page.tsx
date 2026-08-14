@@ -51,11 +51,13 @@ export default function ArchitecturePage() {
             </p>
           </div>
           <div className="rounded-lg border bg-muted/10 p-4">
-            <div className="mb-1 text-sm font-semibold text-foreground">One source of truth</div>
+            <div className="mb-1 text-sm font-semibold text-foreground">
+              One source, several read paths
+            </div>
             <p className="text-xs text-muted-foreground">
-              Core stores events plus event-sourced users, tenants, API keys, configuration,
-              subscriptions, quotas, and billing metadata. Query Service and Control Plane access
-              Core without a PostgreSQL dependency.
+              Core stores durable events and metadata. Query Service separates tenant-scoped HTTP
+              queries, Phoenix realtime channels, analytics endpoints, and rebuildable projections
+              without becoming another database.
             </p>
           </div>
           <div className="rounded-lg border bg-muted/10 p-4">

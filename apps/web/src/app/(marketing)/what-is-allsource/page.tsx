@@ -1,5 +1,5 @@
 import { Badge, buttonVariants, cn } from "@allsource/ui";
-import { ArrowRight, Brain, Cable, Cloud, Database, ExternalLink } from "lucide-react";
+import { ArrowRight, Brain, Cable, Cloud, Database, ExternalLink, Radio } from "lucide-react";
 import Link from "next/link";
 import {
   allsourceIdentity,
@@ -11,14 +11,15 @@ import { breadcrumbSchema, faqPageSchema, productVerticalListSchema } from "@/li
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
-  title: "What Is AllSource Event Store? Core, Prime, Hosted, and MCP",
+  title: "What Is AllSource? Core, Query Service, Prime, Hosted, and MCP",
   description:
-    "AllSource Event Store is developer infrastructure for durable event history and AI-agent memory. See exact boundaries between Core, Prime, hosted services, and MCP connectors.",
+    "AllSource combines durable Core events, Query Service read paths, Prime agent memory, hosted operations, and MCP connectors. See each boundary.",
   canonical: "/what-is-allsource",
 });
 
 const iconByVertical: Record<ProductVerticalId, typeof Database> = {
   core: Database,
+  query: Radio,
   prime: Brain,
   hosted: Cloud,
   mcp: Cable,
@@ -69,11 +70,12 @@ export default function WhatIsAllSourcePage() {
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">Product map</p>
             <h2 id="product-map-heading" className="mt-3 text-3xl font-semibold text-foreground">
-              One platform. Four precise names.
+              One platform. Five precise names.
             </h2>
             <p className="mt-4 text-base leading-7 text-muted-foreground">
               “AllSource” names the platform. Use the component name when describing a specific job.
-              Core stores. Prime remembers. Hosted services operate. MCP connectors expose tools.
+              Core stores. Query Service reads. Prime remembers. Hosted services operate. MCP
+              connectors expose tools.
             </p>
           </div>
 
@@ -90,16 +92,16 @@ export default function WhatIsAllSourcePage() {
               </div>
               <div className="border-b border-l border-border p-5">
                 <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-                  Hosted services
+                  Query Service
                 </p>
-                <p className="mt-2 text-sm text-foreground">Auth · tenancy · quotas · billing</p>
+                <p className="mt-2 text-sm text-foreground">HTTP · realtime · analytics · views</p>
               </div>
 
               <div className="border-r border-border p-5">
                 <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-                  AI agents
+                  Control + agent layers
                 </p>
-                <p className="mt-2 text-sm text-foreground">Prime · MCP tools</p>
+                <p className="mt-2 text-sm text-foreground">Auth · billing · Prime · MCP</p>
               </div>
               <div className="grid place-items-center px-4 font-mono text-primary">→</div>
               <div className="border-l border-border bg-primary/5 p-5">
@@ -110,8 +112,9 @@ export default function WhatIsAllSourcePage() {
               </div>
             </div>
             <figcaption className="border-t border-border px-5 py-3 text-xs leading-5 text-muted-foreground">
-              Core is durable record. Prime and application projections derive useful context from
-              that record. Connectors transport tool calls; they do not become another database.
+              Core is durable record. Query Service exposes distinct HTTP, realtime, analytics, and
+              projection reads from that record. Prime derives agent context. Connectors transport
+              tool calls; none becomes another database.
             </figcaption>
           </figure>
         </div>
@@ -186,7 +189,7 @@ export default function WhatIsAllSourcePage() {
             {[
               [
                 "AllSource Event Store",
-                "Developer infrastructure at all-source.xyz: Core, Prime, hosted services, and MCP connectors.",
+                "Developer infrastructure at all-source.xyz: Core, Query Service, Prime, hosted services, and MCP connectors.",
               ],
               [
                 "ArcGIS AllSource",

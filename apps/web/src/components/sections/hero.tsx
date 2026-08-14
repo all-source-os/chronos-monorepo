@@ -24,7 +24,8 @@ function HeroTitles() {
       </h1>
       <p className="max-w-2xl text-balance text-lg leading-8 text-muted-foreground sm:text-xl lg:text-left">
         AllSource Event Store records decisions and state changes as immutable events. Core keeps
-        durable history; Prime gives agents cross-session memory backed by source events.
+        durable history; Query Service separates HTTP, realtime, analytics, and projection reads;
+        Prime gives agents cross-session memory backed by source events.
       </p>
     </div>
   );

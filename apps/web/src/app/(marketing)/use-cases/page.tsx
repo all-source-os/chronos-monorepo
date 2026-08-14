@@ -45,9 +45,9 @@ const useCases: readonly UseCase[] = [
     capabilities: [
       "Append-only events with integrity checks",
       "Point-in-time state through `as_of` queries",
-      "Tenant, actor, and entity-scoped history",
+      "Tenant-scoped HTTP history through Query Service",
     ],
-    products: ["core", "hosted"],
+    products: ["core", "query", "hosted"],
     href: "/solutions/audit-compliance",
     linkLabel: "Explore audit and compliance",
     icon: ShieldCheck,
@@ -64,10 +64,10 @@ const useCases: readonly UseCase[] = [
     outcome: "Rebuild the checkout projection and compare state before and after rejection.",
     capabilities: [
       "Deterministic replay from ordered events",
-      "Projection rebuilds without rewriting source history",
+      "Query Service rebuilds read models without rewriting source history",
       "Published Core reference: 11.9µs p99 indexed reads",
     ],
-    products: ["core", "hosted"],
+    products: ["core", "query", "hosted"],
     href: "/platform/event-sourcing",
     linkLabel: "See Core replay architecture",
     icon: RotateCcw,
@@ -106,10 +106,10 @@ const useCases: readonly UseCase[] = [
     outcome: "Replay the ledger to show when the balance moved and which event caused it.",
     capabilities: [
       "Append-only ledger history",
-      "Point-in-time balances from projections",
+      "HTTP, realtime, and analytics reads over balance projections",
       "Published Core reference: 469K events/sec batch ingest",
     ],
-    products: ["core", "hosted"],
+    products: ["core", "query", "hosted"],
     href: "/solutions/financial-services",
     linkLabel: "Explore financial services",
     icon: CircleDollarSign,
@@ -117,6 +117,11 @@ const useCases: readonly UseCase[] = [
 ] as const;
 
 const useCaseFaqs = [
+  {
+    question: "What role does Query Service play in these use cases?",
+    answer:
+      "Core remains the durable source of truth. Query Service provides tenant-scoped HTTP queries, realtime event and projection channels, analytics endpoints, and rebuildable read models tailored to each consuming application.",
+  },
   {
     question: "What are the main AllSource Event Store use cases?",
     answer:
@@ -394,7 +399,7 @@ export default function UseCasesPage() {
                 {
                   icon: RotateCcw,
                   label: "Derive current state",
-                  copy: "Build read models from retained events and rebuild them through replay when logic changes.",
+                  copy: "Query Service builds tenant-scoped read models from retained Core events and rebuilds them through replay.",
                   positive: true,
                 },
                 {

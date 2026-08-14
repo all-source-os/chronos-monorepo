@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata: Metadata = constructMetadata({
-  title: "Real-Time Analytics — Live Event Streams and Materialized Views",
+  title: "AllSource Query Service: HTTP, Realtime, and Analytics Reads",
   description:
-    "Build event-stream dashboards with projections, materialized views, and WebSocket delivery. Published Core indexed-read reference: 11.9us p99; end-to-end latency varies by path.",
+    "See how AllSource Query Service separates tenant-scoped HTTP queries, Phoenix realtime channels, analytics endpoints, and rebuildable projections over Core.",
   canonical: "/solutions/real-time-analytics",
 });
 
