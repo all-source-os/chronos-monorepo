@@ -520,7 +520,15 @@ defmodule QueryServiceEx.Projections.TenantProjections do
       projection: projection
     )
 
-    case fold_history(server, tenant_id, template, token, cutoff, 0, 0, %{}, 0) do
+    ctx = %{
+      server: server,
+      tenant_id: tenant_id,
+      template: template,
+      token: token,
+      cutoff: cutoff
+    }
+
+    case fold_history(ctx, %{offset: 0, page_no: 0, shadow: %{}, count: 0}) do
       {:ok, shadow, processed} ->
         GenServer.cast(
           server,
@@ -541,55 +549,45 @@ defmodule QueryServiceEx.Projections.TenantProjections do
       GenServer.cast(server, {:build_failed, tenant_id, template.name, token, error})
   end
 
-  defp fold_history(
-         _server,
-         _tenant_id,
-         _template,
-         _token,
-         _cutoff,
-         _offset,
-         page_no,
-         _shadow,
-         _count
-       )
-       when page_no >= @max_backfill_pages do
+  # `ctx` carries what stays fixed for the whole backfill (server, tenant_id,
+  # template, token, cutoff); `state` carries the per-page cursor (offset,
+  # page_no, shadow, count). Nine positional parameters was both a Credo
+  # failure and genuinely easy to call wrong — two of them were adjacent
+  # integers, so a transposed `offset`/`page_no` would have type-checked fine
+  # and silently mis-paged the backfill.
+  defp fold_history(_ctx, %{page_no: page_no}) when page_no >= @max_backfill_pages do
     {:error, :max_backfill_pages_reached}
   end
 
-  defp fold_history(server, tenant_id, template, token, cutoff, offset, page_no, shadow, count) do
-    params = %{limit: @backfill_page_size, offset: offset, order: "asc", as_of: cutoff}
+  defp fold_history(ctx, state) do
+    params = %{limit: @backfill_page_size, offset: state.offset, order: "asc", as_of: ctx.cutoff}
 
-    case query_events_page(tenant_id, params) do
+    case query_events_page(ctx.tenant_id, params) do
       {:ok, events, total} when is_list(events) ->
-        next_shadow = Enum.reduce(events, shadow, &fold_into_map(&2, template, &1))
-        processed = count + length(events)
+        next_shadow = Enum.reduce(events, state.shadow, &fold_into_map(&2, ctx.template, &1))
+        processed = state.count + length(events)
 
         GenServer.cast(
-          server,
-          {:build_progress, tenant_id, template.name, token, processed, total}
+          ctx.server,
+          {:build_progress, ctx.tenant_id, ctx.template.name, ctx.token, processed, total}
         )
 
         if length(events) < @backfill_page_size do
           {:ok, next_shadow, processed}
         else
-          fold_history(
-            server,
-            tenant_id,
-            template,
-            token,
-            cutoff,
-            offset + length(events),
-            page_no + 1,
-            next_shadow,
-            processed
-          )
+          fold_history(ctx, %{
+            offset: state.offset + length(events),
+            page_no: state.page_no + 1,
+            shadow: next_shadow,
+            count: processed
+          })
         end
 
       {:error, reason} ->
         Logger.warning(
-          "[TenantProjections] backfill page failed at offset #{offset}: #{inspect(reason)}",
-          tenant_id: tenant_id,
-          projection: template.name
+          "[TenantProjections] backfill page failed at offset #{state.offset}: #{inspect(reason)}",
+          tenant_id: ctx.tenant_id,
+          projection: ctx.template.name
         )
 
         {:error, reason}
@@ -605,24 +603,28 @@ defmodule QueryServiceEx.Projections.TenantProjections do
   # Defaults to Core's tenant-scoped event query; tests can inject a list source.
   defp query_events_page(tenant_id, params) do
     case Application.get_env(:query_service_ex, :tenant_projection_query_fun) do
-      fun when is_function(fun, 2) ->
-        case fun.(tenant_id, params) do
-          {:ok, events} when is_list(events) -> {:ok, events, nil}
-          other -> other
-        end
-
-      _ ->
-        case RustCoreClient.query_events_page(tenant_id, params) do
-          {:ok, body} ->
-            events = body["events"] || body[:events] || []
-            total = body["total_count"] || body[:total_count] || body["total"] || body[:total]
-            {:ok, events, total}
-
-          error ->
-            error
-        end
+      fun when is_function(fun, 2) -> normalize_injected(fun.(tenant_id, params))
+      _ -> normalize_core(RustCoreClient.query_events_page(tenant_id, params))
     end
   end
+
+  defp normalize_injected({:ok, events}) when is_list(events), do: {:ok, events, nil}
+  defp normalize_injected(other), do: other
+
+  defp normalize_core({:ok, body}) do
+    events = first_key(body, ["events", :events]) || []
+    total = first_key(body, ["total_count", :total_count, "total", :total])
+    {:ok, events, total}
+  end
+
+  defp normalize_core(error), do: error
+
+  # Core answers with string keys, injected test sources with atoms, and the
+  # total has carried two different names. Each `||` in the old inline chain
+  # counted as a branch, which is what pushed this function past Credo's
+  # complexity ceiling; a lookup over a key list is the same behaviour without
+  # the branching (only nil/false are falsy in Elixir, so a 0 total still wins).
+  defp first_key(body, keys), do: Enum.find_value(keys, &Map.get(body, &1))
 
   defp buffer_live_event(state, tenant_id, event) do
     builds =
