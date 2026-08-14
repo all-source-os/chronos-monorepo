@@ -1,7 +1,8 @@
 ---
 title: "Why Event Sourcing in 2026: Beyond Simple Storage"
 publishedAt: "2026-02-12"
-summary: Your application needs more than a database—it needs perfect memory. Here's why event sourcing matters more than ever.
+updatedAt: "2026-08-14"
+summary: Event sourcing preserves ordered history for replay, provenance, and point-in-time reconstruction. Here's when that model earns its complexity.
 author: "all.source team"
 category: "use-cases"
 image: "/assets/blog/why-event-sourcing-2026.webp"
@@ -118,8 +119,8 @@ Modern event stores solve this with:
 - **Aggressive indexing**: Entity-based, time-based, type-based
 
 At all.source, we've achieved:
-- **469K events/second** write throughput
-- **11.9μs** query latency for point lookups
+- **469K events/second** in the published Core batch-ingest reference
+- **11.9μs p99** in the published Core indexed-read reference
 - **Sub-100ms** time-travel queries across millions of events
 
 Event sourcing doesn't have to be slow anymore.
@@ -137,7 +138,7 @@ If you answered yes to any of these, it's time to look beyond traditional databa
 
 ## The Bottom Line
 
-Your application doesn't need another database. It needs **perfect memory**—the ability to remember every change, query any point in history, and give AI agents the context they need.
+Some applications need more than current state. They need **durable, ordered history** to replay changes, query prior state, and give AI agents inspectable context.
 
 That's what event sourcing provides. And that's what we're building at all.source.
 

@@ -4,7 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata: Metadata = constructMetadata({
   title: "IoT & Telemetry — High-Throughput Ingestion for Sensor Data",
   description:
-    "Ingest 469K sensor events per second with WAL durability. Time-series queries, anomaly detection projections, and real-time dashboards for industrial IoT and device fleets.",
+    "Durable sensor-event ingestion, time-range queries, projections, and dashboards for industrial IoT. Published Core batch-ingest reference: 469K events/sec.",
   canonical: "/solutions/iot-telemetry",
 });
 

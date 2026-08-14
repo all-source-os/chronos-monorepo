@@ -23,15 +23,15 @@ const rows: Row[] = [
   },
   {
     feature: "Ingestion throughput",
-    allsource: "469K events/sec",
+    allsource: "469K events/sec (published batch reference)",
     eventstoredb: "~15K events/sec",
-    note: "AllSource uses a Rust WAL + Parquet engine; EventStoreDB is .NET on disk-backed streams.",
+    note: "AllSource figure is its published batch-ingest reference, not a synchronous per-event durability comparison. EventStoreDB figure varies by workload and deployment.",
   },
   {
     feature: "p99 query latency",
-    allsource: "11.9μs",
+    allsource: "11.9μs p99 (published indexed-read reference)",
     eventstoredb: "1–10ms",
-    note: "DashMap-backed projections vs. streamed reads from disk.",
+    note: "AllSource figure covers Core indexed reads, not end-to-end API, replay, graph, or vector queries. Benchmark paths are not directly equivalent.",
   },
   {
     feature: "Docker image size",
@@ -59,7 +59,7 @@ const rows: Row[] = [
   },
   {
     feature: "MCP tools for AI agents",
-    allsource: "73 tools",
+    allsource: "55 default / 73 fleet",
     eventstoredb: "no",
     note: "AllSource ships a Model Context Protocol server out of the box. EventStoreDB has no equivalent.",
   },
@@ -109,10 +109,10 @@ export default function CompareEventStoreDBPage() {
             AllSource vs EventStoreDB
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            AllSource and EventStoreDB are both event stores. AllSource answers queries in 11.9µs,
-            ships 55+ tenant MCP tools (73 with fleet controls), and starts at $19/month self-serve;
-            EventStoreDB is the older, cluster-priced incumbent with a longer enterprise track
-            record. This page compares performance, footprint, AI integration, and licensing.
+            AllSource and EventStoreDB are both event stores. AllSource's published reference
+            benchmark measured 11.9µs p99 reads; its default tenant MCP exposes 55 tools, rising to
+            73 with fleet controls. Hosted AllSource starts at £18.99/month. This page compares
+            architecture, published performance, AI integration, and licensing.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>

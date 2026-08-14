@@ -1,6 +1,7 @@
 ---
 title: "Event Sourcing for AI Agent Memory: A Practical Guide"
 publishedAt: "2026-04-21"
+updatedAt: "2026-08-14"
 summary: "How to use AllSource as durable, time-travelling memory for LLM agents. Store conversations, decisions, and context as events. Query any past state. Give agents memory that survives restarts."
 author: "all.source team"
 image: "/assets/blog/event-sourcing-ai-agent-memory-guide.webp"
@@ -94,11 +95,11 @@ For frequently accessed agent state (like user preferences), build a projection 
 }
 ```
 
-The projection gives you 11.9μs lookups for the agent's current understanding of the user — no need to replay the full event stream on every request.
+The projection avoids replaying the full event stream on every request. AllSource Core's published 11.9μs p99 result is an indexed-read reference; your projection, API, and network path must be measured separately.
 
-## MCP integration: 43 tools for Claude
+## MCP integration: 55 default tenant tools
 
-AllSource ships with 43 MCP tools that connect directly to Claude Desktop. Your agent can:
+AllSource's default tenant MCP registry exposes 55 tools to Claude Desktop and other MCP clients. Read-only mode exposes 45; fleet and administrative controls raise the full registry to 73. Your agent can:
 
 - **query_events**: Search the event stream by type, entity, or time range
 - **create_event**: Store new observations, decisions, or actions

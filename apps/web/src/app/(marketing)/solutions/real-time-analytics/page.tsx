@@ -19,7 +19,7 @@ const features = [
   {
     title: "11.9us p99 Query Latency",
     description:
-      "DashMap concurrent reads deliver sub-microsecond indexed lookups. No query planner overhead, no connection pooling — just O(1) access to your event data.",
+      "The published reference benchmark measured 11.9us p99 projection reads through the in-memory concurrent map. Results depend on hardware, dataset, and query path.",
     icon: Zap,
     color: "from-cyan-500/20 to-cyan-500/5",
   },
@@ -38,9 +38,9 @@ const features = [
     color: "from-indigo-500/20 to-indigo-500/5",
   },
   {
-    title: "DashMap Concurrent Reads",
+    title: "Concurrent In-Memory Reads",
     description:
-      "Lock-free concurrent hash map serves 40K+ queries per second. Multiple dashboard users querying simultaneously with no contention or degradation.",
+      "A sharded concurrent map serves hot reads while ingestion continues. End-to-end capacity depends on filters, payloads, API hops, and hardware, so set SLOs from your own load test.",
     icon: Cpu,
     color: "from-teal-500/20 to-teal-500/5",
   },
@@ -54,7 +54,7 @@ const features = [
   {
     title: "Prometheus Metrics Built-In",
     description:
-      "Export event throughput, query latency percentiles, projection lag, and storage metrics directly to Prometheus. Grafana dashboards out of the box.",
+      "Export event throughput, query latency percentiles, projection lag, and storage metrics for Prometheus and your own Grafana dashboards.",
     icon: Gauge,
     color: "from-violet-500/20 to-violet-500/5",
   },
@@ -104,8 +104,8 @@ export default function RealTimeAnalyticsPage() {
             {[
               { value: "11.9us", label: "p99 Latency" },
               { value: "469K/s", label: "Ingestion" },
-              { value: "40K+", label: "Queries/sec" },
-              { value: "0ms", label: "ETL Needed" },
+              { value: "WAL", label: "Crash Recovery" },
+              { value: "WS", label: "Live Streams" },
             ].map((metric) => (
               <div
                 key={metric.label}
@@ -176,7 +176,7 @@ curl -s https://api.all-source.xyz/api/v1/events/query \\
   }'
 
 # {"events": [...], "count": 847}
-# Response time: 0.012ms (11.9us p99)
+# Published Core indexed-read reference: 11.9us p99
 
 # Get a live projection — materialized view updated on every event
 curl -s https://api.all-source.xyz/api/v1/projections/daily-active-users \\
@@ -197,10 +197,10 @@ wscat -c "wss://api.all-source.xyz/api/v1/events/stream" \\
       {/* CTA */}
       <Section className="pb-24 text-center">
         <BarChart3 className="mx-auto mb-4 h-12 w-12 text-cyan-400" />
-        <h2 className="mb-4 text-3xl font-bold">Kill your ETL pipeline</h2>
+        <h2 className="mb-4 text-3xl font-bold">Query current projections directly</h2>
         <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
-          Stop waiting for batch jobs. Query live event streams with sub-microsecond latency and
-          stream updates to dashboards in real-time.
+          Query live event streams and materialized views, then stream updates to dashboards over
+          WebSocket. Keep a separate warehouse when your analysis needs one.
         </p>
         <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <Link href="/signup" className={cn(buttonVariants({ size: "lg" }))}>

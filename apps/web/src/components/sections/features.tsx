@@ -23,7 +23,7 @@ const capabilities = [
   {
     title: "MCP access for agents",
     content:
-      "Give an MCP client 55+ tenant-scoped tools for event reads and writes; fleet operators can enable 73 tools with administrative controls.",
+      "Give an MCP client 55 tenant-scoped tools by default; fleet operators can enable 73 tools with administrative controls.",
     icon: Bot,
   },
 ];

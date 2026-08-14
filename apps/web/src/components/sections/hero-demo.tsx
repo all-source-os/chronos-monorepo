@@ -8,11 +8,11 @@ import { siteConfig } from "@/lib/config";
 /**
  * Self-contained, pseudo-live homepage demo. Two panes:
  *   1. Events streaming into Core (JSON, scripted loop).
- *   2. An agent recalling those events with sub-microsecond latency.
+ *   2. An agent recalling those events through a low-latency projection.
  *
  * This is intentionally a leaf client component so it never blocks the hero
  * text (the LCP element). The animation is scripted/looped for v1 — the
- * `SCRIPTED_EVENTS` array and `recallLatency` are the only seams a real
+ * `SCRIPTED_EVENTS` array and `referenceReadLatency` are the only seams a real
  * Core/MCP feed has to replace later.
  *
  * Respects `prefers-reduced-motion`: with motion reduced, the full event log
@@ -172,7 +172,7 @@ export default function HeroDemo() {
                 <span className="font-semibold">$49</span> cart, then the agent decided to upsell.
               </p>
               <p className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-500 dark:text-emerald-400 sm:text-xs">
-                returned in {siteConfig.recallLatency} ✓
+                published Core read benchmark: {siteConfig.referenceReadLatency}
               </p>
             </div>
           ) : (

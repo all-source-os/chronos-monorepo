@@ -26,7 +26,7 @@ export default function McpPage() {
           </p>
           <pre className="rounded-lg bg-black/80 p-4 text-sm text-green-400 overflow-x-auto">
             {`cargo install allsource-prime
-allsource-prime --version  # allsource-prime 0.21.3`}
+allsource-prime --version  # allsource-prime 0.22.0`}
           </pre>
         </section>
 
@@ -66,7 +66,7 @@ allsource-prime --version  # allsource-prime 0.21.3`}
 
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">
-            v0.21.3 — text-only embedding
+            v0.22.0 — text-only embedding
           </h2>
           <p className="text-muted-foreground leading-relaxed">
             <code>prime_embed</code> and <code>prime_recall</code> now accept plain text and embed

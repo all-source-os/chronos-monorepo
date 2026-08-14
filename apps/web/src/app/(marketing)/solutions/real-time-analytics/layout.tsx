@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata: Metadata = constructMetadata({
-  title: "Real-Time Analytics — Sub-Microsecond Queries on Live Event Streams",
+  title: "Real-Time Analytics — Live Event Streams and Materialized Views",
   description:
-    "Query event streams with 11.9us p99 latency. Projections, materialized views, and WebSocket streaming for dashboards that update in real-time. No ETL pipeline needed.",
+    "Build event-stream dashboards with projections, materialized views, and WebSocket delivery. Published Core indexed-read reference: 11.9us p99; end-to-end latency varies by path.",
   canonical: "/solutions/real-time-analytics",
 });
 

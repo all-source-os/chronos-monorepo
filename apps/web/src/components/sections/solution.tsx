@@ -20,9 +20,9 @@ const features = [
     ),
   },
   {
-    title: "Sub-Microsecond Queries",
+    title: "11.9μs p99 Projection Reads",
     description:
-      "11.9μs p99 query latency with Parquet columnar storage. Lock-free data structures and zero-cost field access deliver real-time analytics at scale.",
+      "Published Core reference benchmark: 11.9μs p99 indexed reads from the concurrent in-memory map. Parquet provides persistence; network, API, range, graph, and vector paths measure differently.",
     className: "order-3 xl:order-none hover:bg-blue-500/10 transition-all duration-500 ease-out",
     content: (
       <Safari
@@ -35,7 +35,7 @@ const features = [
   {
     title: "AI-Native by Design",
     description:
-      "73-tool MCP Server for Claude Desktop. AI agents can manage events, run analytics, detect anomalies, and orchestrate complex workflows autonomously.",
+      "55 MCP tools in the default tenant connector, or 73 with fleet and administrative controls. Read-only mode exposes 45.",
     className: "md:row-span-2 hover:bg-orange-500/10 transition-all duration-500 ease-out",
     content: (
       <>
@@ -60,7 +60,7 @@ const features = [
   {
     title: "Stream Processing Pipelines",
     description:
-      "Filter, Map, Reduce, Window, Branch, Enrich. Build real-time pipelines with a fluent API. Process 469K events/sec with the Rust core engine.",
+      "Filter, Map, Reduce, Window, Branch, Enrich. Build real-time pipelines with a fluent API. The published Core batch-ingest reference reaches 469K events/sec on its stated hardware.",
     className:
       "flex-row order-4 md:col-span-2 md:flex-row xl:order-none hover:bg-green-500/10 transition-all duration-500 ease-out",
     content: (

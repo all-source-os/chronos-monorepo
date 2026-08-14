@@ -25,7 +25,7 @@ const codeExamples = [
     icon: Terminal,
     href: "/docs/mcp",
     blurb:
-      "Connect Claude Desktop or another MCP client to AllSource. Includes the configuration, 55+ tenant-scoped tools, and the result returned by each tool.",
+      "Connect Claude Desktop or another MCP client to AllSource. Includes secure gateway configuration, the 55-tool default tenant registry, and configuration-dependent tool counts.",
     badge: "docs",
   },
   {

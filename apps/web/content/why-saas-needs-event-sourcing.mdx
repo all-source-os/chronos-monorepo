@@ -1,6 +1,7 @@
 ---
 title: "Why Your SaaS Needs Event Sourcing (Not Just a Database)"
 publishedAt: "2026-04-21"
+updatedAt: "2026-08-14"
 summary: "The business case for event sourcing in multi-tenant SaaS. Audit trails, tenant isolation, usage billing, and feature flags — all as a natural consequence of storing events instead of state."
 author: "all.source team"
 image: "/assets/blog/why-saas-needs-event-sourcing.webp"
@@ -95,7 +96,7 @@ No log archaeology. No "can you reproduce the issue?" The event stream IS the re
 | PostgreSQL + audit tables + CDC + billing counters | 4+ services, weeks of work | Ongoing counter reconciliation, schema migrations break CDC |
 | AllSource event sourcing | 1 API call per event | Events are immutable — schema changes are new event types, old events stay valid |
 
-AllSource's 14-day trial lets you validate the fit before paying. The entry Indie plan ($19/month) gives 500K events/month — enough for an early-stage SaaS — and Studio ($79/month) scales to 5M events for hundreds of active users.
+AllSource's 14-day trial lets you validate the fit before paying. Indie is £18.99/month with 500K events/month and 14-day retention; Studio is £78.99/month with 5M events/month and 90-day retention. Check the [live pricing page](/pricing) before buying because the billing catalog is authoritative.
 
 ## Getting started
 

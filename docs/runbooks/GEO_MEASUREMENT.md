@@ -743,21 +743,24 @@ repeats one of these is quoting our own file:
    deliberate carve-out per `MEMORY.md`), as do the published Rust and
    TypeScript SDK manifests. A model answering "MIT" is reading a real file, so
    the claim grades that as `partially_accurate` rather than a clean miss.
-2. **`apps/web/public/llms.txt` — the file we serve *specifically to LLMs* — is
-   the single most out-of-date surface we have.** It still advertises the
-   retired Free/Pro/Growth tiers, `$29`/`$79` prices, a 100,000-events free
-   tier, and "43 MCP tools". Every one of those is wrong, and it is the file
-   most likely to be read by the things we are measuring. This is the highest-
-   value fix in the whole programme and it costs one commit.
-3. **MCP tool count.** 45 read-only / 55 read+write / 73 with the control-plane
-   and admin tiers. The site and README publish 73; the README badge still says
-   61; llms.txt says 43.
-4. **Currency.** Launch copy settles on GBP (£18.99 Indie) while
-   `apps/web/src/lib/config.ts` carries USD-shaped fallback strings ($19) and
-   the live price comes from the LemonSqueezy catalogue.
-5. **Latency.** The published figure is 11.9µs p99, but at least two of our own
-   surfaces say "sub-microsecond" — an order-of-magnitude overstatement we would
-   otherwise blame a model for repeating.
+2. **Machine-readable product facts — resolved 2026-08-14.** `llms.txt` now
+   states current GBP catalogue prices, exact configuration-dependent MCP tool
+   counts, storage architecture, and benchmark scope.
+3. **MCP tool count — resolved on canonical public surfaces 2026-08-14.** Use
+   45 read-only, 55 default read/write, 64 with control-plane access, and 73 with
+   system administration. Prime is separate: 19 `prime_*` memory tools and 27
+   tools across its full optional registry.
+4. **Currency — resolved on canonical public surfaces 2026-08-14.** Config
+   fallbacks mirror the verified GBP catalogue. Visible and structured paid
+   offers still come from the live billing endpoint; schema offers are omitted
+   when that endpoint is unavailable.
+5. **Latency — resolved on canonical public surfaces 2026-08-14.** The 11.9µs
+   p99 figure is a Core indexed-read reference benchmark, not end-to-end Prime
+   graph/vector recall. Public answer pages now state that boundary and remove
+   the sub-microsecond overclaim.
+6. **Hosted MCP release gap — open.** Latest published connector v0.22.0 cannot
+   attach the gateway Authorization header. The fix exists on main for v0.23.0
+   but needs a release before stable hosted-MCP setup instructions can work.
 
 These are recorded here rather than in the remediation backlog because the
 backlog is reserved for what a *live* run observes.

@@ -103,9 +103,9 @@ export default function IotTelemetryPage() {
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             {[
-              { value: "469K/s", label: "Ingestion Rate" },
-              { value: "11.9us", label: "Query Latency" },
-              { value: "0", label: "Readings Lost" },
+              { value: "469K/s", label: "Batch-ingest reference" },
+              { value: "11.9us", label: "Core indexed-read p99" },
+              { value: "CRC32", label: "WAL integrity checks" },
               { value: "Snappy", label: "Compression" },
             ].map((metric) => (
               <div

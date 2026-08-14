@@ -1,6 +1,7 @@
 ---
 title: "AllSource for Startups: From Local Dev to Production in 15 Minutes"
 publishedAt: "2026-04-23"
+updatedAt: "2026-08-14"
 summary: "The fastest path from zero to event sourcing for startups and side projects. Self-service onboard, a 14-day trial, no infrastructure to manage. Move to production when you're ready — not before."
 author: "all.source team"
 image: "/assets/blog/allsource-for-startups-dev-to-prod.webp"
@@ -157,7 +158,7 @@ You have beta users. You need reliability guarantees but you're not ready for en
 
 ### Pick a paid plan before the trial ends
 
-Your 14-day trial ends once you've validated the idea — pick a hosted plan to keep ingesting. Studio ($79/month) is the popular choice for a growing SaaS:
+Your 14-day trial ends once you've validated the idea — pick a hosted plan to keep ingesting. Studio is £78.99/month in the verified GBP catalog:
 
 - **5M events/month** — enough for a SaaS with thousands of active users
 - **Unlimited streams** — separate event streams per feature or tenant
@@ -199,7 +200,7 @@ Your application code doesn't change. The same `POST /api/v1/events` and `GET /a
 
 What changes:
 
-- **Tier**: Growth ($79/month) or Enterprise (custom) for higher quotas
+- **Tier**: Studio (£78.99/month), Scale (£298.99/month), or Enterprise (custom), depending on quotas and retention
 - **Key management**: admin-managed tenants with named IDs and scoped keys (see [tenant setup guide](/docs/tenant-setup))
 - **Monitoring**: AllSource status page + your own health checks
 - **Self-hosting (optional)**: if you need data sovereignty, AllSource is open source and runs on any Docker/K8s environment
@@ -208,10 +209,10 @@ What changes:
 
 | | Hosted (api.all-source.xyz) | Self-hosted |
 |---|---|---|
-| Setup time | 5 minutes | 1-2 hours |
-| Maintenance | Zero | You manage upgrades, backups, scaling |
+| Setup | Managed account and API key | You deploy and configure it |
+| Maintenance | Provider manages the service | You manage upgrades, backups, scaling |
 | Data location | Fly.io iad (US East) | Your infrastructure |
-| Cost | $19-$299/month (14-day trial first) | Your compute costs |
+| Cost | £18.99-£298.99/month (14-day trial first) | Your compute costs |
 | Best for | Most startups | Regulated industries, data sovereignty |
 
 **Our recommendation:** stay on the hosted version until you have a specific reason to self-host (regulatory requirement, data sovereignty law, or >10M events/month where self-hosting is cheaper). The hosted version has the same durability guarantees (WAL + Parquet) as self-hosted.

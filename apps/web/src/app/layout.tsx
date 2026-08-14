@@ -54,7 +54,7 @@ import "./globals.css";
 export const metadata: Metadata = constructMetadata({
   title: "AllSource — AI-Native Event Store",
   description:
-    "High-performance event sourcing with AI agent memory. 469K events/sec, 12μs queries. Time-travel, knowledge graphs, compressed index. Open source.",
+    "Open-source event store for durable system history and AI memory. Published reference benchmarks: 469K events/sec ingestion and 11.9μs p99 indexed reads.",
   canonical: "/",
 });
 

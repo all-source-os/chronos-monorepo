@@ -3,13 +3,13 @@ import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BLOG_CATEGORIES, type BlogCategory, getBlogPosts, type Post } from "@/lib/blog";
-import { breadcrumbSchema } from "@/lib/structured-data";
+import { breadcrumbSchema, faqPageSchema } from "@/lib/structured-data";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata: Metadata = constructMetadata({
   title: "Event Sourcing for AI Agents",
   description:
-    "The complete guide to event sourcing for AI agents: durable memory that survives restarts, full provenance, time-travel queries, and 11.9μs recall. Plus every AllSource deep-dive, grouped by theme.",
+    "Direct answers about event sourcing for AI agents: restart-safe memory, full provenance, time-travel queries, Core versus Prime, and when another database is a better fit.",
   canonical: "/event-sourcing-for-ai-agents",
 });
 
@@ -35,6 +35,34 @@ const COMPARISONS = [
   { slug: "zep", name: "Zep" },
 ] as const;
 
+const DIRECT_ANSWERS = [
+  {
+    question: "What is event-sourced agent memory?",
+    answer:
+      "Event-sourced agent memory stores each accepted observation, decision, and state change as an ordered event. Current memory is derived from that history instead of overwriting the only copy.",
+  },
+  {
+    question: "Does AllSource memory survive a process restart?",
+    answer:
+      "AllSource Core recovers accepted event history from its write-ahead log and Parquet persistence after restart. Configurable fsync controls the durability and throughput trade-off.",
+  },
+  {
+    question: "Does AllSource store events in PostgreSQL?",
+    answer:
+      "No. AllSource Core is the event database: WAL and Parquet persist events, while an in-memory concurrent map serves projections. PostgreSQL is used for operational metadata, not the event path.",
+  },
+  {
+    question: "Does AllSource replace a vector database?",
+    answer:
+      "Core supplies durable ordered history, replay, and provenance. AllSource Prime adds vector, graph, compressed-index, and temporal recall derived from Core events.",
+  },
+  {
+    question: "When should I not use event-sourced agent memory?",
+    answer:
+      "Use simpler current-state storage when you do not need replay, provenance, audit history, or point-in-time reconstruction. Event sourcing adds event modelling and projection work.",
+  },
+] as const;
+
 export default async function EventSourcingForAiAgentsPage() {
   const posts = await getBlogPosts();
 
@@ -54,6 +82,7 @@ export default async function EventSourcingForAiAgentsPage() {
     { name: "Home", path: "/" },
     { name: "Event Sourcing for AI Agents", path: "/event-sourcing-for-ai-agents" },
   ]);
+  const faq = faqPageSchema(DIRECT_ANSWERS);
 
   return (
     <>
@@ -61,6 +90,11 @@ export default async function EventSourcingForAiAgentsPage() {
         type="application/ld+json"
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
+      <script
+        type="application/ld+json"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faq).replace(/</g, "\\u003c") }}
       />
       <div className="relative overflow-hidden">
         <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
@@ -72,27 +106,41 @@ export default async function EventSourcingForAiAgentsPage() {
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
               Agents forget. A chat window scrolls past, a process restarts, and the context is
-              gone. Event sourcing fixes that at the storage layer: every decision, observation, and
-              message becomes an immutable event you can replay, query at any point in time, and
-              recall in microseconds.
+              gone. Event sourcing fixes that at the storage layer: every accepted decision,
+              observation, and message becomes an immutable event you can replay, inspect by
+              timestamp, and use to rebuild current context.
             </p>
           </header>
+
+          <section aria-labelledby="quick-answers" className="mb-12 rounded-xl border p-6">
+            <h2 id="quick-answers" className="text-2xl font-bold">
+              Quick answers
+            </h2>
+            <dl className="mt-6 space-y-5">
+              {DIRECT_ANSWERS.map((item) => (
+                <div key={item.question}>
+                  <dt className="font-semibold">{item.question}</dt>
+                  <dd className="mt-1 text-sm leading-6 text-muted-foreground">{item.answer}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
 
           {/* What it is */}
           <section className="prose dark:prose-invert max-w-none">
             <h2>What event sourcing gives an agent</h2>
             <p>
               Instead of overwriting state, you append events. The current state is a projection you
-              derive from the log — and because the log is durable, the agent&rsquo;s memory
-              survives restarts, crashes, and redeploys. With AllSource Core that log is a Rust
-              write-ahead log (CRC32 checksums, configurable fsync) backed by columnar Parquet, with
-              in-memory projections that answer recalls at <strong>11.9μs p99</strong> and ingest at{" "}
+              derive from the log. AllSource Core recovers accepted event history after restarts
+              from a Rust write-ahead log (CRC32 checksums, configurable fsync) and columnar
+              Parquet. In-memory projections measured <strong>11.9μs p99</strong> reads in the
+              published reference benchmark; the separate ingestion benchmark measured{" "}
               <strong>469K events/sec</strong>.
             </p>
             <ul>
               <li>
-                <strong>Durable memory</strong> — nothing is lost on restart; the WAL + Parquet
-                store is the source of truth.
+                <strong>Durable memory</strong> — accepted event history is recovered from WAL and
+                Parquet after restart; configurable fsync sets the write durability policy.
               </li>
               <li>
                 <strong>Full provenance</strong> — replay the log to reconstruct exactly what the
@@ -103,8 +151,8 @@ export default async function EventSourcingForAiAgentsPage() {
                 <em>as_of</em> a past moment, first-class.
               </li>
               <li>
-                <strong>MCP access</strong> — 55+ tenant-scoped tools, rising to 73 when fleet and
-                administrative controls are enabled.
+                <strong>MCP access</strong> — 55 tenant-scoped tools by default, rising to 73 when
+                fleet and administrative controls are enabled.
               </li>
             </ul>
           </section>

@@ -1,6 +1,7 @@
 ---
 title: "Real-Time Dashboards Without ETL: Event Sourcing + Projections"
 publishedAt: "2026-04-21"
+updatedAt: "2026-08-14"
 summary: "How projections replace traditional ETL pipelines for real-time dashboards. AllSource event sourcing keeps materialized views in sync as events arrive — no Kafka, no Airflow, no batch jobs."
 author: "all.source team"
 image: "/assets/blog/real-time-dashboards-without-etl.webp"
@@ -50,7 +51,7 @@ A projection folds over these events to maintain running state:
 }
 ```
 
-The projection is always current — updated as each event arrives, not on a batch schedule. Your dashboard queries the projection at 11.9μs latency, not a data warehouse at 500ms+.
+The projection updates as accepted events are processed rather than on a batch schedule. The published Core reference benchmark measured 11.9μs p99 indexed reads; browser, network, projection, and API work add end-to-end latency.
 
 ## WebSocket streaming: push, don't poll
 
@@ -79,7 +80,7 @@ Events arrive in milliseconds — not on a 30-second poll interval. Your users s
 | Stream processing | Kafka + Flink/Spark | AllSource projections |
 | Data warehouse | Snowflake / BigQuery | AllSource Parquet storage |
 | Scheduler | Airflow / Dagster | Not needed (projections are real-time) |
-| Dashboard query layer | dbt + query engine | Direct projection lookup (11.9μs) |
+| Dashboard query layer | dbt + query engine | Direct projection lookup; 11.9μs p99 in the Core reference benchmark |
 
 That's 5 services replaced by 1. The total cost is your AllSource subscription, not a five-figure monthly cloud bill.
 

@@ -1,4 +1,5 @@
 import { siteConfig } from "@/lib/config";
+import type { Catalog } from "@/lib/pricing-catalog";
 
 /**
  * Centralized JSON-LD builders.
@@ -29,7 +30,7 @@ export function organizationSchema() {
       url: `${siteConfig.url}/logo.png`,
     },
     description:
-      "Open-source event store for durable history and AI memory. 469K events/sec, 11.9us p99 recall, 55+ tenant MCP tools and 73 with fleet controls.",
+      "Open-source event store for durable history and AI memory. Published Core reference results: 469K events/sec ingestion and 11.9us p99 indexed reads. Default tenant MCP exposes 55 tools; fleet and admin controls raise the registry to 73.",
     sameAs,
     contactPoint: {
       "@type": "ContactPoint",
@@ -47,7 +48,7 @@ export function websiteSchema() {
     name: siteConfig.name,
     url: siteConfig.url,
     description: siteConfig.description,
-    inLanguage: "en-US",
+    inLanguage: "en",
     publisher: { "@id": ORG_ID },
   };
 }
@@ -75,7 +76,7 @@ export type FaqItem = { question: string; answer: string };
  * AI-answer-engine and rich-result citation. Kept here (not inlined per page)
  * so the FAQ shape stays consistent with the rest of the JSON-LD graph.
  */
-export function faqPageSchema(items: FaqItem[]) {
+export function faqPageSchema(items: readonly FaqItem[]) {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -91,13 +92,8 @@ export function faqPageSchema(items: FaqItem[]) {
 }
 
 /**
- * Parses a display price string ("$19", "Free", "Custom") into the numeric
- * amount + ISO currency schema.org expects.
- *
- * Deliberately driven off the SAME `siteConfig.pricing` strings the pricing
- * page renders: schema that disagrees with the visible page is a spam signal to
- * answer engines and gets the whole graph discounted. Returns null for
- * non-numeric tiers ("Custom") so they are omitted rather than guessed at.
+ * Parses a live catalog display price into the numeric amount + ISO currency
+ * schema.org expects.
  */
 function parseDisplayPrice(price: string): { value: string; currency: string } | null {
   if (/^free$/i.test(price.trim())) return { value: "0", currency: "USD" };
@@ -119,39 +115,38 @@ function parseDisplayPrice(price: string): { value: string; currency: string } |
  * themselves, and the observed failure mode is landing on "in-memory cache" or
  * "logging tool" rather than "event store".
  *
- * Every offer flows from `siteConfig.pricing`, so a tier change updates the
- * schema and the page together. Tiers with non-numeric prices (Enterprise
- * "Custom") are omitted from `offers` rather than invented.
+ * Every paid offer flows from the live billing catalog used by the pricing
+ * page. When the catalog is unavailable, offers are omitted rather than
+ * publishing fallback prices that might disagree with checkout.
  */
-export function softwareApplicationSchema() {
-  const offers = siteConfig.pricing
-    // Self-Host and Enterprise are both excluded, for opposite reasons.
-    // Self-Host would emit a $0 Offer while /pricing deliberately advertises no
-    // free plan — schema contradicting the visible page is a spam signal, and
-    // the Apache-2.0 run-it-yourself story is told in prose in the FAQ instead.
-    // Enterprise has no numeric price to state.
-    .filter((tier) => !tier.isEnterprise && !tier.isSelfHost)
-    .map((tier) => {
-      const parsed = parseDisplayPrice(tier.price);
-      if (!parsed) return null;
-      return {
-        "@type": "Offer",
-        name: tier.name,
-        price: parsed.value,
-        priceCurrency: parsed.currency,
-        url: tier.href.startsWith("http") ? tier.href : `${siteConfig.url}${tier.href}`,
-        category: tier.isSelfHost ? "Self-hosted" : "SaaS",
-        ...(parsed.value !== "0" && {
-          priceSpecification: {
-            "@type": "UnitPriceSpecification",
+export function softwareApplicationSchema(catalog?: Catalog | null) {
+  const livePrices = new Map(catalog?.tiers.map((tier) => [tier.tier, tier.monthly]));
+  const offers = catalog
+    ? siteConfig.pricing
+        // Self-Host and Enterprise are both excluded. Self-Host is not a
+        // hosted offer; Enterprise has no numeric public price.
+        .filter((tier) => !tier.isEnterprise && !tier.isSelfHost)
+        .map((tier) => {
+          const livePrice = livePrices.get(tier.tier)?.formatted;
+          const parsed = livePrice ? parseDisplayPrice(livePrice) : null;
+          if (!parsed) return null;
+          return {
+            "@type": "Offer",
+            name: tier.name,
             price: parsed.value,
             priceCurrency: parsed.currency,
-            unitText: tier.period === "month" ? "MONTH" : tier.period,
-          },
-        }),
-      };
-    })
-    .filter((offer) => offer !== null);
+            url: tier.href.startsWith("http") ? tier.href : `${siteConfig.url}${tier.href}`,
+            category: "SaaS",
+            priceSpecification: {
+              "@type": "UnitPriceSpecification",
+              price: parsed.value,
+              priceCurrency: parsed.currency,
+              unitText: tier.period === "month" ? "MONTH" : tier.period,
+            },
+          };
+        })
+        .filter((offer) => offer !== null)
+    : [];
 
   return {
     "@context": "https://schema.org",
@@ -165,7 +160,7 @@ export function softwareApplicationSchema() {
     description:
       "AllSource is an open-source event store: it records each state change as an immutable event and lets applications or agents query prior state. A write-ahead log with CRC32 checksums and Parquet files provide persistence; an in-memory concurrent map serves reads.",
     publisher: { "@id": ORG_ID },
-    offers,
+    ...(offers.length > 0 && { offers }),
   };
 }
 
@@ -195,7 +190,7 @@ export function blogPostingSchema(post: BlogPostingInput) {
     dateModified: post.dateModified || post.datePublished,
     url,
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
-    inLanguage: "en-US",
+    inLanguage: "en",
     ...(post.section && { articleSection: post.section }),
     ...(post.keywords?.length && { keywords: post.keywords }),
     ...(typeof post.wordCount === "number" && { wordCount: post.wordCount }),

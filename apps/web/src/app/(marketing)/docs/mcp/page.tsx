@@ -3,7 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
   title: "MCP Integration — Connect securely to production",
-  description: `Connect ${siteConfig.name} to Claude Desktop, Cursor, or any MCP client and reach your production event data securely through the authenticated gateway.`,
+  description: `Understand ${siteConfig.name} MCP connector modes, exact tool counts, local setup, and current hosted-gateway release status.`,
   canonical: "/docs/mcp",
 });
 
@@ -28,8 +28,8 @@ function Code({ children }: { children: React.ReactNode }) {
 const SERVERS = [
   {
     name: "allsource-mcp-server",
-    what: "The 55+ tool event-store connector. Talks to a remote Core through the gateway over HTTPS.",
-    when: "Default choice. Hosted AllSource, or your own Core reached over the network.",
+    what: "The 55-tool default event-store connector. Talks to a remote Core through the gateway over HTTPS.",
+    when: "Local or self-hosted Core on stable 0.22.0. Hosted gateway after the 0.23.0 authorization fix is released.",
     transport: "stdio",
     install: "Docker image",
   },
@@ -72,10 +72,19 @@ export default function McpPage() {
       <p className="text-lg text-muted-foreground mb-10">
         AllSource ships a Model Context Protocol (MCP) connector so AI agents — Claude Desktop,
         Cursor, or anything that speaks MCP — can ingest, query, and reason over your event store in
-        natural language. This page shows how to connect to your <strong>production</strong> data{" "}
-        <strong>securely</strong>, how to keep the connection cheap, and how to stay on a current
-        version.
+        natural language. This page separates local setup from hosted gateway access, lists exact
+        tool counts, and records the current stable-release limitation before you copy a command.
       </p>
+
+      <div className="mb-10 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+        <p className="font-medium text-foreground">Hosted connector release status</p>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+          Stable image <Code>{VERSION}</Code> does not send the Authorization header required by the
+          hosted gateway, so hosted calls return 401. The fix is merged for 0.23.0 but is not
+          released. Use the authenticated REST API for hosted production until that image ships; use{" "}
+          <Code>{VERSION}</Code> only with local or self-hosted Core.
+        </p>
+      </div>
 
       <div className="prose prose-neutral dark:prose-invert max-w-none space-y-10">
         {/* ── Which server ─────────────────────────────────────────────── */}
@@ -198,12 +207,13 @@ AllSource Core (your tenant's events only)`}</CodeBlock>
         {/* ── Step 2: run the connector ────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">
-            2. Run the MCP connector against production
+            2. Check hosted connector release status
           </h2>
           <p className="text-muted-foreground leading-relaxed mb-3">
-            Two knobs matter: <Code>CORE_URL</Code> (the gateway, <strong>not</strong> Core) and{" "}
-            <Code>CORE_API_KEY</Code> (your scoped key, supplied as a secret — never hard-coded).
-            Check the connector works before wiring a client to it:
+            Do not run stable image <Code>{VERSION}</Code> against the hosted gateway. That release
+            does not attach <Code>CORE_API_KEY</Code> to upstream requests, so valid hosted keys
+            still receive 401. The Authorization fix is merged for 0.23.0 but has not been
+            published.
           </p>
           <p className="text-muted-foreground leading-relaxed mb-3 text-sm">
             The connector image is an <strong>Enterprise (BSL 1.1)</strong> build, so the registry
@@ -211,31 +221,29 @@ AllSource Core (your tenant's events only)`}</CodeBlock>
           </p>
           <CodeBlock>{`gh auth token | docker login ghcr.io -u $(gh api user -q .login) --password-stdin`}</CodeBlock>
           <div className="mb-3" />
-          <CodeBlock>{`# stdio server: -i keeps stdin open, and there is no port to publish.
+          <CodeBlock>{`# LOCAL / SELF-HOSTED CORE ONLY for ${VERSION}.
+# stdio server: -i keeps stdin open, and there is no port to publish.
 printf '%s\\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \\
   | docker run -i --rm \\
-      -e CORE_URL=${GATEWAY} \\
-      -e CORE_API_KEY=$ALLSOURCE_API_KEY \\
+      -e CORE_URL=http://host.docker.internal:3900 \\
       ${IMAGE}:${VERSION}
 
 # → {"jsonrpc":"2.0","id":1,"result":{...,"serverInfo":{"name":"allsource-mcp-elixir","version":"${VERSION}"}}}`}</CodeBlock>
           <p className="text-muted-foreground leading-relaxed mt-3">
-            With those set, the connector authenticates to the gateway on every call over HTTPS; the
-            gateway resolves your tenant from the key and returns only your tenant&apos;s data. Pass
-            the key from your shell or a secrets manager (<Code>$ALLSOURCE_API_KEY</Code>) so it is
-            never written into an image, a compose file, or your shell history.
+            For hosted production today, call the gateway REST API with{" "}
+            <Code>Authorization: Bearer $ALLSOURCE_API_KEY</Code>. Pin connector 0.23.0 only after
+            it appears in the release registry and changelog.
           </p>
         </section>
 
         {/* ── Step 3: wire the client ──────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">
-            3. Point your MCP client at the connector
+            3. Point your MCP client at a local connector
           </h2>
           <p className="text-muted-foreground leading-relaxed mb-3">
-            Because the connector speaks stdio, your client launches it and talks over the
-            subprocess&apos;s pipes — there is no URL and no port. Add this to your{" "}
-            <Code>claude_desktop_config.json</Code>:
+            Stable <Code>{VERSION}</Code> can drive local or self-hosted Core over stdio. Add this
+            local-only configuration to <Code>claude_desktop_config.json</Code>:
           </p>
           <CodeBlock>{`{
   "mcpServers": {
@@ -244,20 +252,18 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \\
       "args": [
         "run", "-i", "--rm",
         "-e", "CORE_URL",
-        "-e", "CORE_API_KEY",
         "${IMAGE}:${VERSION}"
       ],
       "env": {
-        "CORE_URL": "${GATEWAY}",
-        "CORE_API_KEY": "your-serviceaccount-key"
+        "CORE_URL": "http://host.docker.internal:3900"
       }
     }
   }
 }`}</CodeBlock>
           <p className="text-muted-foreground leading-relaxed mt-3">
             Passing <Code>-e CORE_URL</Code> with no value forwards it from the <Code>env</Code>{" "}
-            block rather than baking it into the argument list. The client → connector hop is a
-            local pipe; the connector → gateway hop is the authenticated, TLS one.
+            block rather than baking it into the argument list. Keep this Core bound to a trusted
+            local network: direct Core has no public-tenant authentication boundary.
           </p>
         </section>
 
@@ -274,7 +280,7 @@ printf '%s\\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \\
   -H "Authorization: Bearer $ALLSOURCE_API_KEY"
 # → {"events": [ ... ], "count": N}   ← your tenant's events only`}</CodeBlock>
           <p className="text-muted-foreground leading-relaxed mt-3">
-            Then ask the agent to run a query through MCP and check the result matches. A scoped key
+            Connector verification against hosted data must wait for 0.23.0. A scoped REST key
             cannot read another tenant&apos;s events — the gateway derives the tenant from the key,
             not from any field the caller supplies.
           </p>
@@ -412,8 +418,8 @@ docker run --rm gcr.io/go-containerregistry/crane ls ${IMAGE}`}</CodeBlock>
                 "ALLSOURCE_READ_ONLY=true is the safer default and the cheaper one. Turn it off deliberately, for a connector that genuinely ingests.",
               ],
               [
-                "Key in a secret, not in config",
-                "Inject CORE_API_KEY from an environment secret or secrets manager. Keep it out of images, compose files, claude_desktop_config.json, and git.",
+                "Key in a secret, not in config (0.23.0+)",
+                "After the hosted connector fix is released, inject CORE_API_KEY from an environment secret or secrets manager. Keep it out of images, compose files, claude_desktop_config.json, and git.",
               ],
               [
                 "TLS only",

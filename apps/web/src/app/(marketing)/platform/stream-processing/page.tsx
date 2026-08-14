@@ -75,7 +75,7 @@ const features = [
   {
     title: "469K Events/Sec",
     description:
-      "The Rust core processes events through pipelines at ingestion speed. No separate stream processor to deploy — it's built into the event store.",
+      "The published Core batch-ingest reference reaches 469K events/sec on its stated hardware. Pipeline stages and durability settings change application throughput.",
     icon: Zap,
     color: "from-yellow-500/20 to-yellow-500/5",
   },
@@ -114,9 +114,9 @@ export default function StreamProcessingPage() {
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
             AllSource processes event streams inside the event store itself — filtering, mapping,
-            reducing, windowing, branching, and enriching events as they arrive at 469K events/sec.
-            There is no separate stream processor to run: no Kafka, no Flink, no second system to
-            keep in sync.
+            reducing, windowing, branching, and enriching accepted events. The 469K events/sec
+            figure is a Core batch-ingest reference, not a universal rate for every pipeline. No
+            separate stream processor is required for these built-in stages.
           </p>
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link href="/signup" className={cn(buttonVariants({ variant: "default" }))}>

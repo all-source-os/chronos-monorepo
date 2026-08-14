@@ -34,7 +34,7 @@ const features = [
   {
     title: "Compressed Index",
     description:
-      "Auto-generated cross-domain scaffolding links entities that co-occur across event streams. Doubles recall accuracy by surfacing connections that keyword and vector search alone would miss.",
+      "Auto-generated cross-domain scaffolding links entities that co-occur across event streams. A published AllSource project evaluation measured improved cross-domain recall on its test corpus; results depend on your data and queries.",
     icon: Layers,
     color: "from-cyan-500/20 to-cyan-500/5",
   },
@@ -46,9 +46,9 @@ const features = [
     color: "from-green-500/20 to-green-500/5",
   },
   {
-    title: "12us Projection Lookups",
+    title: "Core-Backed Projection Reads",
     description:
-      "A concurrent in-memory map serves projection reads separately from event ingestion. Published recall benchmarks measure 11.9us p99 on the benchmark hardware.",
+      "A concurrent in-memory map serves Core projection reads separately from event ingestion. The published 11.9us p99 Core benchmark is not an end-to-end Prime hybrid-recall measurement.",
     icon: Timer,
     color: "from-yellow-500/20 to-yellow-500/5",
   },
@@ -71,7 +71,7 @@ curl -X POST https://api.all-source.xyz/api/v1/prime/recall \\
     "strategy": "hybrid"
   }'
 
-# Response: ranked nodes with provenance and scores
+# Example response shape; scores depend on corpus and query
 {
   "nodes": [
     {
@@ -94,14 +94,13 @@ curl -X POST https://api.all-source.xyz/api/v1/prime/recall \\
       "last_event": "2026-04-14T14:07:44Z"
     }
   ],
-  "recall_time_us": 12.3,
   "strategy_used": "hybrid"
 }`;
 
 const coreBullets = [
   {
     icon: Database,
-    text: "Prime reads from the Core event store. Every graph node, vector embedding, and index entry is derived from events that Core already persists with WAL + Parquet durability.",
+    text: "Hosted Prime reads and writes tenant-scoped prime.* events through Core. Local Prime embeds Core in-process. In both modes, durable events are the source for graph and vector projections.",
   },
   {
     icon: Layers,
@@ -113,7 +112,7 @@ const coreBullets = [
   },
   {
     icon: Brain,
-    text: "Prime never writes back to Core's event log. It maintains its own graph and vector indexes alongside Core, keeping the dependency direction clean and the event log immutable.",
+    text: "Hosted Prime keeps only warm per-tenant projections in memory and rebuilds them from Core after a cold start. Local Prime keeps its event log and projections in the selected data directory.",
   },
 ];
 
@@ -158,9 +157,9 @@ export default function PrimePage() {
       <Section className="py-12">
         <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 text-center sm:grid-cols-4">
           {[
-            { value: "12us", label: "recall latency", sub: "hybrid search p99" },
+            { value: "Core", label: "durable source", sub: "WAL + Parquet events" },
             { value: "3", label: "search strategies", sub: "vector + graph + temporal" },
-            { value: "2x", label: "recall accuracy", sub: "with compressed index" },
+            { value: "Published", label: "recall evaluation", sub: "method and corpus disclosed" },
             { value: "0", label: "network hops", sub: "embedded NIF mode" },
           ].map((stat) => (
             <motion.div

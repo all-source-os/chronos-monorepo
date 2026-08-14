@@ -1,93 +1,88 @@
 ---
-title: "12μs Agent Memory: How We Got There"
+title: "What AllSource's 11.9μs Benchmark Measures"
 publishedAt: "2026-03-21"
-summary: "From event store to agent memory engine in microseconds. DashMap projections, HNSW vector index, and why the storage layer matters more than the query layer."
+updatedAt: "2026-08-14"
+summary: "The published 11.9μs p99 result measures AllSource Core indexed reads—not end-to-end agent-memory recall. Here is the data path, scope, and how to evaluate Prime separately."
 author: "all.source team"
 category: "engineering"
 image: "/assets/blog/12-microsecond-agent-memory.webp"
 ---
 
-AllSource Prime queries agent memory in **12 microseconds**. Not milliseconds. Microseconds.
+**Direct answer:** AllSource's published **11.9μs p99** result measures an
+indexed read from Core's concurrent in-memory map on the benchmark hardware. It
+does not measure an HTTP request, a historical replay, embedding generation,
+HNSW search, graph traversal, hybrid ranking, or a complete AllSource Prime
+memory lookup.
 
-For context: zer0dex's vector search takes 70ms. Mem0 and Letta are in the hundreds of milliseconds. A typical HTTP round-trip is 50-200ms.
+That distinction matters. Earlier versions of this page described the number as
+“agent memory.” That was too broad. This page now states the benchmark boundary
+explicitly.
 
-12μs means memory lookup is **invisible** — faster than the time it takes to print the response. Here's how.
+## What path produced 11.9μs p99?
 
-## The Architecture
-
-```
-Query → DashMap projection → O(1) lookup → result
-         (no serialization, no network, no disk)
-```
-
-Every Prime projection is a `DashMap` — Rust's concurrent hash map with sharded locking. When you call `prime_neighbors("node:person:alice")`, it's a hash table lookup. No SQL parsing, no query planning, no disk I/O.
-
-### Why DashMap?
-
-| Data Structure | Read Latency | Concurrent Reads | Write Contention |
-|---------------|-------------|-----------------|-----------------|
-| `HashMap` + `RwLock` | ~50ns | Readers block on write | High |
-| `DashMap` | ~100ns | Lock-free reads | Per-shard only |
-| SQLite | ~50μs | Single writer | Full table lock |
-| PostgreSQL | ~500μs | MVCC | Row-level |
-
-DashMap uses 64 shards by default. Reads are wait-free unless the exact same shard is being written to. In practice, with graph data spread across thousands of entity IDs, contention is near-zero.
-
-## The Projection Stack
-
-```
-Event arrives → WAL (durable) → Broadcast to projections
-
-NodeState projection:     entity_id → {properties, timestamps}
-AdjacencyList projection: entity_id → [(peer, edge_id, relation)]
-VectorIndex projection:   entity_id → [f32; N] + HNSW index
-DomainIndex projection:   domain → [entity_ids]
-CrossDomain projection:   (domain_a, domain_b) → [edge_ids]
+```text
+indexed Core read → concurrent in-memory map → event or projection result
 ```
 
-Each projection processes the event independently. The WAL provides durability. The DashMap provides speed. Projections are rebuilt from WAL on startup (with optional checkpoint acceleration).
+Core persists accepted events through a write-ahead log and Parquet storage.
+The indexed hot path reads from an in-memory map with sharded concurrency. WAL
+and Parquet provide recovery and long-term storage; Parquet is not what makes the
+hot read take 11.9μs.
 
-## Vector Search: HNSW at Memory Speed
+## What does the benchmark exclude?
 
-For semantic queries, we use an HNSW (Hierarchical Navigable Small World) index via `instant-distance`. The index lives in memory alongside the DashMap projections.
+The reference result excludes:
 
-| Operation | Latency |
-|-----------|---------|
-| Embed (store vector) | ~1μs (DashMap insert) |
-| Similar (k-NN search) | ~100μs for k=10 on 10K vectors |
-| Recall (vector + graph) | ~200μs (search + 1-hop expansion) |
+- network and TLS latency;
+- gateway authentication and quota checks;
+- JSON encoding and client parsing;
+- replaying a long event stream to reconstruct historical state;
+- generating or loading embeddings;
+- HNSW vector search;
+- graph expansion and temporal scoring;
+- Prime's hybrid ranking and final response assembly.
 
-The HNSW index is rebuilt lazily on first query after mutations. For read-heavy workloads (the common case for agent memory), this means near-zero overhead.
+Calling 11.9μs “hybrid recall latency” or “agent-memory latency” is therefore
+incorrect.
 
-## Ingest: 469K Events/Second
+## How fast is AllSource Prime recall?
 
-```
-Event → CRC32 checksum → WAL append → fsync batch → DashMap insert → Projection broadcast
-```
+There is no single universal Prime recall number. Latency depends on corpus size,
+embedding model, vector dimension, graph fan-out, requested result count, cache
+state, hardware, and whether Prime is local or reaches Core over a network.
 
-The WAL batches fsyncs every 100ms (configurable). This means a power failure can lose at most 100ms of events — a trade-off between durability and throughput.
+Measure the exact path your agent uses. Record at least p50, p95, and p99 for:
 
-Parquet compaction runs in the background, converting WAL segments to columnar storage with Snappy compression. This provides 60-80% space savings without affecting query latency.
+1. direct Core indexed reads;
+2. vector-only search;
+3. graph-only traversal;
+4. hybrid Prime recall;
+5. full client-to-response requests.
 
-## Why This Matters for Agents
+Those numbers answer different questions and should not be collapsed into one
+headline.
 
-Agent memory queries happen in the hot path — between user input and agent response. Every millisecond of memory lookup adds to perceived latency:
+## What does 469K events/sec measure?
 
-| Memory System | Query Latency | Impact on Response |
-|--------------|--------------|-------------------|
-| AllSource Prime | 12μs | Invisible |
-| zer0dex (ChromaDB) | 70ms | Barely noticeable |
-| Mem0 (cloud API) | 200-500ms | Noticeable pause |
-| Letta (LLM-managed) | 500ms+ | Visible delay |
+AllSource's other common headline, **469K events/sec**, is a published Core
+batch-ingest reference. It is not a synchronous, durable, single-event HTTP rate.
+Fsync policy, batch size, hardware, payload size, indexing, and network work all
+change application throughput.
 
-At 12μs, you can query memory on every single message without the user ever noticing. That's the difference between "memory is a tool the agent calls" and "memory is always there."
+See [how to reproduce the 469K benchmark](/blog/reproduce-the-469k-events-benchmark)
+for harness details and caveats.
 
-## Try It
+## Which number should buyers use?
 
-```bash
-cargo install allsource-prime
-allsource-prime --data-dir ~/.prime/memory --mode http --port 3905
+Use benchmark numbers only when their path matches your workload:
 
-# Benchmark it yourself
-curl -w "time_total: %{time_total}s\n" http://localhost:3905/api/v1/prime/stats
-```
+| Question | Measurement to use |
+|---|---|
+| How quickly can Core fetch an indexed item already in memory? | Core indexed-read benchmark |
+| How quickly can Prime find semantically related memories? | Vector or hybrid-recall benchmark |
+| How quickly can an agent retrieve memory in production? | End-to-end client, gateway, Core, and Prime measurement |
+| How many events can one request batch accept? | Batch-ingest benchmark |
+| What can survive an acknowledged write? | Durability-mode and failure-recovery test |
+
+AllSource publishes the 11.9μs result as a **Core indexed-read reference**. Test
+Prime and hosted paths with your data before making a production decision.

@@ -1,6 +1,7 @@
 ---
 title: "AllSource vs stoolap: An Embedded SQL Database Meets an Event Store"
 publishedAt: "2026-06-22"
+updatedAt: "2026-08-14"
 summary: "stoolap is an embedded relational SQL database in pure Rust; AllSource is an immutable event store and agent-memory service. They overlap on AI features but solve different problems. The honest, reproducible comparison — including a benchmark you can run yourself."
 author: "all.source team"
 category: "engineering"
@@ -66,7 +67,7 @@ Two tools, two abstractions. Here is where they actually line up and where they 
 | **Built-in embeddings, no external API** | Yes (local fastembed) | Yes (built-in `EMBED()`) |
 | **Time-travel** | `as_of` projections (replay the log) | `AS OF TIMESTAMP` / `AS OF TRANSACTION` (MVCC) |
 | **Full event provenance / replay** | Yes — first-class, permanent | No — MVCC versions are garbage-collected |
-| **MCP server** | Yes — 43 event/memory tools | Yes — 30 SQL tools |
+| **MCP server** | Yes — 55 default tenant tools; 73 with fleet/admin controls | Yes — 30 SQL tools |
 | **Agent-memory product** | Prime (graph + vector + recall) | None — you assemble it yourself |
 | **Multi-tenancy / RBAC / billing** | Yes (Control Plane, x402) | No — it's a library |
 | **Replication / HA** | Leader-follower WAL shipping (enterprise) | Single-process; none |
@@ -104,7 +105,7 @@ Single-thread, 100k ops, M2 Max, release. AllSource ingestion is the batch-proce
 ### How to read this honestly
 
 - **In-memory ingestion is a wash.** Both land in the low-hundreds-of-thousands per second on this laptop. AllSource's batch path edges ahead on a clean machine (~506K vs stoolap's ~291–448K), but the ranges overlap and depend on background load. **Nobody is 10× faster here.**
-- **The point-read row mixes two different metrics.** stoolap's sub-microsecond figure is an *average* of a prepared SQL point-select; AllSource's 11.9µs is a *p99* recall figure from our docs that we did **not** re-measure with the same harness. Do **not** read this as stoolap winning 20× — the metrics (avg vs p99), datasets, and code paths differ. The honest statement: *both do point reads in the single-digit-microsecond-or-better range in memory.*
+- **The point-read row mixes two different metrics.** stoolap's sub-microsecond figure is an *average* of a prepared SQL point-select; AllSource's 11.9µs is a *p99* indexed-read figure that we did **not** re-measure with the same harness. Do **not** read this as stoolap winning 20× — the metrics (avg vs p99), datasets, and code paths differ. The honest statement: *both serve in-memory point reads in the microsecond range on the cited hardware.*
 - **Durability has a real, visible cost for stoolap.** With `sync_mode=normal`, single-row insert throughput drops to ~79–97K rows/sec (fsync per the WAL config). And to be even-handed: AllSource's 469K is its in-memory batch pipeline — we did **not** isolate AllSource's synchronous-durable per-event rate either. **Neither side's headline ingestion number is a pure synchronous-durable single-row rate.** The only durable single-row figure here is stoolap's.
 
 And about those eye-popping multipliers: stoolap's own benchmarks claim it beats DuckDB by "191×" on batch insert and "1213×" on SELECT-by-ID. Treat those as vendor-reported and partly inflated. The [independent Better Stack test](https://betterstack.com/community/guides/ai/stoolap-vs-sqlite/) found stoolap's *real* OLAP advantage over SQLite to be **~4.12× at 100k rows, ~6.47× at 1M rows**, and said outright that "the dramatic numbers from its marketing materials should be taken with a grain of salt." That's still a genuinely fast embedded analytics engine — just not three orders of magnitude fast. (For the full reasoning behind our own harness and how to reproduce the 469K figure, see [Reproduce the 469K events benchmark](/blog/reproduce-the-469k-events-benchmark).)

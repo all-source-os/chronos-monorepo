@@ -3,7 +3,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Agent Memory — AllSource Prime",
   description:
-    "Give your AI agent persistent, cross-domain memory. Knowledge graph + vector search + compressed index in one binary. 12μs queries; self-host the open-source core for free.",
+    "Give AI agents durable, cross-domain memory with graph, vector, compressed-index, and temporal recall. Run Prime locally or use tenant-scoped hosted Core persistence.",
   canonical: "/solutions/agent-memory",
 });
 

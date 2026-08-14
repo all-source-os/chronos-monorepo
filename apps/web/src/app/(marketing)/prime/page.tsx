@@ -1,10 +1,10 @@
 import { Badge, buttonVariants, Card, CardContent, cn } from "@allsource/ui";
-import { ArrowRight, Check, Minus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
 import { FadeIn } from "@/components/ui/fade-in";
 
-const PRIME_VERSION = "0.21.4";
+const PRIME_VERSION = "0.22.0";
 
 const claudeDesktopConfig = `{
   "mcpServers": {
@@ -109,73 +109,20 @@ const tools = [
   },
 ];
 
-type Comparison = {
-  feature: string;
-  prime: "yes" | "no";
-  folk: "yes" | "no";
-  notion: "yes" | "no";
-  mem0: "yes" | "no";
-  note?: string;
-};
-
-const comparison: Comparison[] = [
+const fitGuidance = [
   {
-    feature: "Compressed index auto-injected at conversation start",
-    prime: "yes",
-    folk: "no",
-    notion: "no",
-    mem0: "no",
+    title: "Use Prime for agent memory",
+    body: "Choose Prime when agents need graph and vector recall, compressed context, temporal history, and provenance through MCP.",
   },
   {
-    feature: "Event-sourced — time-travel and full audit trail",
-    prime: "yes",
-    folk: "no",
-    notion: "no",
-    mem0: "no",
+    title: "Use Core without Prime for event history",
+    body: "Choose Core alone when replay, point-in-time reconstruction, and projections matter but semantic or graph recall does not.",
   },
   {
-    feature: "Cross-domain hybrid recall (graph + vector + recency)",
-    prime: "yes",
-    folk: "no",
-    notion: "no",
-    mem0: "no",
-    note: "Prime treats domains as first-class",
-  },
-  {
-    feature: "In-process embeddings — no external API",
-    prime: "yes",
-    folk: "no",
-    notion: "no",
-    mem0: "no",
-  },
-  {
-    feature: "MCP-native (Claude Desktop, Claude Code, Cursor, OpenCode)",
-    prime: "yes",
-    folk: "no",
-    notion: "no",
-    mem0: "no",
-  },
-  {
-    feature: "Polished UI for human editors",
-    prime: "no",
-    folk: "yes",
-    notion: "yes",
-    mem0: "no",
-    note: "Prime is for AI editors — that's the wedge",
+    title: "Use a CMS for human publishing workflows",
+    body: "Choose a CMS when editorial UI, approvals, previews, scheduling, and collaborative page editing are primary requirements.",
   },
 ];
-
-function Cell({ value }: { value: "yes" | "no" }) {
-  return (
-    <td className="p-3 text-center">
-      {value === "yes" ? (
-        <Check className="mx-auto h-4 w-4 text-emerald-500" aria-label="yes" />
-      ) : (
-        <Minus className="mx-auto h-4 w-4 text-muted-foreground/40" aria-label="no" />
-      )}
-    </td>
-  );
-}
 
 export default function PrimeLandingPage() {
   return (
@@ -207,7 +154,7 @@ export default function PrimeLandingPage() {
       <FadeIn delay={0.2} inView>
         <section id="install" className="mt-16 scroll-mt-24">
           <h2 className="mb-2 text-2xl font-semibold text-foreground">
-            Same memory, every agent surface
+            One memory store across agent surfaces
           </h2>
           <p className="mb-6 text-sm text-muted-foreground">
             One <code className="rounded bg-muted px-1.5 py-0.5 font-mono">cargo install</code>, one
@@ -275,6 +222,11 @@ export default function PrimeLandingPage() {
                 same local Prime store (or, if you wire <code className="font-mono">--sync-to</code>
                 , the same hosted one).
               </div>
+              <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                <strong className="text-foreground">Local writer rule.</strong> Run one writer
+                process against a local <code className="font-mono">--data-dir</code> at a time. Use
+                separate directories or tenant-scoped hosted persistence for concurrent clients.
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -320,54 +272,24 @@ export default function PrimeLandingPage() {
         </section>
       </FadeIn>
 
-      {/* Comparison */}
+      {/* Product fit */}
       <FadeIn delay={0.3} inView>
         <section className="mt-16">
-          <h2 className="mb-2 text-2xl font-semibold text-foreground">Why not just use a CMS?</h2>
+          <h2 className="mb-2 text-2xl font-semibold text-foreground">Where Prime fits</h2>
           <p className="mb-6 text-sm text-muted-foreground">
-            CMSes and CRMs are built for humans editing pages. Prime is built for AI agents reading
-            and writing memory. Different shape, different wedge — pick the one your primary
-            &quot;editor&quot; actually is.
+            Prime is a retrieval layer over durable event history, not a general database or a human
+            publishing suite.
           </p>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
-                      <th className="px-3 py-2 text-left font-medium">Feature</th>
-                      <th className="px-3 py-2 text-center font-medium">Prime</th>
-                      <th className="px-3 py-2 text-center font-medium">folk</th>
-                      <th className="px-3 py-2 text-center font-medium">Notion</th>
-                      <th className="px-3 py-2 text-center font-medium">Mem0</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comparison.map((row) => (
-                      <tr key={row.feature} className="border-b border-muted last:border-0">
-                        <td className="px-3 py-2 align-top">
-                          <div>{row.feature}</div>
-                          {row.note ? (
-                            <div className="mt-0.5 text-xs text-muted-foreground/70">
-                              {row.note}
-                            </div>
-                          ) : null}
-                        </td>
-                        <Cell value={row.prime} />
-                        <Cell value={row.folk} />
-                        <Cell value={row.notion} />
-                        <Cell value={row.mem0} />
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Comparison reflects features as of {PRIME_VERSION}. folk and Notion both ship polished
-            editing UIs — pick them if humans are still your primary writers.
-          </p>
+          <div className="grid gap-4 md:grid-cols-3">
+            {fitGuidance.map((item) => (
+              <Card key={item.title}>
+                <CardContent className="pt-6">
+                  <h3 className="font-semibold text-foreground">{item.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </section>
       </FadeIn>
 
@@ -381,7 +303,9 @@ export default function PrimeLandingPage() {
             Prime is an AllSource event store, not a separate database. Every mutation — node, edge,
             vector, soft-delete — appends an immutable event to the WAL and is replayed by
             projections that hold the queryable state. WAL + Parquet durability with CRC32
-            checksums; Snappy-compressed columnar snapshots; in-memory DashMap reads at ~12µs.
+            checksums; Snappy-compressed columnar snapshots; in-memory Core indexed reads measured
+            11.9µs p99 in the published reference benchmark. Hybrid recall adds graph and vector
+            work and has separate end-to-end latency.
           </p>
           <p className="mt-3 text-sm text-muted-foreground">
             Embeddings are computed in-process via{" "}

@@ -5,9 +5,9 @@ import { Bot, Clock, Database, GitBranch, RefreshCw, Search, Shield, Zap } from 
 import { motion } from "motion/react";
 
 const metrics = [
-  { value: "11.9μs", label: "Query Latency" },
-  { value: "469K", label: "Events/Second" },
-  { value: "43", label: "MCP Tools" },
+  { value: "11.9μs", label: "Core indexed-read p99" },
+  { value: "469K", label: "Batch-ingest reference" },
+  { value: "55", label: "Default MCP Tools" },
   { value: "~129MB", label: "Binary Size" },
 ];
 
@@ -24,7 +24,7 @@ const capabilities = [
     icon: Zap,
     title: "Microsecond Latency",
     description:
-      "11.9μs p99 query latency with Parquet-based storage. Optimized for both high-throughput ingestion and fast analytical queries.",
+      "The published Core reference benchmark measured 11.9μs p99 indexed reads from the in-memory concurrent map; Parquet provides persistence, not that hot path.",
     color: "hover:bg-yellow-500/10",
     metric: "11.9μs p99",
   },
@@ -76,7 +76,7 @@ export default function QuantIntelligence() {
       id="architecture"
       title="Event Intelligence"
       subtitle="AI-Native Event Store Architecture"
-      description="Built in Rust for performance. Designed for AI agents. Every feature accessible through 73 MCP tools — let Claude or GPT manage your event streams autonomously."
+      description="Built in Rust for event history and agent access. Default tenant MCP exposes 55 tools; fleet and administrative controls raise the registry to 73."
       className="bg-gradient-to-b from-background to-neutral-100 dark:to-neutral-900"
     >
       {/* Metrics Bar */}
@@ -214,7 +214,7 @@ export default function QuantIntelligence() {
                   </div>
                 </div>
                 <div className="mt-3 text-xs text-neutral-500">
-                  Query executed in 11.2μs via mcp_query_events tool
+                  Published Core indexed-read benchmark: 11.9μs p99
                 </div>
               </div>
             </div>

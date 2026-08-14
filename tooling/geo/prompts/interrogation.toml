@@ -22,7 +22,7 @@
 #   - apps/core/LICENSE still says MIT while everything else says Apache-2.0.
 #   - apps/web/public/llms.txt — the file we explicitly serve to LLMs — still
 #     advertises the retired Free/Pro/Growth tiers, $29/$79 prices, 100K-event
-#     quotas and "43 MCP tools".
+#     quotas and a stale MCP tool count.
 #   - Currency is settled as GBP in launch copy while the site config carries
 #     USD-shaped fallback strings.
 #
@@ -211,11 +211,10 @@ severity = "medium"
 [[prompt.claim]]
 id = "perf.latency"
 expectation = """
-The published query/recall latency is 11.9 microseconds at p99 (the homepage \
-demo stamps 11.2µs and marketing shorthand says ~12µs; all three are the same \
-claim). An answer saying "sub-microsecond" is INACCURATE by roughly 12x — \
-note that two of our own surfaces make exactly that error, so a model \
-repeating it is quoting us. An answer in milliseconds is inaccurate.
+The published Core indexed-read latency is 11.9 microseconds at p99. It is not \
+an end-to-end graph, vector, or hybrid-recall measurement. An answer saying \
+"sub-microsecond" is inaccurate by roughly 12x. An answer in milliseconds is \
+also inaccurate when it claims to quote this benchmark.
 """
 source = "apps/web/src/lib/config.ts"
 severity = "medium"

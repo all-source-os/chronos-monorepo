@@ -127,7 +127,8 @@ export function VsPageBody({ competitor }: { competitor: Competitor }) {
           <h2 className="text-2xl font-bold">Build on a durable event store</h2>
           <p className="mt-4 text-sm text-muted-foreground">
             Start on the hosted Indie plan, or self-host the whole stack for free under Apache-2.0.
-            Either way you keep full event provenance and microsecond recall.
+            Either way you keep full event provenance. Published microsecond-range results cover
+            Core indexed reads, not end-to-end memory recall.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
             <Link href="/pricing" className={cn(buttonVariants({ variant: "default" }))}>

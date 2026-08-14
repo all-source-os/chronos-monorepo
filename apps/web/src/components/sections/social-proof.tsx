@@ -6,8 +6,8 @@ import { siteConfig } from "@/lib/config";
 const metrics = [
   {
     value: siteConfig.stats[1]?.display ?? "11.9μs",
-    label: "p99 recall",
-    description: "Published DashMap read benchmark",
+    label: "Core indexed-read p99",
+    description: "Published in-memory reference benchmark",
   },
   {
     value: siteConfig.stats[0]?.display ?? "469K",

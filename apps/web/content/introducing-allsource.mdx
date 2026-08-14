@@ -1,6 +1,7 @@
 ---
 title: Introducing all.source
 publishedAt: "2026-02-01"
+updatedAt: "2026-08-14"
 summary: Time-travel your data with the AI-native event store built for the future.
 author: "all.source team"
 category: "product"
@@ -9,12 +10,12 @@ image: "/assets/blog/introducing-allsource.webp"
 
 We're excited to announce **all.source**, a high-performance event store built in Rust, designed for event sourcing, CQRS, and AI-native workflows.
 
-## The Problem with Traditional Databases
+## The history gap in current-state systems
 
 In today's data-driven world, developers face critical challenges:
 
-- **State Amnesia**: Traditional databases only store current state. When something breaks, you can't see how you got there.
-- **Temporal Blindness**: Want to know what your data looked like last Tuesday at 3pm? Good luck.
+- **History becomes optional infrastructure**: Current-state databases can preserve history, but teams usually add audit tables, change-data capture, or logs to do it.
+- **Point-in-time reconstruction takes design work**: Answering what data looked like last Tuesday requires reliable history and deterministic projections.
 - **AI Integration Gap**: Your data is trapped behind rigid APIs that weren't designed for autonomous workflows.
 
 all.source tackles these challenges head-on with an event store that thinks.
@@ -23,8 +24,8 @@ all.source tackles these challenges head-on with an event store that thinks.
 
 ### 1. Blazing Fast Performance
 
-- **469K events/second** ingestion throughput
-- **11.9μs p99** query latency
+- **469K events/second** in the published Core batch-ingest reference
+- **11.9μs p99** in the published Core indexed-read reference
 - **~129MB** binary footprint
 
 Built in Rust with lock-free data structures and Parquet-based storage for both high-throughput ingestion and fast analytical queries.
@@ -42,7 +43,7 @@ Debug issues, audit changes, or replay historical states instantly.
 
 ### 3. AI-Native by Design
 
-27 MCP (Model Context Protocol) tools for seamless integration with Claude, GPT, and custom AI agents:
+The default tenant MCP registry exposes 55 tools for Claude Desktop and other MCP clients. Fleet and administrative controls raise the registry to 73:
 
 - Query events with natural language
 - Create projections autonomously
@@ -63,14 +64,16 @@ Let AI agents manage your event streams.
 
 ## Getting Started
 
-all.source is MIT licensed and open source. Deploy in minutes:
+AllSource is open source. Repository code is Apache-2.0 with BSL-covered enterprise features; the Core crate retains its MIT carve-out. Run it locally:
 
 ```bash
 # Docker
 docker run -p 3900:3900 ghcr.io/all-source-os/all-source:latest
 
-# Or use our cloud service
-curl -X POST https://api.all.source/signup
+# Or create a hosted trial tenant
+curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","name":"My project"}'
 ```
 
 ## What's Next

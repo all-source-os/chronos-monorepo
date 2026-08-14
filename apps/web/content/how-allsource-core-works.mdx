@@ -1,13 +1,14 @@
 ---
 title: "How AllSource Core Works: WAL, Parquet, and DashMap"
 publishedAt: "2026-04-23"
-summary: "A deep-dive into AllSource Core's storage architecture. Write-Ahead Log with CRC32 checksums, Parquet columnar persistence, and DashMap concurrent reads. How we get 469K events/sec with zero data loss."
+updatedAt: "2026-08-14"
+summary: "A deep-dive into AllSource Core's storage architecture: CRC32-checked WAL recovery, configurable fsync, Parquet persistence, and concurrent in-memory reads."
 author: "all.source team"
 image: "/assets/blog/how-allsource-core-works.webp"
 category: "engineering"
 ---
 
-**AllSource Core is a purpose-built event store written in Rust.** It achieves 469K events/sec ingestion and 11.9us p99 queries through three storage layers: a Write-Ahead Log for crash recovery, Parquet files for long-term persistence, and DashMap for in-memory reads. This post explains how each layer works and why we chose this architecture over PostgreSQL.
+**AllSource Core is a purpose-built event store written in Rust.** Published reference benchmarks report 469K events/sec on the batch-ingest path and 11.9us p99 on the indexed-read path. Those paths use a write-ahead log for recovery, Parquet files for long-term persistence, and a concurrent in-memory map for reads. This post explains each layer and its trade-offs.
 
 ## The three-layer storage model
 
@@ -17,9 +18,9 @@ Read path:   Query → DashMap (11.9us) → done
 Recovery:    Startup → Parquet (bulk load) → WAL (replay delta) → DashMap (ready)
 ```
 
-Every event touches all three layers. The WAL ensures durability (fsync to disk), DashMap enables fast reads (lock-free concurrent hash map), and Parquet provides long-term columnar storage (Snappy compression, analytical queries).
+Accepted events enter the WAL and in-memory map before periodic Parquet checkpoints. The configured fsync policy determines when WAL bytes are forced to disk; the in-memory concurrent map serves hot reads; Parquet provides compact columnar persistence.
 
-This is not "in-memory only." This is not "data lost on restart." Events survive process crashes, machine reboots, and disk failures (when backed by replicated volumes like Fly's persistent storage).
+Core is not in-memory only: startup loads Parquet and replays valid WAL entries. Process-crash and power-loss behaviour still depends on fsync configuration, storage, and replication.
 
 ## Layer 1: Write-Ahead Log (WAL)
 
@@ -28,8 +29,8 @@ The WAL is the durability guarantee. When an event arrives:
 1. Serialize the event to bytes
 2. Compute a CRC32 checksum over the bytes
 3. Write `[length][checksum][bytes]` to the WAL file
-4. `fsync()` to disk (configurable interval, default 100ms)
-5. Only then return 200 to the caller
+4. Apply the configured fsync interval
+5. Make the accepted event available to the in-memory read path
 
 The CRC32 checksum detects corruption — if a WAL entry's checksum doesn't match its payload during recovery, we skip the corrupted entry and log a warning. This catches bit-rot, partial writes from crashes, and filesystem corruption.
 
@@ -54,7 +55,7 @@ pub fn append(&mut self, event: &Event) -> Result<()> {
 
 The fsync interval is a durability/performance trade-off:
 - **100ms (default)**: at most 100ms of events lost on power failure. Good enough for most use cases.
-- **0ms (every write)**: zero data loss, but throughput drops ~10x.
+- **0ms (every write)**: strongest configured acknowledgement boundary, with materially lower throughput. Hardware and operating-system failure modes still apply.
 - **1s**: higher throughput, up to 1s of potential loss.
 
 For financial use cases or audit trails, set `ALLSOURCE_FSYNC_INTERVAL=0`. For IoT telemetry where occasional loss is acceptable, 1s is fine.
@@ -63,7 +64,7 @@ For financial use cases or audit trails, set `ALLSOURCE_FSYNC_INTERVAL=0`. For I
 
 After the WAL write, the event is inserted into a DashMap — a lock-free concurrent hash map from the `dashmap` crate. This is where reads come from.
 
-DashMap uses sharded RwLocks internally. Read operations never block write operations and vice versa (on different shards). This is why AllSource achieves 11.9us p99 query latency — reads are pure memory lookups, not disk I/O.
+DashMap uses sharded locks internally, allowing reads and writes on different shards to proceed concurrently. The published reference benchmark measured 11.9us p99 indexed reads on its stated hardware; end-to-end API, time-travel, graph, and vector queries have different paths.
 
 ```rust
 // Simplified query (actual code in store.rs)
@@ -95,30 +96,29 @@ At startup, Core loads events from Parquet first (bulk load), then replays any W
 
 We get this question a lot. Here's the concrete comparison:
 
-| Metric | AllSource Core | PostgreSQL |
+| Concern | AllSource Core | PostgreSQL |
 |---|---|---|
-| Ingestion throughput | 469K events/sec | ~10K inserts/sec (with indexes) |
-| Query latency (p99) | 11.9us | 500us-5ms (depending on indexes) |
-| Storage per event | ~1KB (Snappy compressed Parquet) | ~2-4KB (row storage + indexes + MVCC overhead) |
-| Crash recovery | WAL replay + Parquet load (~2s for 164K events) | WAL replay (~10-60s depending on checkpoint frequency) |
-| Concurrent reads | Lock-free (DashMap shards) | MVCC (snapshot isolation, can block on heavy writes) |
+| Primary model | Ordered immutable events | General relational rows and transactions |
+| Historical state | Replay events and query point-in-time projections | Model history with tables, temporal features, CDC, or logs |
+| Hot read path | Concurrent in-memory event index | Query planner, indexes, buffers, and MVCC |
+| Persistence | CRC32-checked WAL plus Parquet checkpoints | WAL plus relation and index files |
+| Best fit | Replay, provenance, and event-derived state | Relational constraints, joins, and mutable current state |
 
 PostgreSQL is a general-purpose database designed for mutable state. AllSource Core is a purpose-built event store designed for append-only, immutable events. The append-only constraint lets us make optimizations that PostgreSQL can't:
 
 - **No MVCC overhead**: events are immutable, so we never update or delete
-- **No index maintenance**: DashMap IS the index — O(1) lookups, no B-tree rebalancing
+- **Purpose-built hot index**: entity lookups use the in-memory concurrent map rather than a general relational query plan
 - **No vacuum**: no dead tuples, no bloat, no autovacuum pauses
-- **No WAL amplification**: each event is written once, not twice (data + WAL) like PostgreSQL
 
 ## The durability guarantee
 
-When `POST /api/v1/events` returns 200, your event is:
+When `POST /api/v1/events` accepts an event, it is:
 
-1. Written to the WAL with CRC32 checksum
+1. Appended to the WAL with a CRC32 checksum
 2. In the DashMap (queryable immediately)
 3. Pending Parquet flush (will be checkpointed within the configured interval)
 
-If the process crashes after step 1, the event survives — WAL replay recovers it on the next startup. If the disk fails, the event is lost only if both the WAL and the Parquet checkpoint are on the same disk (use replicated volumes for production).
+WAL replay recovers entries that reached durable storage. With interval-based fsync, the newest accepted writes can remain in the operating system's buffers until the next sync; use per-write fsync when that loss window is unacceptable. Replication and backups address disk or volume failure.
 
 We run a [durability test](https://github.com/all-source-os/all-source) that writes events, kills the process, restarts, and verifies all events survived. It passes. Every time.
 
@@ -126,9 +126,9 @@ We run a [durability test](https://github.com/all-source-os/all-source) that wri
 
 If you're using AllSource as memory for an AI agent:
 
-- **Every observation, decision, and action is durable.** The agent's history survives restarts, deploys, and crashes.
-- **Time-travel is instant.** Querying "what did the agent know at 3pm yesterday?" is an 11.9us DashMap lookup, not a log grep.
-- **The audit trail is automatic.** Every event has a timestamp, checksum, and provenance — you get SOC2-grade audit trails as a side effect of the storage model.
+- **Accepted history is recoverable according to your durability policy.** WAL and Parquet restore the event log after restart.
+- **Indexed reads are fast.** The published Core benchmark measured 11.9us p99 for its indexed read path; reconstructive and semantic queries should be measured separately.
+- **Audit evidence has a durable base.** Timestamps, checksums, and event metadata can support controls, but do not establish compliance on their own.
 
 This is why we say AllSource Core IS the database. It's not a cache in front of PostgreSQL. It's not an in-memory store that loses data on restart. It's a purpose-built, durable, high-performance event store.
 

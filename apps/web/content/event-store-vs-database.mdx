@@ -1,6 +1,7 @@
 ---
 title: "Event Store vs Database: Choosing the Right Foundation"
 publishedAt: "2026-02-12"
+updatedAt: "2026-08-14"
 summary: Databases store state. Event stores store history. Here's how to decide which foundation your application actually needs.
 author: "all.source team"
 category: "use-cases"
@@ -159,8 +160,8 @@ You don't replay from the beginning of time. Periodic snapshots capture state, a
 
 At all.source:
 - Time-travel queries: **<100ms** for millions of events
-- Point lookups: **11.9μs** p99 latency
-- Write throughput: **469K events/second**
+- Indexed reads: **11.9μs** p99 in the published Core reference benchmark
+- Batch ingestion: **469K events/second** in the published Core reference benchmark
 
 Event sourcing isn't slow anymore.
 
@@ -207,6 +208,6 @@ Or, use an event store that's fast enough to serve as your primary data layer. T
 
 ---
 
-*Ready to give your application perfect memory?*
+*Need durable history, replay, and point-in-time reconstruction?*
 
 [Start with all.source →](/signup)

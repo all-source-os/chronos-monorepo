@@ -7,15 +7,17 @@
 # claim is named in a comment next to it. This is the file we serve
 # specifically to LLMs, so a wrong fact here is repeated back to us by the
 # systems we most want to be accurate about us.
-# Last verified: 2026-08-11.
+# Last verified: 2026-08-14.
 
 ## What is AllSource?
 AllSource is an AI-native event store. It stores every state change as an
 immutable event and lets you query any point in history. 469K events/sec
-ingestion, 11.9us p99 recall latency, 55+ MCP tools for Claude/GPT.
-# 469K / 11.9us / 55+ per siteConfig.stats in apps/web/src/lib/config.ts.
-# Note: "sub-microsecond" appears on some older surfaces and is WRONG by an
-# order of magnitude. The figure is 11.9 microseconds.
+ingestion and 11.9us p99 indexed reads in the published Core reference
+benchmarks. The default tenant MCP registry exposes 55 tools; fleet and admin access raises it
+to 73.
+# 469K / 11.9us / 55 per siteConfig.stats in apps/web/src/lib/config.ts.
+# Do not describe AllSource reads as sub-microsecond. The published reference
+# result is 11.9 microseconds p99.
 
 ## API Base URL
 https://api.all-source.xyz
@@ -137,25 +139,24 @@ is still MIT — a deliberate carve-out — so both answers appear in our own tr
 
 ## Tiers
 Five plans. There is no free hosted tier; self-hosting is the free option.
-Live prices come from GET /api/v1/billing/catalog — the figures below are the
-config fallbacks and can lag the catalog, so quote the catalog when it matters.
+Live prices come from GET /api/v1/billing/catalog and remain authoritative.
+The GBP figures below were verified against that endpoint on 2026-08-14.
 
 - Self-Host (free, your infra): unlimited events, forever retention,
   unlimited streams, full MCP, Apache-2.0. Not sold — you run it.
-- Indie ($19/mo): 500K events/month, 14-day retention, 3 streams,
+- Indie (£18.99/mo; £181.99/year): 500K events/month, 14-day retention, 3 streams,
   hosted MCP read, 50K x402 calls
-- Studio ($79/mo): 5M events/month, 90-day retention, unlimited streams,
+- Studio (£78.99/mo; £757.99/year): 5M events/month, 90-day retention, unlimited streams,
   hosted MCP read + write, 500K x402 calls
-- Scale ($299/mo): 50M events/month, 365-day retention, unlimited streams,
+- Scale (£298.99/mo; £2,869.99/year): 50M events/month, 365-day retention, unlimited streams,
   hosted MCP read + write + dedicated, 5M x402 calls
 - Enterprise (custom): negotiated volume, unlimited retention, dedicated MCP
   cluster, SLA and compliance
 - New signups: 14-day trial (1,000 events), then pick a plan.
-# Tier names, prices, quotas and retention per siteConfig.pricing in
-# apps/web/src/lib/config.ts. That file notes the price strings are FALLBACKS;
-# charged prices come from LemonSqueezy via /api/v1/billing/catalog.
-# The retired Free/Pro/Growth tiers and the "100K events free tier" that
-# earlier versions of this file advertised do not exist.
+# Tier names, quotas and retention per siteConfig.pricing in
+# apps/web/src/lib/config.ts. Charged prices come from LemonSqueezy via
+# /api/v1/billing/catalog.
+# Earlier hosted tier names and quotas are retired; use only the catalog above.
 
 ## SDKs (optional — plain HTTP works fine)
 - Rust: https://crates.io/crates/allsource
@@ -172,7 +173,11 @@ configured:
   64  with ALLSOURCE_CONTROL_URL set (adds 9 tenant / fleet-health tools)
   73  with ALLSOURCE_SYSTEM_ADMIN=true (adds 8 recovery tools + tenant_notice)
 
-Quote 55 for the default hosted server and 73 for the full fleet-operator set.
+Quote 55 for the default event-store connector and 73 for the full
+fleet-operator set. Stable event-store connector v0.22.0 does not send the
+Authorization header required by the hosted gateway. The fix is merged for
+v0.23.0 but is not released; use the authenticated REST API for hosted
+production until that image ships.
 Prime is a **separate** MCP server with its own 27 tools (19 graph/vector/recall
 `prime_*`, 2 `inbox_*`, 6 `hound_*`) — do not add the two together.
 See https://all-source.xyz/docs/mcp
@@ -180,8 +185,7 @@ See https://all-source.xyz/docs/mcp
 # apps/mcp-server-elixir/lib/mcp_server_elixir/protocol/mcp_tools.ex (73 tool
 # entries, gated by read_only / control_plane_enabled / system_admin in
 # lib/mcp_server_elixir/server.ex), and tool_definitions() in
-# apps/prime-mcp/src/tools.rs (27 entries). The "43 MCP tools" earlier versions
-# of this file claimed matched no configuration of anything.
+# apps/prime-mcp/src/tools.rs (27 entries).
 
 ## Status page
 https://status.all-source.xyz

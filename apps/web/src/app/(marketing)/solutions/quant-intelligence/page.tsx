@@ -1,8 +1,7 @@
 "use client";
 
-import { buttonVariants, cn, FlickeringGrid, Ripple, Section } from "@allsource/ui";
+import { buttonVariants, cn, FlickeringGrid, Section } from "@allsource/ui";
 import {
-  BarChart3,
   Brain,
   Check,
   ChevronRight,
@@ -24,7 +23,7 @@ const capabilities = [
   {
     question: "Where does the data live?",
     answer:
-      "Apache Parquet files with SNAPPY compression, organized into 32 fixed partitions using consistent hashing.",
+      "Accepted events are recoverable from a CRC32-checked write-ahead log and Snappy-compressed Parquet files. Entity IDs map to 32 partitions by default; the partition count is configurable.",
     icon: Database,
     details: [
       "By Symbol: entity_id = 'NQ' or 'BTC'",
@@ -37,12 +36,12 @@ const capabilities = [
   {
     question: "How fast is time slicing?",
     answer:
-      "11.9μs indexed lookups with O(1) complexity. Generate 1-minute bars for a full trading session in under 10ms.",
+      "The published Core reference benchmark measured 11.9μs p99 indexed reads. Bar generation and range slicing scan or aggregate more data, so benchmark them with your event shape and hardware.",
     icon: Zap,
     details: [
-      "Symbol lookup: 11.9μs (indexed)",
-      "1-minute bars (6.5 hrs): < 10ms",
-      "Time range slice (1M events): < 5ms",
+      "Indexed-read reference: 11.9μs p99",
+      "Batch-ingestion reference: 469K events/sec",
+      "No published end-to-end bar benchmark",
     ],
     metric: "11.9μs p99",
     color: "from-yellow-500/20 to-yellow-500/5",
@@ -57,31 +56,31 @@ const capabilities = [
       "Corrections appended with references",
       "as_of queries show pre-correction state",
     ],
-    metric: "100% traceable",
+    metric: "Append-only corrections",
     color: "from-green-500/20 to-green-500/5",
   },
   {
     question: "Can past analysis be reproduced?",
     answer:
-      "Yes — automatic snapshots, as_of queries, and event replay engine ensure exact reproducibility.",
+      "AllSource preserves the ordered inputs needed for replay and point-in-time reconstruction. Reproducible analysis also requires deterministic projection code, versioned models, and captured configuration.",
     icon: Clock,
     details: [
       "Snapshots: Every 100 events or 1 hour",
       "as_of queries: Point-in-time state",
       "Event Replay: Full deterministic replay",
     ],
-    metric: "Exact replay",
+    metric: "Replayable inputs",
     color: "from-purple-500/20 to-purple-500/5",
   },
   {
     question: "How easy is Python integration?",
     answer:
-      "REST API ready with pandas-compatible responses. WebSocket streaming for real-time updates. SDK coming soon.",
+      "Use the HTTP API from any Python client or the Python SDK in the AllSource repository. JSON responses can be loaded into pandas; WebSocket streaming supports live updates.",
     icon: Code2,
     details: [
       "REST API: GET /api/v1/events/query",
       "WebSocket: WS /api/v1/events/stream",
-      "Returns JSON convertible to DataFrame",
+      "Python client source in sdks/python-client",
     ],
     metric: "Multi-platform",
     color: "from-orange-500/20 to-orange-500/5",
@@ -89,14 +88,14 @@ const capabilities = [
   {
     question: "Does it support concurrent users?",
     answer:
-      "Lock-free DashMap architecture handles 40K+ queries/sec with graceful latency degradation under load.",
+      "Core uses a sharded concurrent map for hot reads. Capacity depends on filters, payload size, API hops, cache state, and hardware; load-test your end-to-end route before setting an SLO.",
     icon: Users,
     details: [
-      "10 users: 12μs latency, ~83K qps",
-      "100 users: 15μs latency, ~66K qps",
-      "1000 users: 25μs latency, ~40K qps",
+      "Concurrent in-memory read path",
+      "Prometheus latency and throughput metrics",
+      "No universal hosted QPS claim",
     ],
-    metric: "40K+ qps",
+    metric: "Measure your route",
     color: "from-pink-500/20 to-pink-500/5",
   },
 ];
@@ -116,24 +115,6 @@ const apiEndpoints = [
     method: "GET",
     endpoint: "/api/v1/analytics/correlation",
     description: "Event correlation analysis",
-  },
-  {
-    method: "GET",
-    endpoint: "/api/v1/quant/distributions/{symbol}",
-    description: "Probability distributions (Phase 1)",
-    upcoming: true,
-  },
-  {
-    method: "POST",
-    endpoint: "/api/v1/quant/analyze",
-    description: "Custom analysis requests (Phase 2)",
-    upcoming: true,
-  },
-  {
-    method: "POST",
-    endpoint: "/api/v1/quant/ask",
-    description: "Natural language queries (Phase 3)",
-    upcoming: true,
   },
 ];
 
@@ -248,10 +229,10 @@ export default function QuantIntelligencePage() {
             transition={{ duration: 0.5, delay: 0.4 }}
           >
             {[
-              { value: "11.9μs", label: "Query Latency" },
-              { value: "469K/s", label: "Events Throughput" },
-              { value: "< 10ms", label: "Bar Generation" },
-              { value: "40K+", label: "Queries/Second" },
+              { value: "11.9μs", label: "Core indexed read p99" },
+              { value: "469K/s", label: "Batch ingest reference" },
+              { value: "32", label: "Default partitions" },
+              { value: "3", label: "Analytics endpoints" },
             ].map((metric) => (
               <div
                 key={metric.label}
@@ -308,8 +289,8 @@ export default function QuantIntelligencePage() {
       {/* Capabilities FAQ */}
       <Section
         id="capabilities"
-        title="Technical Capabilities"
-        subtitle="Answers to Your Data Layer Questions"
+        title="Technical capabilities"
+        subtitle="What Core provides, and where your analysis begins"
         className="bg-neutral-100 dark:bg-neutral-900"
       >
         <div className="mx-auto mt-12 max-w-5xl space-y-6">
@@ -353,8 +334,8 @@ export default function QuantIntelligencePage() {
 
       {/* API Endpoints */}
       <Section
-        title="API Design"
-        subtitle="Analytics & AI Query Endpoints"
+        title="Available analytics API"
+        subtitle="Current endpoints in Core"
         className="bg-background"
       >
         <div className="mx-auto mt-12 max-w-4xl">
@@ -389,11 +370,6 @@ export default function QuantIntelligencePage() {
                       {endpoint.method}
                     </span>
                     <span className="text-white">{endpoint.endpoint}</span>
-                    {endpoint.upcoming && (
-                      <span className="rounded bg-primary/20 px-2 py-0.5 text-xs text-primary">
-                        Coming Soon
-                      </span>
-                    )}
                     <span className="text-neutral-500">{`// ${endpoint.description}`}</span>
                   </motion.div>
                 ))}
@@ -403,171 +379,31 @@ export default function QuantIntelligencePage() {
         </div>
       </Section>
 
-      {/* AI Query Preview */}
       <Section
-        title="AI Query Interface"
-        subtitle="Natural Language to Insights"
-        description="Ask questions about market behavior in plain English. The AI translates your query into optimized analytics and returns probability-based answers."
+        title="Product boundary"
+        subtitle="AllSource stores evidence; your model produces probabilities"
         className="bg-neutral-100 dark:bg-neutral-900"
       >
-        <motion.div
-          className="mx-auto mt-12 max-w-4xl"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          viewport={{ once: true }}
-        >
-          <div className="relative overflow-hidden rounded-2xl border bg-neutral-900 text-white">
-            <Ripple className="absolute -bottom-1/2 opacity-20" />
-            <div className="relative z-10 p-8">
-              <div className="flex items-center gap-2 text-neutral-400">
-                <Brain className="h-5 w-5" />
-                <span className="font-medium">AI Query Interface</span>
-                <span className="rounded bg-primary/20 px-2 py-0.5 text-xs text-primary">
-                  Phase 3
-                </span>
-              </div>
-
-              <div className="mt-6 space-y-6">
-                <div>
-                  <div className="text-sm text-neutral-500">Your question:</div>
-                  <div className="mt-2 rounded-lg bg-neutral-800/50 p-4 text-green-400">
-                    &quot;What&apos;s the probability of NQ making new session highs after a gap up
-                    greater than 0.5% on Mondays?&quot;
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-neutral-500">Generated SQL:</div>
-                  <pre className="mt-2 overflow-x-auto rounded-lg bg-neutral-800/50 p-4 text-xs text-neutral-300">
-                    {`WITH gap_days AS (
-  SELECT date, open, high, prev_close,
-         (open - prev_close) / prev_close * 100 AS gap_pct
-  FROM daily_bars
-  WHERE symbol = 'NQ'
-    AND EXTRACT(DOW FROM date) = 1
-    AND (open - prev_close) / prev_close * 100 > 0.5
-)
-SELECT
-  COUNT(*) AS total_samples,
-  SUM(CASE WHEN high > open THEN 1 ELSE 0 END) AS made_new_high,
-  AVG(CASE WHEN high > open THEN 1.0 ELSE 0.0 END) AS probability
-FROM gap_days`}
-                  </pre>
-                </div>
-
-                <div>
-                  <div className="text-sm text-neutral-500">Answer:</div>
-                  <div className="mt-2 rounded-lg bg-neutral-800/50 p-4">
-                    <p className="text-neutral-300">
-                      Based on <span className="font-bold text-primary">52 samples</span> over 5
-                      years of Monday gap-up sessions for NQ:
-                    </p>
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
-                      <div className="rounded-lg bg-neutral-700/50 p-3">
-                        <div className="text-2xl font-bold text-primary">65.4%</div>
-                        <div className="text-xs text-neutral-400">Probability</div>
-                      </div>
-                      <div className="rounded-lg bg-neutral-700/50 p-3">
-                        <div className="text-lg font-bold text-white">51.2% - 79.6%</div>
-                        <div className="text-xs text-neutral-400">95% Confidence</div>
-                      </div>
-                      <div className="rounded-lg bg-neutral-700/50 p-3">
-                        <div className="text-lg font-bold text-white">52</div>
-                        <div className="text-xs text-neutral-400">Sample Size</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-3">
+          {[
+            {
+              title: "Available now",
+              body: "Event ingestion, time-range queries, replay, snapshots, WebSocket streams, and three analytics endpoints.",
+            },
+            {
+              title: "You provide",
+              body: "Market-data licensing, bar construction, feature definitions, probability models, calibration, and validation.",
+            },
+            {
+              title: "Not claimed here",
+              body: "No built-in trading strategy, return guarantee, or shipped natural-language quant endpoint is implied.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border bg-background p-6">
+              <h3 className="font-semibold">{item.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{item.body}</p>
             </div>
-          </div>
-        </motion.div>
-      </Section>
-
-      {/* Roadmap */}
-      <Section title="Roadmap" subtitle="From Analytics to AI" className="bg-background">
-        <div className="mx-auto mt-12 max-w-4xl">
-          <div className="grid gap-6 md:grid-cols-3">
-            {[
-              {
-                phase: "Phase 1",
-                title: "Precomputed Analytics",
-                status: "current",
-                items: [
-                  "NQ/BTC probability distributions",
-                  "Basic regime classification",
-                  "Canned analytics queries",
-                  "< 10ms response times",
-                ],
-              },
-              {
-                phase: "Phase 2",
-                title: "Dynamic Query Engine",
-                status: "upcoming",
-                items: [
-                  "Custom filter conditions",
-                  "Multi-symbol analysis",
-                  "Strategy backtesting",
-                  "Risk metrics calculation",
-                ],
-              },
-              {
-                phase: "Phase 3",
-                title: "AI-Powered Queries",
-                status: "planned",
-                items: [
-                  "Natural language interface",
-                  "Auto-generated insights",
-                  "Strategy recommendations",
-                  "Anomaly detection alerts",
-                ],
-              },
-            ].map((phase, index) => (
-              <motion.div
-                key={phase.phase}
-                className={cn(
-                  "rounded-2xl border p-6",
-                  phase.status === "current" ? "border-primary bg-primary/5" : "bg-background"
-                )}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                viewport={{ once: true }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">{phase.phase}</span>
-                  {phase.status === "current" && (
-                    <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
-                      Now
-                    </span>
-                  )}
-                  {phase.status === "upcoming" && (
-                    <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-500">
-                      Q2 2025
-                    </span>
-                  )}
-                  {phase.status === "planned" && (
-                    <span className="rounded-full bg-neutral-500/10 px-3 py-1 text-xs font-medium text-neutral-500">
-                      Q3 2025
-                    </span>
-                  )}
-                </div>
-                <h3 className="mt-3 text-xl font-semibold">{phase.title}</h3>
-                <ul className="mt-4 space-y-2">
-                  {phase.items.map((item) => (
-                    <li
-                      key={item}
-                      className="flex items-center gap-2 text-sm text-muted-foreground"
-                    >
-                      <BarChart3 className="h-4 w-4 text-primary" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
-          </div>
+          ))}
         </div>
       </Section>
 
@@ -580,14 +416,14 @@ FROM gap_days`}
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl font-bold md:text-4xl">Ready to Build Smarter?</h2>
+            <h2 className="text-3xl font-bold md:text-4xl">Build on durable market events</h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Get early access to Quant Intelligence and start turning market data into
-              probability-based insights.
+              Use AllSource for ordered history, replay, and current analytics endpoints. Keep your
+              probability model explicit and independently validated.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <Link href="/signup" className={buttonVariants({ variant: "default", size: "lg" })}>
-                Get Early Access
+                Start 14-day trial
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Link>
               <Link href="/#pricing" className={buttonVariants({ variant: "outline", size: "lg" })}>

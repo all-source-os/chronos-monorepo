@@ -1,6 +1,7 @@
 ---
 title: "Building an AI-native event store in Rust"
 publishedAt: "2026-06-19"
+updatedAt: "2026-08-14"
 summary: Why we built AllSource — a durable event store in Rust with a native MCP interface and a built-in agent-memory engine — how the WAL + Parquet + DashMap design works, and a benchmark harness you can run yourself.
 author: "all.source team"
 category: "engineering"
@@ -52,7 +53,7 @@ The batch-ingestion path measured 494K — the 469K figure is honest and, if any
 
 "AI-native" gets thrown around, so here's what it concretely means for AllSource:
 
-**It speaks MCP.** Agents don't need a bespoke SDK to use it — there's a first-party [Model Context Protocol](https://modelcontextprotocol.io) server exposing 40+ tools. A Claude or any MCP client can ingest events, run time-travel queries, manage projections, and traverse memory directly. The event store is a *tool the model can call*, not an API a human has to wire up first.
+**It speaks MCP.** Agents don't need a bespoke SDK to use it — the first-party [Model Context Protocol](https://modelcontextprotocol.io) connector exposes 55 tenant tools by default, 45 in read-only mode, and 73 with fleet and administrative controls. Claude Desktop or another MCP client can ingest events, query history, reconstruct state, and run analysis through the authenticated gateway.
 
 **It has a memory engine, not just storage.** AllSource Prime layers a unified agent-memory model on top of the log: a knowledge graph (entities + typed edges), vector search (semantic recall), and a compressed cross-domain index — in one binary, backed by the same durable event log. Agent memory built this way is *crash-safe by construction*: it's written to the WAL before it's acted on, so an agent that dies mid-thought doesn't lose what it learned. That's a property you can't get by stapling a vector DB to a chat loop.
 

@@ -1,13 +1,14 @@
 ---
 title: AI Agents with MCP Tools
 publishedAt: "2026-02-08"
+updatedAt: "2026-08-14"
 summary: How to let Claude and other AI agents manage your event streams autonomously.
 author: "all.source team"
 category: "use-cases"
 image: "/assets/blog/mcp-tools-claude-integration.webp"
 ---
 
-all.source includes 27 MCP (Model Context Protocol) tools that enable AI agents like Claude to interact with your event store autonomously.
+AllSource's default tenant MCP registry exposes 55 tools to Claude Desktop and other MCP clients. Read-only mode exposes 45 tools; fleet and administrative controls raise the full registry to 73.
 
 ## What is MCP?
 
@@ -16,65 +17,60 @@ MCP is Anthropic's open protocol for AI tool use. It lets AI assistants call ext
 ## Available Tools
 
 ### Event Management
-- `mcp_ingest_event` - Create new events
-- `mcp_query_events` - Search events with filters
-- `mcp_get_entity_state` - Reconstruct entity state
-- `mcp_time_travel` - Query state at any timestamp
+- `ingest_event` - Create a new event
+- `query_events` - Search events with filters
+- `reconstruct_state` - Reconstruct entity state
+- `event_timeline` - Inspect an entity's ordered history
 
-### Projections
-- `mcp_create_projection` - Define materialized views
-- `mcp_list_projections` - See all projections
-- `mcp_rebuild_projection` - Reprocess from scratch
+### State and history
+- `reconstruct_state` - Rebuild entity state from ordered events
+- `get_snapshot` - Read a stored entity snapshot
+- `analyze_changes` - Explain changes over a time range
 
 ### Schema Management
-- `mcp_register_schema` - Add JSON schemas
-- `mcp_validate_event` - Check event against schema
-- `mcp_list_schemas` - Browse schema registry
+- `register_schema` - Add a JSON schema
+- `validate_schema` - Validate a schema definition
+- `list_schemas` - Browse the schema registry
 
 ### Analytics
-- `mcp_event_frequency` - Time-bucketed counts
-- `mcp_correlation_analysis` - Find related events
-- `mcp_stats_summary` - Aggregate statistics
+- `cohort_analysis` - Analyze cohorts over event history
+- `correlation_analysis` - Find related event patterns
+- `forecast_events` - Forecast event volume from history
 
-## Claude Desktop Setup
+## Claude Desktop setup and current release status
 
-Add all.source to your Claude Desktop config:
+The stable event-store connector release is `0.22.0`. It works with a local or
+self-hosted Core, but it does not send the `Authorization` header required by the
+hosted gateway. The fix is merged for `0.23.0` but is not released yet. Do not use
+the `0.22.0` image against hosted production: every tool call will return `401`
+even when `CORE_API_KEY` is configured.
 
-```json
-{
-  "mcpServers": {
-    "allsource": {
-      "command": "allsource-mcp",
-      "args": ["--url", "http://localhost:3900"],
-      "env": {
-        "ALLSOURCE_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
+Until `0.23.0` is published, use the authenticated HTTPS API for hosted data or
+build the connector from current `main` after reviewing the unreleased changes.
+The [current MCP setup guide](/docs/mcp) tracks the release boundary and local
+configuration.
 
 ## Example Conversations
 
 **You**: "Show me all user signups from last week"
 
-**Claude**: *Uses mcp_query_events to search for user.signed_up events*
+**Claude**: *Uses `query_events` to search for `user.signed_up` events*
 
 "Found 847 signup events from the past 7 days. The peak was Tuesday with 156 signups. Here's the distribution by day..."
 
 ---
 
-**You**: "Create a projection that counts events by type"
+**You**: "Summarize event counts by type"
 
-**Claude**: *Uses mcp_create_projection*
+**Claude**: *Uses `quick_stats`*
 
-"I've created a projection called 'event_type_counter' that will maintain running counts for each event type. It's now processing historical events and will be ready in a few seconds."
+"Here are the current event counts by type for this tenant."
 
 ---
 
 **You**: "What was the order state when the payment failed?"
 
-**Claude**: *Uses mcp_time_travel*
+**Claude**: *Uses `reconstruct_state` and `event_timeline`*
 
 "At the moment of payment failure (2026-02-05T10:30:00Z), the order state was: status='pending', items=[...], total=$127.50. The payment attempt was the 3rd event in this order's history."
 
@@ -83,7 +79,7 @@ Add all.source to your Claude Desktop config:
 Traditional APIs require developers to write integration code. With MCP, AI agents can:
 
 - Explore your data autonomously
-- Create projections on demand
+- Reconstruct state and inspect timelines
 - Run ad-hoc analytics
 - Debug issues with natural language
 
@@ -91,12 +87,9 @@ Your event store becomes a conversational interface.
 
 ## Get Started
 
-The MCP server is included with all.source. Enable it in your config:
+The default connector runs as a local stdio subprocess. Release `0.22.0` supports
+local and self-hosted Core; hosted gateway support requires the unreleased
+`0.23.0` authorization fix. Use the authenticated HTTPS API for hosted production
+until that image is published.
 
-```toml
-[mcp]
-enabled = true
-port = 3901
-```
-
-[Start building with AI](/signup)
+[Read the current MCP setup guide](/docs/mcp) or [start a hosted trial](/signup).

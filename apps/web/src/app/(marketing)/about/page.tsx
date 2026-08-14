@@ -24,7 +24,7 @@ const principles = [
   {
     title: "Built for agents",
     icon: Zap,
-    body: "AI agents need persistent memory beyond a context window. A tenant connector exposes 55+ MCP tools for reading and writing durable history; fleet operators can enable 73 with administrative controls.",
+    body: "AI agents need persistent memory beyond a context window. A default tenant connector exposes 55 MCP tools for durable history; fleet operators can enable 73 with administrative controls.",
   },
 ];
 
@@ -42,10 +42,10 @@ export default function AboutPage() {
         <div className="prose prose-invert mt-10 max-w-none text-muted-foreground">
           <p>
             AllSource exists because the data layer underneath modern applications — and especially
-            agentic ones — has been wrong for a long time. Production systems lose history every
-            time a row is updated. Audit trails are bolted on after the fact. Time-travel debugging
-            requires forensic log analysis. Agents have to re-explain themselves on every
-            invocation.
+            agentic ones — often treats history as secondary. Current-state systems can preserve
+            history, but teams commonly add audit tables, change-data capture, or logs after the
+            primary model is designed. Time-travel debugging then spans several systems. Agents have
+            to recover context on every invocation.
           </p>
           <p>
             We thought the answer was a single, focused engine: append-only events as the source of

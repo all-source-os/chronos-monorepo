@@ -1,6 +1,7 @@
 ---
 title: "Prime Stopped Being a Database"
 publishedAt: "2026-06-10"
+updatedAt: "2026-08-14"
 summary: "Our hosted agent-memory engine used to run its own store. We made it stateless — it now reads and writes Core over HTTP, isolated per tenant, with no durable storage of its own. Here's the architecture, the load-bearing trick, and the bug we caught in production."
 author: "all.source team"
 category: "engineering"
@@ -59,7 +60,7 @@ Now tenant isolation isn't a feature we add — it's a property of *querying Cor
 
 ## The load-bearing trick: a per-tenant warm cache
 
-Statelessness has an obvious failure mode for a memory engine: if every request re-queries a tenant's entire event history from a *remote* Core and rebuilds an HNSW vector index, recall latency dies. We sell 12-microsecond reads. We can't pay 200ms to rebuild on every call.
+Statelessness has an obvious failure mode for a memory engine: if every request re-queries a tenant's entire event history from a *remote* Core and rebuilds an HNSW vector index, recall latency suffers. Core's published 11.9μs p99 indexed-read benchmark does not include graph/vector rebuilds, so Prime needs a warm path of its own.
 
 So `TenantProjectionCache` keeps each tenant's materialized projections **warm in memory**:
 
@@ -103,7 +104,7 @@ Verified in production:
 | tenant B reads A's node | **404** — isolated |
 | stats after 2 nodes + 1 edge | exact (2 / 3) |
 
-Prime is still Prime — same graph, vectors, recall, same microsecond reads off the warm cache. It just stopped pretending to be a database.
+Prime is still Prime — same graph, vectors, and recall served from a warm cache. End-to-end recall depends on corpus, query strategy, cache state, and hardware. It just stopped pretending to be a database.
 
 ---
 

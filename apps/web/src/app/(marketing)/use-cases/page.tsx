@@ -45,7 +45,7 @@ const useCases = [
       "A checkout silently fails at 2 AM. Replay the last 10 minutes of events for that order id against a fresh projection — the divergence shows up in the first diff.",
     bullets: [
       "Deterministic replay against any projection",
-      "11.9μs p99 query latency for tight debug loops",
+      "11.9μs p99 published Core indexed-read reference",
       "Rebuild projections without dropping data",
       "Diff two points in time to find what changed",
     ],
@@ -61,7 +61,7 @@ const useCases = [
     scenario:
       "Your coding agent remembers that two weeks ago you decided to drop a column. Today, when it sees that column referenced in a migration, it flags the regression before you commit.",
     bullets: [
-      "55+ tenant MCP tools; 73 with fleet controls",
+      "55 default tenant MCP tools; 73 with fleet controls",
       "Graph + vector + compressed index in one engine",
       "Shared memory across agents, sessions, machines",
       "Embedded mode: no cloud dependency",
@@ -79,7 +79,7 @@ const useCases = [
       "A customer disputes a charge from three months ago. You query the entity's event stream, replay the balance at each moment, and show exactly when and why it moved — with no reconstruction guesswork.",
     bullets: [
       "Append-only ledger — no destructive updates",
-      "469K events/sec for high-throughput exchanges",
+      "469K events/sec published Core batch-ingest reference",
       "Point-in-time balances via `as_of`",
       "Corrections are events, not rewrites",
     ],

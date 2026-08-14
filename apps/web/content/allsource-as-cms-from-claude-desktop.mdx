@@ -1,6 +1,7 @@
 ---
 title: "Using AllSource as a CMS from Claude Desktop"
 publishedAt: "2026-05-26"
+updatedAt: "2026-08-14"
 summary: "An agent-executable install protocol for AllSource Prime, plus the working pitch: your CMS already lives where your agents work. Written so a Claude Desktop agent can read this article on a human's behalf and drive the install with a bounded, two-action human role."
 author: "all.source team"
 category: "use-cases"
@@ -199,7 +200,7 @@ Claude calls `prime_search` for `type: "post"` to list them, filters client-side
 Prime is storage. It does not host your blog. The handoff to a public site is whatever you want it to be:
 
 - **SSG**: run a build that queries Core for `prime.node.created` events with `node_type=post` and `status=published`, render to Markdown, and ship. Vercel rebuilds on a webhook from the dashboard.
-- **Direct render**: a Next.js route that queries Core at request time (Core's reads are sub-microsecond, this is fine).
+- **Direct render**: a Next.js route that queries Core at request time. The published Core reference benchmark measured 11.9μs p99 projection reads; measure your full request path before choosing this architecture.
 - **Dual-publishing**: Claude writes the same post to a `posts/{slug}.mdx` file in a git repo *and* to Prime. The repo is for humans; Prime is for cross-referencing and recall.
 
 The third option is what this site uses for blog posts like this one. Prime tracks the metadata graph; the actual prose lives in the repo for plain-text reviewability.

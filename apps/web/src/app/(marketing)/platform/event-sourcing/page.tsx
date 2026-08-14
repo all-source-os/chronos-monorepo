@@ -25,7 +25,7 @@ const features = [
   {
     title: "Time-Travel Queries",
     description:
-      "Reconstruct the state of any entity at any historical timestamp with 11.9us p99 latency. Debug production issues by replaying exactly what happened.",
+      "Reconstruct entity state at a historical timestamp by replaying accepted events. Core's 11.9us p99 indexed-read reference does not measure this reconstructive path.",
     icon: History,
     color: "from-purple-500/20 to-purple-500/5",
   },
@@ -111,10 +111,10 @@ export default function EventSourcingPage() {
       <Section className="py-12">
         <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 sm:grid-cols-4 text-center">
           {[
-            { value: "469K", label: "events/sec", sub: "ingestion throughput" },
-            { value: "11.9μs", label: "p99 latency", sub: "query response" },
+            { value: "469K", label: "events/sec", sub: "batch-ingest reference" },
+            { value: "11.9μs", label: "p99 latency", sub: "Core indexed-read reference" },
             { value: "WAL + Parquet", label: "durable storage", sub: "checksummed persistence" },
-            { value: "55+", label: "tenant MCP tools", sub: "73 with fleet controls" },
+            { value: "55", label: "default tenant MCP tools", sub: "73 with fleet controls" },
           ].map((stat) => (
             <motion.div
               key={stat.label}

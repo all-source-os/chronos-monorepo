@@ -12,12 +12,13 @@ export const siteConfig = {
   //                    must START from `display`, never from 0.
   stats: [
     { display: "469K", numeric: 469, suffix: "K", label: "events/sec" },
-    { display: "11.9μs", numeric: 11.9, suffix: "μs", label: "p99 recall" },
-    { display: "55+", numeric: 55, suffix: "+", label: "MCP tools" },
+    { display: "11.9μs", numeric: 11.9, suffix: "μs", label: "p99 indexed read" },
+    { display: "55", numeric: 55, suffix: "", label: "default MCP tools" },
     { display: "129MB", numeric: 129, suffix: "MB", label: "footprint" },
   ],
-  // The single µs figure the homepage demo stamps on the recalled answer.
-  recallLatency: "11.2μs",
+  // Published Core indexed-read benchmark shown by the homepage demo. This is
+  // not an end-to-end vector or graph recall measurement.
+  referenceReadLatency: "11.9μs p99",
   // Falls back to the production URL — not localhost — so a missing
   // NEXT_PUBLIC_APP_URL on Vercel (or any other consumer of this config) can't
   // leak `http://localhost:3000` into og:url / canonical / share-sheet URLs.
@@ -32,6 +33,9 @@ export const siteConfig = {
     "Real-time Analytics",
     "CQRS",
     "Data Intelligence",
+    "Durable Agent Memory",
+    "Event Replay",
+    "Data Provenance",
   ],
   // Bare X/Twitter handle (no @) — single source for cards, JSON-LD, and the
   // blog author chip. `links.twitter` is the profile URL built from it.
@@ -50,7 +54,7 @@ export const siteConfig = {
         main: {
           icon: "logo" as const,
           title: "Event Store Engine",
-          description: "High-performance event sourcing with 469K events/sec throughput.",
+          description: "Event sourcing with a published 469K events/sec batch-ingest reference.",
           href: "/platform/event-sourcing",
         },
         items: [
@@ -67,7 +71,7 @@ export const siteConfig = {
           {
             href: "/docs/mcp",
             title: "MCP Tools for Agents",
-            description: "55+ MCP tools for Claude Desktop integration (73 for fleet operators).",
+            description: "55 tenant tools by default; 73 with fleet and admin controls.",
           },
           {
             href: "/prime",
@@ -77,7 +81,7 @@ export const siteConfig = {
           {
             href: "/solutions/quant-intelligence",
             title: "Quant Intelligence",
-            description: "Probability-based market insights and AI queries.",
+            description: "Bars, correlations, forecasts, and regime summaries from event history.",
           },
         ],
       },
@@ -94,7 +98,7 @@ export const siteConfig = {
           {
             title: "Real-time Analytics",
             href: "/solutions/real-time-analytics",
-            description: "Sub-microsecond queries for instant insights.",
+            description: "11.9μs p99 reads in the published reference benchmark.",
           },
           {
             title: "AI Agents",
@@ -119,7 +123,7 @@ export const siteConfig = {
           {
             title: "Quant Intelligence",
             href: "/solutions/quant-intelligence",
-            description: "Probability-based analytics for trading strategies.",
+            description: "Market-event storage and reproducible analytical summaries.",
           },
         ],
       },
@@ -192,9 +196,9 @@ export const siteConfig = {
       name: "Indie",
       tier: "indie" as const,
       href: "/signup",
-      price: "$19",
+      price: "£18.99",
       period: "month",
-      yearlyPrice: "$15",
+      yearlyPrice: "£15.17",
       mcp: "Hosted MCP: read",
       // x402 overage rate per PRICING_EXPOSURE_PLAN.md §3.5 ("$0.0001/call after").
       x402: { included: "50K x402 calls", overage: "$0.0001/call after" },
@@ -215,9 +219,9 @@ export const siteConfig = {
       name: "Studio",
       tier: "studio" as const,
       href: "/signup",
-      price: "$79",
+      price: "£78.99",
       period: "month",
-      yearlyPrice: "$63",
+      yearlyPrice: "£63.17",
       mcp: "Hosted MCP: read + write",
       x402: { included: "500K x402 calls", overage: "$0.0001/call after" },
       features: [
@@ -237,9 +241,9 @@ export const siteConfig = {
       name: "Scale",
       tier: "scale" as const,
       href: "/signup",
-      price: "$299",
+      price: "£298.99",
       period: "month",
-      yearlyPrice: "$239",
+      yearlyPrice: "£239.17",
       mcp: "Hosted MCP: read + write + dedicated",
       x402: { included: "5M x402 calls", overage: "$0.0001/call after" },
       features: [
@@ -295,7 +299,7 @@ export const siteConfig = {
     {
       question: "How much does AllSource cost?",
       answer:
-        "Hosted AllSource starts at $19/month for Indie (500K events/month, 14-day retention, 3 streams). Studio is $79/month (5M events, 90-day retention, unlimited streams) and Scale is $299/month (50M events, 365-day retention). Enterprise is negotiated. Annual billing drops each tier to $15, $63, and $239/month.",
+        "Hosted AllSource starts at £18.99/month for Indie (500K events/month, 14-day retention, 3 streams). Studio is £78.99/month (5M events, 90-day retention, unlimited streams) and Scale is £298.99/month (50M events, 365-day retention). Enterprise is negotiated. The live LemonSqueezy catalog is authoritative.",
     },
     {
       question: "Does AllSource have a free tier?",
@@ -332,12 +336,12 @@ export const siteConfig = {
     {
       question: "How does AllSource compare to traditional databases?",
       answer:
-        "Unlike traditional databases that store current state, AllSource stores immutable events over time. This enables time-travel queries, complete audit trails, and the ability to replay history. Combined with our distributed architecture (Rust core, Go control plane, Elixir query service), you get both performance and flexibility.",
+        "Traditional databases can preserve history, but teams usually add audit tables, change-data capture, or application logs. AllSource makes immutable event history the primary record, so replay, point-in-time reconstruction, and provenance use the same ordered stream.",
     },
     {
       question: "What is the MCP Server integration?",
       answer:
-        "AllSource includes an MCP (Model Context Protocol) server for Claude Desktop and other MCP clients. A tenant connector exposes 55+ event and memory tools. Fleet operators can enable 73 tools by adding control-plane and system-administration access.",
+        "AllSource includes an MCP (Model Context Protocol) server for Claude Desktop and other MCP clients. A default tenant connector exposes 55 event and memory tools. Fleet operators can enable 73 tools by adding control-plane and system-administration access.",
     },
     {
       question: "How secure is my data?",
@@ -439,6 +443,7 @@ export const siteConfig = {
 export type SiteConfig = typeof siteConfig;
 
 // The Indie tier's monthly price, sourced from the pricing array so the
-// homepage CTA ("Start Indie — $19") can never desync from /pricing.
+// homepage CTA can never desync from the current fallback snapshot. Live
+// LemonSqueezy catalog remains authoritative when available.
 export const indieTier = siteConfig.pricing.find((p) => p.tier === "indie");
-export const indiePrice = indieTier?.price ?? "$19";
+export const indiePrice = indieTier?.price ?? "£18.99";

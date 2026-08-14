@@ -3,6 +3,7 @@ import FAQ from "@/components/sections/faq";
 import PricingSection from "@/components/sections/pricing";
 import { siteConfig } from "@/lib/config";
 import { fetchCatalog, indexByTier, resolveMonthly } from "@/lib/pricing-catalog";
+import { softwareApplicationSchema } from "@/lib/structured-data";
 
 // Revalidate the live LemonSqueezy prices hourly (ISR).
 export const revalidate = 3600;
@@ -66,71 +67,81 @@ export default async function PricingPage() {
   const tiers = siteConfig.pricing.filter((p) => !p.isSelfHost);
   const catalog = await fetchCatalog();
   const prices = indexByTier(catalog);
+  const productJsonLd = softwareApplicationSchema(catalog);
 
   return (
-    <div className="mx-auto w-full max-w-screen-xl px-4 lg:px-8">
-      {/* Above the fold: promise, toggle, cards, enterprise strip, x402 lines. */}
-      <PricingSection catalog={catalog} headingLevel={1} title="AllSource hosted pricing" />
+    <>
+      <script
+        type="application/ld+json"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(productJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+      <div className="mx-auto w-full max-w-screen-xl px-4 lg:px-8">
+        {/* Above the fold: promise, toggle, cards, enterprise strip, x402 lines. */}
+        <PricingSection catalog={catalog} headingLevel={1} title="AllSource hosted pricing" />
 
-      {/* Below the fold: comparison matrix, Indie → Enterprise (no free plan). */}
-      <Section title="Compare tiers" subtitle="Everything, side by side">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Feature</th>
-                {tiers.map((tier) => (
-                  <th key={tier.tier} className={cellHeaderClass(tier.isPopular)} scope="col">
-                    {tier.name}
-                    {tier.isPopular && (
-                      <span className="ml-1 align-middle text-[10px] font-semibold text-primary">
-                        Popular
-                      </span>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {matrixRows.map((row) => (
-                <tr key={row.label} className="border-b border-border">
-                  <td className="px-4 py-3 text-left font-medium text-foreground">{row.label}</td>
+        {/* Below the fold: comparison matrix, Indie → Enterprise (no free plan). */}
+        <Section title="Compare tiers" subtitle="Everything, side by side">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Feature</th>
                   {tiers.map((tier) => (
-                    <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
-                      {row.cells[tier.tier] ?? "—"}
-                    </td>
+                    <th key={tier.tier} className={cellHeaderClass(tier.isPopular)} scope="col">
+                      {tier.name}
+                      {tier.isPopular && (
+                        <span className="ml-1 align-middle text-[10px] font-semibold text-primary">
+                          Popular
+                        </span>
+                      )}
+                    </th>
                   ))}
                 </tr>
-              ))}
-              {/* Price row */}
-              <tr>
-                <td className="px-4 py-3 text-left font-medium text-foreground">Price</td>
-                {tiers.map((tier) => {
-                  // Live LemonSqueezy monthly price; paid tiers show a dash
-                  // (not a config number) when no live/cached price.
-                  const price = resolveMonthly(prices[tier.tier], tier.price);
-                  return (
-                    <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
-                      {price}
-                      {price.startsWith("$") && <span className="text-muted-foreground">/mo</span>}
-                    </td>
-                  );
-                })}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </Section>
+              </thead>
+              <tbody>
+                {matrixRows.map((row) => (
+                  <tr key={row.label} className="border-b border-border">
+                    <td className="px-4 py-3 text-left font-medium text-foreground">{row.label}</td>
+                    {tiers.map((tier) => (
+                      <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
+                        {row.cells[tier.tier] ?? "—"}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {/* Price row */}
+                <tr>
+                  <td className="px-4 py-3 text-left font-medium text-foreground">Price</td>
+                  {tiers.map((tier) => {
+                    // Live LemonSqueezy monthly price; paid tiers show a dash
+                    // (not a config number) when no live/cached price.
+                    const price = resolveMonthly(prices[tier.tier], tier.price);
+                    return (
+                      <td key={tier.tier} className={cellBodyClass(tier.isPopular)}>
+                        {price}
+                        {/^[£$€]/.test(price) && <span className="text-muted-foreground">/mo</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Section>
 
-      {/* Pricing-specific FAQ + its own FAQPage JSON-LD. Deliberately NOT the
+        {/* Pricing-specific FAQ + its own FAQPage JSON-LD. Deliberately NOT the
           site-wide set: emitting the homepage's FAQPage here too would put the
           same graph on two URLs and split the citation signal. */}
-      <FAQ
-        items={siteConfig.pricingFaqs}
-        title="Pricing FAQ"
-        subtitle="What it costs, and what happens when you outgrow a tier"
-      />
-    </div>
+        <FAQ
+          items={siteConfig.pricingFaqs}
+          title="Pricing FAQ"
+          subtitle="What it costs, and what happens when you outgrow a tier"
+        />
+      </div>
+    </>
   );
 }
 

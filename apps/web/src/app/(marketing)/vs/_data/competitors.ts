@@ -6,15 +6,16 @@
  *
  * Claim discipline (see CLAUDE.md + prompt 013):
  *   - AllSource cells are sourced from product facts: durable WAL+Parquet event
- *     store, 11.9μs recall, 469K events/sec, Apache-2.0/self-host, x402 per-call
- *     pricing, 55+ tenant MCP tools (73 with fleet controls). These are
+ *     store, 11.9μs p99 Core indexed reads, 469K events/sec reference batch
+ *     ingest, Apache-2.0 Core/self-host, x402 per-call
+ *     pricing, 55 default tenant MCP tools (73 with fleet controls). These are
  *     defensible against our own docs.
  *   - Competitor cells mirror the homepage matrix (`sections/social-proof.tsx`)
  *     where that matrix took a position, and otherwise read "unknown" / "varies"
  *     rather than inventing a number. NEVER fabricate competitor figures.
  *   - The homepage matrix asserted: temporal `as_of` — zep yes, mem0/letta no;
- *     full event provenance / compressed index / offline-embedded / sub-ms
- *     recall — AllSource only; Apache-2.0 self-host — mem0 yes, letta/zep no.
+ *     full event provenance / compressed index / offline-embedded — AllSource
+ *     only; Apache-2.0 self-host — mem0 yes, letta/zep no.
  */
 
 /** A table cell. Booleans render as check/cross; strings render verbatim. */
@@ -77,7 +78,7 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
       feature: "Durable event store (survives restart)",
       allsource: "WAL + Parquet",
       competitor: competitorCells.durable ?? "unknown",
-      note: "AllSource Core is the database: a Rust WAL (CRC32, fsync) with columnar Parquet persistence. Event data survives restarts.",
+      note: "AllSource Core is the database: a Rust WAL with CRC32 checks, configurable fsync, and columnar Parquet persistence. Event data survives restarts under the selected durability mode.",
     },
     {
       feature: "Full event provenance / replay",
@@ -92,16 +93,16 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
       note: "Point-in-time projections are a first-class query, not a snapshot you have to manage yourself.",
     },
     {
-      feature: "Recall latency",
+      feature: "Core indexed-read latency",
       allsource: "11.9μs (p99)",
       competitor: competitorCells.latency ?? "unknown",
-      note: "DashMap-backed in-memory reads over the durable log. Cloud memory APIs typically measure recall in tens of milliseconds.",
+      note: "Published reference benchmark for Core indexed reads. It does not measure graph, vector, hybrid, or end-to-end agent recall.",
     },
     {
       feature: "Ingestion throughput",
-      allsource: "469K events/sec",
+      allsource: "469K events/sec (reference batch benchmark)",
       competitor: competitorCells.throughput ?? "unknown",
-      note: "Lock-free Rust core. We do not publish competitor throughput figures we cannot verify.",
+      note: "Published Core batch-ingest reference. We do not publish competitor throughput figures we cannot verify.",
     },
     {
       feature: "Offline / embedded mode",
@@ -111,9 +112,9 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
     },
     {
       feature: "MCP tools for AI agents",
-      allsource: "55+ tenant / 73 fleet",
+      allsource: "55 tenant / 73 fleet",
       competitor: competitorCells.mcp ?? "unknown",
-      note: "The tenant connector ships 55+ tools. Fleet and administrative tiers bring the exposed total to 73.",
+      note: "The default tenant connector exposes 55 tools. Fleet and administrative controls bring the exposed total to 73.",
     },
     {
       feature: "x402 per-call agent payments",
@@ -125,7 +126,7 @@ function baseRows(competitorCells: Record<string, Cell>): ComparisonRow[] {
       feature: "License / self-host",
       allsource: "Apache-2.0, self-host",
       competitor: competitorCells.license ?? "unknown",
-      note: "Run the whole stack yourself for free, or use the hosted tiers.",
+      note: "Self-host Apache-2.0 Core and community components for free; enterprise components use BSL 1.1. Hosted tiers are optional.",
     },
   ];
 }
@@ -144,7 +145,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       "AllSource vs mem0: compare an event store with durable history, provenance, embedded mode, MCP access, and x402 pricing against a managed LLM memory layer.",
     pickAllsource: [
       "You need every memory write to be auditable and replayable, not summarized away",
-      "You want microsecond recall over a durable log, not a network round-trip to a memory API",
+      "You want a published microsecond-range Core indexed-read benchmark, not only a remote memory API",
       "You want to embed the store in-process or self-host it for free under Apache-2.0",
       "Your agents pay per call (x402) instead of per seat",
     ],
@@ -169,12 +170,12 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Is mem0 better than AllSource?",
         answer:
-          "They solve different layers. mem0 is a managed memory abstraction for LLM apps; AllSource is a durable event store (WAL + Parquet) with full provenance, 11.9μs recall, and time-travel queries. If you need auditable, replayable memory you keep yourself, AllSource is the stronger base. If you want a hosted 'remember this' API and do not need provenance, mem0 may be enough.",
+          "They solve different layers. mem0 is a managed memory abstraction for LLM apps; AllSource is a durable event store (WAL + Parquet) with full provenance and time-travel queries. AllSource Core's published reference benchmark reports 11.9μs p99 indexed reads; it is not an end-to-end memory-recall benchmark. If you want a hosted 'remember this' abstraction and do not need full provenance, mem0 may be enough.",
       },
       {
         question: "Can I self-host both AllSource and mem0?",
         answer:
-          "Yes. AllSource is Apache-2.0 licensed and self-hostable, and mem0's core is open source. AllSource also ships an embedded in-process mode and 55+ tenant-scoped MCP tools, rising to 73 with fleet controls.",
+          "Yes. AllSource is Apache-2.0 licensed and self-hostable, and mem0's core is open source. AllSource also ships an embedded in-process mode and 55 tenant-scoped MCP tools by default, rising to 73 with fleet controls.",
       },
       {
         question: "Does AllSource keep full event history like mem0?",
@@ -188,13 +189,13 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     slug: "letta",
     name: "Letta",
     verdict:
-      "Letta (formerly MemGPT) gives agents a stateful memory loop. AllSource gives that loop a durable, queryable foundation — full event history with 11.9μs recall instead of memory you have to manage in-context.",
+      "Letta (formerly MemGPT) gives agents a stateful memory loop. AllSource gives that loop a durable, queryable foundation with full event history and point-in-time replay.",
     metaDescription:
       "AllSource vs Letta (MemGPT): compare a durable event store with provenance, embedded mode, MCP access, and x402 pricing against a stateful agent framework.",
     pickAllsource: [
       "You want a durable store of record under your agents, not just an in-context memory manager",
       "You need point-in-time queries and full replay for audit or debugging",
-      "You want microsecond recall and the option to embed or self-host under Apache-2.0",
+      "You want a published microsecond-range Core indexed-read benchmark and the option to embed or self-host under Apache-2.0",
       "You want per-call (x402) economics for autonomous agents",
     ],
     pickCompetitor: [
@@ -218,12 +219,12 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Is Letta better than AllSource?",
         answer:
-          "Letta is an agent framework with a stateful memory loop; AllSource is the durable event store that can sit underneath it. Letta wins if you want a batteries-included agent runtime. AllSource wins if you need an auditable, replayable store of record with 11.9μs recall and time-travel queries. Many teams use a store like AllSource as the persistence layer beneath a framework like Letta.",
+          "Letta is an agent framework with a stateful memory loop; AllSource is the durable event store that can sit underneath it. Letta fits teams wanting a batteries-included agent runtime. AllSource fits auditable, replayable storage and time-travel queries. Its published 11.9μs p99 result covers Core indexed reads, not end-to-end agent recall.",
       },
       {
         question: "What is the difference between Letta and AllSource?",
         answer:
-          "Letta orchestrates an agent and its working memory. AllSource is infrastructure: a Rust WAL + Parquet event store with full provenance, embedded mode, and 55+ tenant-scoped MCP tools. They operate at different layers and can be combined.",
+          "Letta orchestrates an agent and its working memory. AllSource is infrastructure: a Rust WAL + Parquet event store with full provenance, embedded mode, and 55 tenant-scoped MCP tools by default. They operate at different layers and can be combined.",
       },
       {
         question: "Does AllSource replace Letta?",
@@ -237,12 +238,12 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
     slug: "zep",
     name: "Zep",
     verdict:
-      "Zep adds a temporal memory service for chat history. AllSource makes temporal a property of the whole store — every event is replayable, with 11.9μs recall and an embedded or self-hosted deployment.",
+      "Zep adds a temporal memory service for chat history. AllSource makes temporal history a property of the event store: every event is replayable, with embedded and self-hosted deployment options.",
     metaDescription:
       "AllSource vs Zep: compare a durable event store with provenance, embedded mode, MCP access, and x402 pricing against a temporal memory service for LLM apps.",
     pickAllsource: [
       "You want temporal queries across all your data, not only chat memory",
-      "You need full event provenance and replay, plus microsecond recall",
+      "You need full event provenance and replay, plus a published microsecond-range Core indexed-read benchmark",
       "You want to embed in-process or self-host the whole stack under Apache-2.0",
       "You want per-call (x402) agent economics out of the box",
     ],
@@ -268,7 +269,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       {
         question: "Is Zep better than AllSource?",
         answer:
-          "Zep is a temporal memory service focused on conversational history; AllSource is a general-purpose durable event store where temporal queries apply to all your data. Zep wins if you only need managed chat memory. AllSource wins if you want full event provenance, 11.9μs recall, embedded mode, and the option to self-host under Apache-2.0.",
+          "Zep is a temporal memory service focused on conversational history; AllSource is a general-purpose durable event store where temporal queries apply to all your data. Zep fits managed chat memory. AllSource fits full event provenance, embedded mode, and Apache-2.0 Core self-hosting. Its published 11.9μs p99 result covers Core indexed reads, not end-to-end memory recall.",
       },
       {
         question: "Does Zep support temporal queries like AllSource?",
@@ -403,7 +404,7 @@ export const competitors: Record<CompetitorSlug, Competitor> = {
       },
       {
         feature: "MCP server for AI agents",
-        allsource: "55+ tenant / 73 fleet tools",
+        allsource: "55 tenant / 73 fleet tools",
         competitor: "30 SQL tools",
         note: "Both ship a first-party MCP server. stoolap's 30 tools are a SQL surface (query, execute, transactions, schema, vacuum); AllSource's are event-store/agent-memory verbs (ingest, recall, projections, anomaly detection).",
       },

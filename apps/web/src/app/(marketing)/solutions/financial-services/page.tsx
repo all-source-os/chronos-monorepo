@@ -19,7 +19,7 @@ const features = [
   {
     title: "Immutable Transaction Log",
     description:
-      "Every debit, credit, transfer, and fee is an append-only event. No record can be altered after the fact. The WAL with CRC32 checksums guarantees bit-level integrity.",
+      "Represent each debit, credit, transfer, fee, and correction as an append-only event. WAL CRC32 checks detect corrupted entries during recovery; storage and replication policy still determine durability.",
     icon: Database,
     color: "from-emerald-500/20 to-emerald-500/5",
   },
@@ -31,23 +31,23 @@ const features = [
     color: "from-green-500/20 to-green-500/5",
   },
   {
-    title: "Regulatory Compliance (MiFID II, SOX)",
+    title: "Evidence for Compliance Workflows",
     description:
-      "Full audit trail with provenance metadata satisfies MiFID II transaction reporting, SOX internal controls, and SOC2 data integrity requirements out of the box.",
+      "Immutable history and provenance can support MiFID II, SOX, and SOC 2 controls. Your system design, retention policy, access controls, and audit process still determine compliance.",
     icon: Scale,
     color: "from-teal-500/20 to-teal-500/5",
   },
   {
     title: "Double-Entry Verification via Projections",
     description:
-      "Define projections that enforce double-entry bookkeeping invariants. Every credit has a matching debit. Projections catch imbalances in real-time, not in end-of-day reconciliation.",
+      "Define projections that check double-entry invariants and emit an imbalance when credits and debits diverge. Your domain model supplies the accounting rules; AllSource supplies ordered inputs and replay.",
     icon: ArrowLeftRight,
     color: "from-lime-500/20 to-lime-500/5",
   },
   {
-    title: "Sub-Microsecond Reconciliation",
+    title: "Low-Latency Reconciliation Reads",
     description:
-      "Reconcile accounts across systems with published 11.9us p99 read latency. Cross-reference transaction logs from multiple sources and flag discrepancies as new events arrive.",
+      "Cross-reference transaction logs and flag discrepancies as new events arrive. The published 11.9us p99 Core indexed-read reference does not measure a complete reconciliation workflow.",
     icon: CreditCard,
     color: "from-cyan-500/20 to-cyan-500/5",
   },

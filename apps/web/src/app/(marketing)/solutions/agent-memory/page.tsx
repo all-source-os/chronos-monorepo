@@ -24,7 +24,7 @@ const capabilities = [
   {
     question: "How does an agent remember?",
     answer:
-      "Every fact is an immutable event stored in a durable WAL + Parquet engine. Knowledge graph nodes, vector embeddings, and relationships are all events — giving you full history and time-travel for free.",
+      "Every accepted fact becomes an immutable event in AllSource Core. The WAL and Parquet files persist the event history; Prime derives graph nodes, vectors, and relationships from it for recall.",
     icon: Database,
     details: [
       "Graph nodes: entities, concepts, decisions",
@@ -37,27 +37,27 @@ const capabilities = [
   {
     question: "How fast is recall?",
     answer:
-      "12μs projection lookups via DashMap. Hybrid recall combines vector similarity, graph traversal, and temporal recency in a single query.",
+      "The published Core reference benchmark measured 11.9μs p99 projection reads. Prime hybrid recall adds vector similarity, graph traversal, and temporal recency, so end-to-end recall depends on query and hardware.",
     icon: Zap,
     details: [
       "Vector search: HNSW index over embeddings",
       "Graph expansion: 1-hop BFS from matches",
       "Compressed index: cross-domain reasoning",
     ],
-    metric: "12μs p99",
+    metric: "Core: 11.9μs p99",
     color: "from-yellow-500/20 to-yellow-500/5",
   },
   {
     question: "What about cross-domain questions?",
     answer:
-      "The compressed index — an auto-generated markdown summary organized by domain — bridges the gap that pure vector search misses. When you ask 'how does X relate to Y?', the index provides cross-domain pointers that double retrieval accuracy.",
+      "Prime's compressed index adds domain summaries and cross-references to graph and vector retrieval. A published AllSource project benchmark measured its effect on one cross-domain evaluation; results depend on your corpus and queries.",
     icon: Network,
     details: [
       "Auto-generated from graph events",
       "Organized by domain with cross-references",
-      "80%+ cross-domain recall accuracy",
+      "Evaluation method and corpus are published",
     ],
-    metric: "80% cross-ref",
+    metric: "Published evaluation",
     color: "from-purple-500/20 to-purple-500/5",
   },
   {
@@ -75,49 +75,22 @@ const capabilities = [
   },
 ];
 
-const comparison = [
+const productLayers = [
   {
-    feature: "Compressed Index",
-    zerodex: "Manual",
-    mem0: "No",
-    letta: "No",
-    zep: "No",
-    prime: "Auto-generated",
-  },
-  { feature: "Temporal Queries", zerodex: "No", mem0: "No", letta: "No", zep: "Yes", prime: "Yes" },
-  {
-    feature: "Provenance",
-    zerodex: "No",
-    mem0: "No",
-    letta: "Partial",
-    zep: "Partial",
-    prime: "Full event audit",
+    name: "AllSource Core",
+    answer: "Durable ordered event history, replay, point-in-time reconstruction, and provenance.",
+    href: "/platform/event-sourcing",
   },
   {
-    feature: "Cross-Domain Recall",
-    zerodex: "80%",
-    mem0: "~50%",
-    letta: "~37%",
-    zep: "~85%",
-    prime: "80%+",
+    name: "AllSource Prime",
+    answer: "Graph, vector, compressed-index, and temporal recall derived from Core events.",
+    href: "/docs/prime",
   },
   {
-    feature: "Offline/Embedded",
-    zerodex: "Yes",
-    mem0: "No",
-    letta: "No",
-    zep: "Optional",
-    prime: "Yes + sync",
+    name: "AllSource hosted",
+    answer: "Managed Core access with retention, event, stream, and MCP limits set by plan.",
+    href: "/pricing",
   },
-  {
-    feature: "Latency",
-    zerodex: "70ms",
-    mem0: "Variable",
-    letta: "Variable",
-    zep: "Variable",
-    prime: "12μs",
-  },
-  { feature: "Cost", zerodex: "$0", mem0: "$0-249/mo", letta: "Cloud", zep: "Cloud", prime: "$0" },
 ];
 
 const useCases = [
@@ -188,7 +161,8 @@ export default function AgentMemoryPage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
               Store graph relationships, embeddings, compressed context, and provenance in one local
-              binary. Connect through 19 Prime MCP tools or the HTTP API.
+              binary. Connect through 19 <code>prime_*</code> memory tools or the HTTP API; optional
+              inbox and hound modules bring the full Prime registry to 27 tools.
             </p>
             <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <div className="rounded-lg border bg-muted/50 px-4 py-2 font-mono text-sm">
@@ -225,8 +199,8 @@ export default function AgentMemoryPage() {
 }`}
               </pre>
               <p className="mt-3 text-sm text-muted-foreground">
-                19 MCP tools: graph CRUD, vector search, hybrid recall, compressed index, temporal
-                queries.
+                19 <code>prime_*</code> memory tools cover graph CRUD, vector search, hybrid recall,
+                compressed index, and temporal queries.
               </p>
             </div>
           </div>
@@ -271,52 +245,39 @@ export default function AgentMemoryPage() {
               </motion.div>
             ))}
           </div>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Cross-domain result: see the{" "}
+            <Link href="/blog/compressed-index-doubles-cross-domain-recall" className="underline">
+              published project benchmark and method
+            </Link>
+            .
+          </p>
         </Section>
 
-        {/* Comparison Table */}
+        {/* Product fit */}
         <Section className="pb-16">
-          <h2 className="mb-4 text-center text-3xl font-bold">How we compare</h2>
-          <p className="mb-8 text-center text-muted-foreground">
-            vs. zer0dex, Mem0, Letta, and Zep
+          <h2 className="mb-4 text-center text-3xl font-bold">Choose the layer you need</h2>
+          <p className="mx-auto mb-8 max-w-2xl text-center text-muted-foreground">
+            Core is the durable record. Prime adds retrieval. Hosted removes infrastructure work.
           </p>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="p-3 text-left font-medium">Feature</th>
-                  <th className="p-3 text-center font-medium">zer0dex</th>
-                  <th className="p-3 text-center font-medium">Mem0</th>
-                  <th className="p-3 text-center font-medium">Letta</th>
-                  <th className="p-3 text-center font-medium">Zep</th>
-                  <th className="p-3 text-center font-medium text-purple-400">Prime</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comparison.map((row) => (
-                  <tr key={row.feature} className="border-b border-muted">
-                    <td className="p-3 font-medium">{row.feature}</td>
-                    <td className="p-3 text-center text-muted-foreground">{row.zerodex}</td>
-                    <td className="p-3 text-center text-muted-foreground">{row.mem0}</td>
-                    <td className="p-3 text-center text-muted-foreground">{row.letta}</td>
-                    <td className="p-3 text-center text-muted-foreground">{row.zep}</td>
-                    <td className="p-3 text-center font-semibold text-purple-400">{row.prime}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid gap-4 md:grid-cols-3">
+            {productLayers.map((layer) => (
+              <Link
+                key={layer.name}
+                href={layer.href}
+                className="rounded-xl border p-6 transition-colors hover:bg-muted/30"
+              >
+                <h3 className="font-semibold">{layer.name}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{layer.answer}</p>
+                <span className="mt-4 inline-flex items-center text-sm font-medium text-primary">
+                  See details <ChevronRight className="ml-1 h-4 w-4" />
+                </span>
+              </Link>
+            ))}
           </div>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Sources:{" "}
-            <Link href="https://github.com/roli-lpci/zer0dex" className="underline">
-              zer0dex
-            </Link>
-            {" · "}
-            <Link
-              href="https://vectorize.io/articles/best-ai-agent-memory-systems"
-              className="underline"
-            >
-              Vectorize 2026 Comparison
-            </Link>
+          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-muted-foreground">
+            Not every app needs event-sourced memory. Use simpler current-state storage when replay,
+            provenance, and historical reconstruction do not affect your product or operations.
           </p>
         </Section>
 
@@ -357,21 +318,20 @@ export default function AgentMemoryPage() {
 │  ┌──────────────────────────────────────┐   │
 │  │         AllSource Core Engine         │   │
 │  │  WAL + Parquet + DashMap + HLC + CRDT │   │
-│  │  469K events/sec │ 12μs queries       │   │
+│  │  469K events/sec │ 11.9μs p99 reads   │   │
 │  └──────────────────────────────────────┘   │
 └─────────────────────────────────────────────┘`}
             </pre>
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Other agent memory frameworks glue together a vector DB + graph DB + event store.
-              Prime is one engine where vectors, graph nodes, and edges are <em>all events</em> in
-              the same durable WAL.
+              Prime records vectors, graph nodes, and edges as events in Core, then derives
+              queryable memory views from the same durable history.
             </p>
           </div>
         </Section>
 
         {/* CTA */}
         <Section className="pb-24 text-center">
-          <h2 className="mb-4 text-3xl font-bold">Start remembering</h2>
+          <h2 className="mb-4 text-3xl font-bold">Install Prime locally</h2>
           <p className="mb-8 text-muted-foreground">One command. No cloud account. No API key.</p>
           <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <div className="rounded-lg border bg-muted/50 px-6 py-3 font-mono text-sm">

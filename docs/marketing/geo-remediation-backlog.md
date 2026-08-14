@@ -67,20 +67,22 @@ above — that table is reserved for what a live run observes — but several of
 them are almost certainly *causes* of the wrong answers a live run will find,
 and one of them is the cheapest fix in the programme:
 
-1. **`apps/web/public/llms.txt` is the most out-of-date surface we have, and it
-   is the file we serve specifically to LLMs.** It still advertises retired
-   Free/Pro/Growth tiers, `$29`/`$79` prices, a 100,000-event free tier, and
-   "43 MCP tools". One commit fixes all of it.
+1. **Machine-readable product facts — resolved 2026-08-14.** `llms.txt` now
+   mirrors current GBP pricing, storage design, exact tool counts, and benchmark
+   scope.
 2. **Licence split.** Root `LICENSE` is Apache-2.0 and `LICENSE-BSL` covers
    enterprise features, but `apps/core/LICENSE` and the published SDK manifests
    still say MIT.
-3. **MCP tool count** is published as 73 (site, README), 61 (README badge) and
-   43 (llms.txt).
-4. **Currency** is settled as GBP in launch copy while `apps/web/src/lib/config.ts`
-   carries USD-shaped fallback strings.
-5. **Latency** is 11.9µs p99, but at least two of our own surfaces say
-   "sub-microsecond" — an order of magnitude out, and something we would
-   otherwise blame a model for repeating.
+3. **MCP tool count — resolved on canonical public surfaces 2026-08-14.** The
+   default connector is 55, with 45/64/73 configuration variants documented.
+4. **Currency — resolved on canonical public surfaces 2026-08-14.** GBP config
+   snapshots match the verified billing catalogue; live display remains
+   catalogue-driven.
+5. **Latency — resolved on canonical public surfaces 2026-08-14.** The site now
+   describes 11.9µs p99 as a Core indexed-read benchmark, not full hybrid
+   recall, and removes the sub-microsecond overclaim.
+6. **Hosted MCP stable release — open.** The Authorization fix is on main for
+   v0.23.0; latest published v0.22.0 cannot authenticate to the hosted gateway.
 
 Full detail with citations: [`docs/runbooks/GEO_MEASUREMENT.md`](../runbooks/GEO_MEASUREMENT.md)
 → "Ground-truth contradictions".
