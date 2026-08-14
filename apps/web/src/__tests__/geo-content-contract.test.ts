@@ -3,7 +3,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { siteConfig } from "@/lib/config";
 import type { Catalog } from "@/lib/pricing-catalog";
-import { softwareApplicationSchema } from "@/lib/structured-data";
+import { allsourceIdentity, productVerticals } from "@/lib/product-verticals";
+import {
+  organizationSchema,
+  productVerticalListSchema,
+  softwareApplicationSchema,
+} from "@/lib/structured-data";
 
 const WEB_ROOT = path.resolve(__dirname, "../..");
 
@@ -12,6 +17,54 @@ function source(relativePath: string): string {
 }
 
 describe("GEO canonical product facts", () => {
+  it("publishes one disambiguated entity and four bounded product layers", () => {
+    expect(siteConfig.productName).toBe("AllSource Event Store");
+    expect(allsourceIdentity.domain).toBe("all-source.xyz");
+    expect(allsourceIdentity.disambiguation).toContain("Esri ArcGIS AllSource");
+    expect(productVerticals.map(({ id, role }) => [id, role])).toEqual([
+      ["core", "Store"],
+      ["prime", "Remember"],
+      ["hosted", "Operate"],
+      ["mcp", "Connect"],
+    ]);
+
+    const organization = organizationSchema();
+    expect(organization.name).toBe("AllSource Event Store");
+    expect(organization.alternateName).toContain("AllSource");
+    expect(organization.disambiguatingDescription).toContain("Esri ArcGIS AllSource");
+
+    const productMap = productVerticalListSchema(productVerticals);
+    expect(productMap.numberOfItems).toBe(4);
+    expect(productMap.itemListElement.map(({ name }) => name)).toEqual([
+      "AllSource Core",
+      "AllSource Prime",
+      "Hosted AllSource",
+      "AllSource MCP connectors",
+    ]);
+  });
+
+  it("keeps answer-first entity surfaces aligned", () => {
+    const answerSurfaces = [
+      "public/llms.txt",
+      "content/what-is-allsource-event-store.mdx",
+      "content/allsource-core-prime-hosted-mcp-explained.mdx",
+      "src/app/(marketing)/what-is-allsource/page.tsx",
+    ]
+      .map(source)
+      .join("\n");
+
+    expect(answerSurfaces).toContain("AllSource Event Store");
+    expect(answerSurfaces).toContain("ArcGIS AllSource");
+    expect(answerSurfaces).toContain("AllSource Core");
+    expect(answerSurfaces).toContain("AllSource Prime");
+    expect(answerSurfaces).toContain("Hosted AllSource");
+    expect(answerSurfaces).not.toMatch(/55\+\s+MCP/i);
+
+    const sitemap = source("src/app/sitemap.ts");
+    expect(sitemap).toContain("/what-is-allsource");
+    expect(sitemap).not.toContain('from "next/headers"');
+  });
+
   it("keeps visible fallback pricing on the verified GBP catalog snapshot", () => {
     const paid = siteConfig.pricing.filter((tier) => !tier.isSelfHost && !tier.isEnterprise);
 
@@ -48,9 +101,11 @@ describe("GEO canonical product facts", () => {
     expect(llms).toContain("£78.99/mo; £757.99/year");
     expect(llms).toContain("£298.99/mo; £2,869.99/year");
     expect(llms).toContain("55  default (remote, writes enabled)");
+    expect(llms).toContain("64  with ALLSOURCE_CONTROL_URL set");
     expect(llms).toContain("11.9us p99 indexed reads");
     expect(llms).not.toMatch(/\b43\s+MCP/i);
     expect(llms).not.toMatch(/\b55\+\s+MCP/i);
+    expect(llms).not.toMatch(/sub-microsecond/i);
     expect(llms).not.toMatch(/\$(?:19|79|299)\/mo/i);
   });
 

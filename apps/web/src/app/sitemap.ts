@@ -1,15 +1,15 @@
 import type { MetadataRoute } from "next";
-import { headers } from "next/headers";
 import { getBlogPosts } from "@/lib/blog";
+import { siteConfig } from "@/lib/config";
 import { integrations } from "@/lib/integrations";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const allPosts = await getBlogPosts();
-  const headersList = await headers();
-  const domain = headersList.get("host") as string;
-  const protocol = "https";
-  const base = `${protocol}://${domain}`;
-  const now = new Date();
+  // Stable canonical host prevents preview or malformed Host headers from
+  // splitting the entity across sitemap URLs. Update only when public content
+  // changes; request time is not a truthful last-modified signal.
+  const base = siteConfig.url;
+  const contentUpdatedAt = new Date("2026-08-14T00:00:00Z");
 
   // Static marketing pages
   const staticPages = [
@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/docs`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/docs/api`, priority: 0.7, changeFrequency: "monthly" as const },
     { url: `${base}/docs/mcp`, priority: 0.7, changeFrequency: "monthly" as const },
+    { url: `${base}/what-is-allsource`, priority: 1.0, changeFrequency: "weekly" as const },
     { url: `${base}/docs/tenant-setup`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/docs/chronis`, priority: 0.6, changeFrequency: "monthly" as const },
     { url: `${base}/docs/prime`, priority: 0.9, changeFrequency: "weekly" as const },
@@ -91,14 +92,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Blog posts
   const blogPages = allPosts.map((post) => ({
     url: `${base}/blog/${post.slug}`,
-    lastModified: new Date(post.publishedAt),
+    lastModified: new Date(post.updatedAt || post.publishedAt),
     priority: 0.7,
     changeFrequency: "monthly" as const,
   }));
 
   return [
-    ...staticPages.map((p) => ({ ...p, lastModified: now })),
-    ...installPages.map((p) => ({ ...p, lastModified: now })),
+    ...staticPages.map((p) => ({ ...p, lastModified: contentUpdatedAt })),
+    ...installPages.map((p) => ({ ...p, lastModified: contentUpdatedAt })),
     ...blogPages,
   ];
 }

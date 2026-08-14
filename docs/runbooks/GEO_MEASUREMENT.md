@@ -765,6 +765,33 @@ repeats one of these is quoting our own file:
 These are recorded here rather than in the remediation backlog because the
 backlog is reserved for what a *live* run observes.
 
+## Product-identity interrogation
+
+Bare-name prompts currently collide with Esri ArcGIS AllSource, the
+all-source-intelligence discipline, and unrelated companies. Correct-entity
+answers can still merge Core, Prime, hosted services, and MCP or repeat stale
+tool counts. Treat these as separate failures: identity, category, boundary,
+facts, and freshness.
+
+Use
+[`docs/marketing/GEO_AEO_ENGINE_QUESTION_CHECKLIST.md`](../marketing/GEO_AEO_ENGINE_QUESTION_CHECKLIST.md)
+for copy-paste prompts and scoring. Keep this interrogation separate from a
+frozen share-of-voice run: changing prompts and site copy together destroys
+comparability. Run product-identity questions in fresh conversations, retain
+raw answers and citations, then version the formal prompt set before its next
+baseline.
+
+Expected canonical entity:
+
+- name: **AllSource Event Store**;
+- domain: `www.all-source.xyz`;
+- repository: `github.com/all-source-os/all-source`;
+- category: developer event-store infrastructure with a bounded agent-memory
+  layer;
+- product map: Core stores, Prime remembers, hosted services operate, MCP
+  connectors connect;
+- disambiguation: unrelated to ArcGIS AllSource and all-source intelligence.
+
 ---
 
 # Layer 4 — self-report

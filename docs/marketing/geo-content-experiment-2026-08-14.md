@@ -73,6 +73,32 @@ External guidance used:
 - Corrected old articles carrying retired prices, tool counts, licensing, or
   absolute durability claims and added `updatedAt` dates.
 
+### 4. Entity and vertical disambiguation
+
+Fresh answer-engine checks exposed four different failure modes:
+
+- Perplexity ranked Esri ArcGIS AllSource and all-source intelligence above the
+  developer product.
+- Gemini returned several unrelated meanings and no `all-source.xyz` entity.
+- Claude identified only the `all-source-os` GitHub organisation.
+- ChatGPT found the right product but merged Core, Prime, hosted services, and
+  MCP into one memory product and repeated an imprecise `55+` tool count.
+
+Remediation now uses **AllSource Event Store** as the canonical entity name and
+keeps `AllSource` as the short UI name. A canonical `/what-is-allsource` page,
+two detailed articles, Organization/SoftwareApplication disambiguation schema,
+stable sitemap URLs, and `llms.txt` all publish the same four-layer map:
+
+1. Core stores.
+2. Prime remembers.
+3. Hosted AllSource operates.
+4. MCP connectors connect.
+
+The [answer-engine question checklist](GEO_AEO_ENGINE_QUESTION_CHECKLIST.md)
+turns those observed failures into repeatable identity, boundary, freshness,
+fit, and citation probes. Live score changes remain unclaimed until engines
+recrawl and a new measured sweep runs.
+
 ## Measurement status
 
 The Rust GEO harness completed an offline dry run. Its outputs are synthetic

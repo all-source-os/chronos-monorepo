@@ -6,11 +6,11 @@ import { indiePrice as defaultIndiePrice, siteConfig } from "@/lib/config";
 function HeroPill() {
   return (
     <Link
-      href="/architecture"
+      href="/what-is-allsource"
       className="flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:text-primary sm:text-sm"
     >
       <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-      Open-source event store · Rust core · MCP access
+      What is AllSource Event Store?
       <span aria-hidden="true">→</span>
     </Link>
   );
@@ -23,8 +23,8 @@ function HeroTitles() {
         One event store for system history and AI memory.
       </h1>
       <p className="max-w-2xl text-balance text-lg leading-8 text-muted-foreground sm:text-xl lg:text-left">
-        AllSource stores every decision and state change as an immutable event. Query what happened,
-        rebuild prior state, and give agents context that survives restarts.
+        AllSource Event Store records decisions and state changes as immutable events. Core keeps
+        durable history; Prime gives agents cross-session memory backed by source events.
       </p>
     </div>
   );
@@ -53,7 +53,7 @@ function HeroCTA({ indiePrice }: { indiePrice: string }) {
         </Link>
       </div>
       <p className="mt-4 text-sm text-muted-foreground">
-        Hosted plans from {indiePrice}/month after trial · Apache-2.0 self-hosting available
+        Hosted plans from {indiePrice}/month after trial · Apache-2.0 Core available to self-host
       </p>
     </>
   );

@@ -2,7 +2,9 @@ export const BLUR_FADE_DELAY = 0.15;
 
 export const siteConfig = {
   name: "AllSource",
-  description: "Open-source event store for durable system history and AI agent memory",
+  productName: "AllSource Event Store",
+  description:
+    "AllSource Event Store is developer infrastructure for durable system history and AI-agent memory, built on an Apache-2.0 Rust core.",
   // Single source of truth for the headline performance numbers. Both the
   // homepage demo chrome and the below-the-fold stat strip read from here so
   // the values can never desync — and so they can be rendered at their FINAL
@@ -36,6 +38,9 @@ export const siteConfig = {
     "Durable Agent Memory",
     "Event Replay",
     "Data Provenance",
+    "AllSource Event Store",
+    "AllSource Core",
+    "AllSource Prime",
   ],
   // Bare X/Twitter handle (no @) — single source for cards, JSON-LD, and the
   // blog author chip. `links.twitter` is the profile URL built from it.
@@ -304,7 +309,7 @@ export const siteConfig = {
     {
       question: "Does AllSource have a free tier?",
       answer:
-        "No free hosted tier. AllSource is open source under Apache-2.0, so self-hosting is free forever on your own hardware with unlimited events and retention. Hosted plans start with a 14-day trial (1,000 events) and then require a paid tier — hosted pricing reflects what it costs to run the infrastructure for you.",
+        "No free hosted tier. AllSource Core and community components are available under Apache-2.0, so the community route can be self-hosted on your own hardware. Designated enterprise features use BSL 1.1. Hosted plans start with a 14-day trial (1,000 events) and then require a paid tier.",
     },
     {
       question: "What happens if I exceed my monthly event quota?",
@@ -326,12 +331,17 @@ export const siteConfig = {
     {
       question: "Why no free plan?",
       answer:
-        "We're open source (Apache-2.0). Free already exists — run it yourself. Hosted pricing reflects what it costs us to run it for you.",
+        "There is no permanent free hosted plan. The Apache-2.0 Core and community route can be self-hosted; designated enterprise features use BSL 1.1. Hosted pricing covers operated infrastructure.",
     },
     {
       question: "What is AllSource?",
       answer:
-        "AllSource is an open-source event store. It appends immutable events, rebuilds state from those events, and exposes history to applications and AI agents through HTTP, SDKs, and MCP.",
+        "AllSource Event Store is developer infrastructure for durable event history and AI-agent memory. Core stores ordered application events; Prime derives agent memory; hosted services operate the stack; separate MCP connectors expose event or memory tools.",
+    },
+    {
+      question: "Is AllSource the same as ArcGIS AllSource?",
+      answer:
+        "No. AllSource Event Store is the developer product at all-source.xyz and github.com/all-source-os/all-source. ArcGIS AllSource is Esri intelligence-analysis software. The products are unrelated.",
     },
     {
       question: "How does AllSource compare to traditional databases?",
@@ -341,7 +351,7 @@ export const siteConfig = {
     {
       question: "What is the MCP Server integration?",
       answer:
-        "AllSource includes an MCP (Model Context Protocol) server for Claude Desktop and other MCP clients. A default tenant connector exposes 55 event and memory tools. Fleet operators can enable 73 tools by adding control-plane and system-administration access.",
+        "AllSource has separate MCP connectors. The event-store connector exposes 45 read-only tools, 55 by default, 64 with control-plane access, and 73 with system administration. Prime exposes 19 prime_* memory tools, or 27 with optional inbox and hound modules. Do not add these registries together.",
     },
     {
       question: "How secure is my data?",
@@ -356,13 +366,14 @@ export const siteConfig = {
     {
       question: "What is Quant Intelligence?",
       answer:
-        "Quant Intelligence is our premium analytics layer that transforms raw market data into probability-based insights. Instead of just showing charts, it reveals how markets tend to behave under specific conditions. Features include precomputed NQ/BTC distributions, point-in-time reproducibility for backtesting, and an upcoming AI query interface for natural language questions like 'What's the probability of NQ making new highs after a gap up?'",
+        "Quant Intelligence is a solution route using AllSource event history and shipped analytics endpoints for bars, correlations, forecasts, and regime summaries. It is not a separate database, a trading model, or a promise of profitable probabilities.",
     },
   ],
   footer: [
     {
       title: "Platform",
       links: [
+        { href: "/what-is-allsource", text: "What is AllSource?", icon: null },
         { href: "/platform/event-sourcing", text: "Event Store", icon: null },
         { href: "/platform/stream-processing", text: "Stream Processing", icon: null },
         { href: "/platform/prime", text: "Prime (agent memory)", icon: null },

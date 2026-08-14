@@ -1,14 +1,18 @@
 ---
-title: Introducing all.source
+title: "Introducing AllSource Event Store"
 publishedAt: "2026-02-01"
 updatedAt: "2026-08-14"
-summary: Time-travel your data with the AI-native event store built for the future.
+summary: "The original AllSource launch: a Rust event store for immutable history, replay, projections, and agent tools. Updated with current product boundaries."
 author: "all.source team"
 category: "product"
 image: "/assets/blog/introducing-allsource.webp"
 ---
 
-We're excited to announce **all.source**, a high-performance event store built in Rust, designed for event sourcing, CQRS, and AI-native workflows.
+This article introduced **AllSource Event Store**, a Rust event store for event
+sourcing, CQRS, and AI workflows. The product has expanded since publication.
+For current definitions and exact boundaries between Core, Prime, hosted
+services, and MCP connectors, start with [What is AllSource Event
+Store?](/what-is-allsource).
 
 ## The history gap in current-state systems
 
@@ -64,7 +68,8 @@ Let AI agents manage your event streams.
 
 ## Getting Started
 
-AllSource is open source. Repository code is Apache-2.0 with BSL-covered enterprise features; the Core crate retains its MIT carve-out. Run it locally:
+AllSource uses an open-core model. Core and community components are
+Apache-2.0; designated enterprise features use BSL 1.1. Run Core locally:
 
 ```bash
 # Docker
@@ -78,7 +83,7 @@ curl -X POST https://api.all-source.xyz/api/v1/onboard/start \
 
 ## What's Next
 
-We're building the event store for the AI era. Here's on our roadmap:
+This was the original roadmap at publication:
 
 - Vector embeddings for semantic event search
 - Real-time anomaly detection
@@ -87,4 +92,4 @@ We're building the event store for the AI era. Here's on our roadmap:
 
 Join us in building the future of data infrastructure.
 
-[Get started with all.source](/signup)
+[Read the current AllSource product map](/what-is-allsource)

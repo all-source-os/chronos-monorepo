@@ -7,7 +7,7 @@ import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
   title: "About",
-  description: `Why we're building ${siteConfig.name} — a purpose-built event store for the AI era.`,
+  description: `Why we're building ${siteConfig.productName}: durable event history in Core, agent memory in Prime, and a managed hosted route.`,
 });
 
 const principles = [
@@ -34,7 +34,7 @@ export default function AboutPage() {
       <FadeIn delay={0.1} inView>
         <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">About AllSource</h1>
         <p className="text-lg text-muted-foreground">
-          Open-source event storage for durable system history and AI agent memory.
+          Durable event history for applications. Evidence-backed memory for agents.
         </p>
       </FadeIn>
 
@@ -48,18 +48,19 @@ export default function AboutPage() {
             to recover context on every invocation.
           </p>
           <p>
-            We thought the answer was a single, focused engine: append-only events as the source of
-            truth, projections as the only way to read derived state, and a query layer fast enough
-            that "give me the world as it was on Tuesday" is a sub-millisecond operation rather than
-            a research project. That's AllSource Core — written in Rust, durable by default, and
-            built to scale through replication rather than by stitching another database underneath.
+            AllSource Core is the focused answer: append-only events as source of truth, projections
+            for derived state, and point-in-time inspection from one ordered history. It is written
+            in Rust and persists accepted event data through a CRC32-checked WAL and Parquet files.
+            Published performance numbers describe specific Core benchmark paths, not every hosted
+            request or memory-recall operation.
           </p>
           <p>
-            Around it we ship a small constellation: a gateway in Elixir that handles auth, billing,
-            and rate limiting; a graph-and-vector layer (Prime) for AI workloads; SDKs in four
-            languages; and a CLI (chronis) that shows what an agent-native task tracker looks like
-            when its substrate is an event store. All of it is open source, all of it ships from one
-            monorepo, and the whole thing is designed to be embedded as easily as it's deployed.
+            Around Core sit three named layers. Prime derives graph, vector, and temporal agent
+            memory. Hosted AllSource handles tenant provisioning, authentication, quotas, billing,
+            and public API access. Separate MCP connectors expose event-store or Prime operations to
+            compatible agents. Chronis is a reference task-tracking application, not another
+            database. Community components are Apache-2.0; designated enterprise features use BSL
+            1.1.
           </p>
         </div>
       </FadeIn>
@@ -95,8 +96,8 @@ export default function AboutPage() {
           <Link href="/docs" className={cn(buttonVariants({ variant: "outline" }))}>
             Read the docs
           </Link>
-          <Link href="/blog" className={cn(buttonVariants({ variant: "ghost" }))}>
-            Latest writing
+          <Link href="/what-is-allsource" className={cn(buttonVariants({ variant: "ghost" }))}>
+            Product map
           </Link>
         </div>
       </FadeIn>

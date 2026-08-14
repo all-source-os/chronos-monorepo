@@ -60,7 +60,7 @@ export function constructMetadata({
       title,
       description,
       url,
-      siteName: siteConfig.name,
+      siteName: siteConfig.productName,
       images: [
         {
           url: image,

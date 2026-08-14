@@ -1,0 +1,155 @@
+---
+title: "AllSource Core, Prime, Hosted, and MCP Explained"
+publishedAt: "2026-08-14"
+summary: "Core stores events. Prime derives agent memory. Hosted AllSource operates the services. MCP connectors expose tools. This guide defines each boundary and the data path between them."
+author: "all.source team"
+category: "product"
+image: "/assets/blog/how-allsource-core-works.webp"
+---
+
+AllSource has four product layers with different jobs:
+
+- **AllSource Core stores durable application events.**
+- **AllSource Prime derives durable agent memory.**
+- **Hosted AllSource operates tenant-scoped infrastructure.**
+- **AllSource MCP connectors expose event or memory operations as tools.**
+
+Calling every layer “AllSource memory” hides important boundaries. Calling
+every tool “the AllSource MCP server” merges two registries. This guide gives
+each layer one name and one job.
+
+## Product map
+
+```text
+Applications ── HTTP / WebSocket / SDK ── Hosted gateway ── AllSource Core
+                                                              ▲
+AI agents ── MCP client ── Prime or event-store connector ─────┘
+```
+
+Core is the durable record. Prime, application projections, analytics, and
+tools operate from that record. Hosted services supply the public operating
+boundary. Connectors transport calls; they do not store an independent copy of
+the event database.
+
+## AllSource Core: store
+
+**Direct answer:** AllSource Core is a Rust event-store database for ordered,
+immutable application events, replay, projections, and point-in-time
+inspection.
+
+### Core owns
+
+- event ingestion and ordered streams;
+- CRC32-checked WAL recovery;
+- configurable fsync;
+- Parquet persistence;
+- indexed reads and projections;
+- replay and historical reconstruction.
+
+### Core does not own
+
+- hosted user accounts or billing;
+- agent-memory ranking;
+- public multi-tenant authentication;
+- MCP client configuration.
+
+Use Core directly inside trusted infrastructure or embed it in Rust. External
+hosted clients should use the authenticated public gateway rather than exposing
+Core.
+
+Read [how AllSource Core works](/blog/how-allsource-core-works) for storage-path
+detail.
+
+## AllSource Prime: remember
+
+**Direct answer:** AllSource Prime is the agent-memory engine. It combines
+graph relationships, vector retrieval, temporal context, a compressed index,
+and source-event provenance.
+
+Prime exists because an indexed event read and a useful memory recall are not
+the same operation. Hybrid recall can include embedding work, vector search,
+graph traversal, temporal scoring, and response assembly. Core's published
+11.9μs p99 indexed-read result does not measure that complete path.
+
+### Prime owns
+
+- `prime_*` memory tools;
+- graph nodes and edges;
+- vector indexes;
+- temporal and hybrid retrieval;
+- evidence linking recalled context to source events.
+
+### Prime does not own
+
+- application event ingestion as a whole;
+- billing plans;
+- the 55-tool event-store MCP registry;
+- a universal latency guarantee.
+
+Read [AllSource Prime](/prime) for current installation and operating modes.
+
+## Hosted AllSource: operate
+
+**Direct answer:** Hosted AllSource is the managed route to Core and related
+services. It supplies tenant provisioning, authentication, quotas, billing,
+and public API access.
+
+Tenant events remain in Core. Operational metadata—users, tenants, credentials,
+plans, and billing—is managed separately and does not become the event store.
+
+Hosted use begins with a 14-day trial. Paid GBP prices come from the live
+billing catalog; hardcoded articles are not the charging source of truth. There
+is no permanent free hosted plan. Self-hosted community software is the free
+route.
+
+Read [hosted pricing](/pricing) for live offers.
+
+## AllSource MCP connectors: connect
+
+**Direct answer:** AllSource MCP connectors are local tool interfaces for
+MCP-capable clients. Event-store MCP and Prime MCP are separate.
+
+| Connector | Registry | Job |
+|---|---:|---|
+| Event-store, read-only | 45 tools | Inspect events without mutations |
+| Event-store, default | 55 tools | Query and write tenant events |
+| Event-store, control plane | 64 tools | Add tenant and read-only fleet operations |
+| Event-store, system admin | 73 tools | Add guarded fleet recovery and administration |
+| Prime | 19 `prime_*` tools | Graph, vector, and temporal agent memory |
+| Prime with optional modules | 27 tools | Add inbox and hound workflows |
+
+Tool count follows connector configuration. A plus-sign suffix is imprecise.
+“73 Prime tools” is wrong. Adding both registries together is also wrong because
+clients see separate servers with separate jobs.
+
+Stable event-store connector `0.22.0` supports local or self-hosted Core but
+does not send the Authorization header needed by the hosted gateway. Hosted
+event-store MCP requires the `0.23.0` fix to be released. The hosted REST API
+remains the stable public route meanwhile.
+
+Read the [event-store MCP release guide](/docs/mcp) and [Prime MCP
+guide](/docs/prime/mcp) separately.
+
+## Where do Chronis and solution pages fit?
+
+Chronis is an agent-native task tracker built on the AllSource event model. It
+is a reference application and CLI, not another database layer.
+
+Audit, analytics, financial-services, IoT, SaaS, and quant pages describe
+workloads using Core and hosted query capabilities. They are solution routes,
+not new storage engines.
+
+## Which layer should I start with?
+
+| Need | Start here |
+|---|---|
+| Durable application history or CQRS | Core |
+| Cross-session agent memory with provenance | Prime |
+| Managed infrastructure and public API | Hosted AllSource |
+| Claude or another MCP client needs event tools | Event-store MCP |
+| Claude or another MCP client needs memory tools | Prime MCP |
+| You only need relational CRUD | PostgreSQL or another relational database |
+| You only need semantic nearest-neighbour search | A vector database may be enough |
+
+For the short canonical definition and name disambiguation, use [What is
+AllSource Event Store?](/what-is-allsource).

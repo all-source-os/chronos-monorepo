@@ -1,5 +1,6 @@
 import { siteConfig } from "@/lib/config";
 import type { Catalog } from "@/lib/pricing-catalog";
+import type { ProductVertical } from "@/lib/product-verticals";
 
 /**
  * Centralized JSON-LD builders.
@@ -23,14 +24,17 @@ export function organizationSchema() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "@id": ORG_ID,
-    name: siteConfig.name,
+    name: siteConfig.productName,
+    alternateName: [siteConfig.name, "all-source.xyz", "all-source-os"],
     url: siteConfig.url,
     logo: {
       "@type": "ImageObject",
       url: `${siteConfig.url}/logo.png`,
     },
     description:
-      "Open-source event store for durable history and AI memory. Published Core reference results: 469K events/sec ingestion and 11.9us p99 indexed reads. Default tenant MCP exposes 55 tools; fleet and admin controls raise the registry to 73.",
+      "Developer infrastructure for durable event history and AI-agent memory, built on an Apache-2.0 Rust event-store core. Published Core reference results: 469K events/sec ingestion and 11.9us p99 indexed reads.",
+    disambiguatingDescription:
+      "Developer infrastructure published at all-source.xyz; unrelated to Esri ArcGIS AllSource, the all-source intelligence discipline, and other companies using AllSource or Allsource.",
     sameAs,
     contactPoint: {
       "@type": "ContactPoint",
@@ -45,7 +49,8 @@ export function websiteSchema() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     "@id": WEBSITE_ID,
-    name: siteConfig.name,
+    name: siteConfig.productName,
+    alternateName: siteConfig.name,
     url: siteConfig.url,
     description: siteConfig.description,
     inLanguage: "en",
@@ -152,15 +157,36 @@ export function softwareApplicationSchema(catalog?: Catalog | null) {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "@id": `${siteConfig.url}/#software`,
-    name: siteConfig.name,
+    name: siteConfig.productName,
+    alternateName: siteConfig.name,
     url: siteConfig.url,
     applicationCategory: "DeveloperApplication",
     applicationSubCategory: "Event store / agent memory",
     operatingSystem: "Linux, macOS, Windows (Docker), or fully hosted",
     description:
-      "AllSource is an open-source event store: it records each state change as an immutable event and lets applications or agents query prior state. A write-ahead log with CRC32 checksums and Parquet files provide persistence; an in-memory concurrent map serves reads.",
+      "AllSource Event Store records state changes as immutable events and lets applications or agents query prior state. Its Apache-2.0 Rust core uses a CRC32-checked write-ahead log, Parquet persistence, and concurrent indexed reads.",
+    disambiguatingDescription:
+      "The developer product at all-source.xyz, not Esri ArcGIS AllSource or the all-source intelligence discipline.",
+    sameAs: [siteConfig.links.github, "https://crates.io/crates/allsource-core"],
     publisher: { "@id": ORG_ID },
     ...(offers.length > 0 && { offers }),
+  };
+}
+
+export function productVerticalListSchema(verticals: readonly ProductVertical[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "AllSource Event Store product map",
+    description: "Canonical map of AllSource Core, Prime, hosted services, and MCP connectors.",
+    numberOfItems: verticals.length,
+    itemListElement: verticals.map((vertical, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${siteConfig.url}${vertical.path}`,
+      name: vertical.name,
+      description: vertical.directAnswer,
+    })),
   };
 }
 
