@@ -10,8 +10,8 @@
 //   • Core IS the durable database: WAL (CRC32 + fsync) + Parquet (Snappy) +
 //     DashMap (in-memory reads). NEVER described as in-memory-only / a cache /
 //     non-durable.
-//   • PostgreSQL is operational metadata ONLY (billing / subscription). It is
-//     NEVER on the event path.
+//   • Core stores events and event-sourced operational metadata. Current
+//     services have zero PostgreSQL dependency.
 //   • The 5 Fly.io backends are: allsource-core, allsource-query,
 //     allsource-control-plane, allsource-auth, allsource-prime.
 //     The web frontend is on Vercel (www.all-source.xyz).
@@ -324,18 +324,6 @@ const containerNodes: C4Node[] = [
       "Parquet columnar files hold compressed historical events.",
     ],
   },
-  {
-    id: "postgres",
-    name: "PostgreSQL",
-    type: "datastore",
-    tech: "PostgreSQL",
-    description:
-      "Operational metadata ONLY — billing / subscription data. Never on the event path.",
-    responsibilities: [
-      "Holds billing / subscription records (LemonSqueezy IDs, usage counters).",
-      "Never stores events — event data lives exclusively in Core.",
-    ],
-  },
 ];
 
 const containerEdges: C4Edge[] = [
@@ -345,7 +333,6 @@ const containerEdges: C4Edge[] = [
 
   // control plane
   { source: "control-plane", target: "core", label: "delegates tenant / audit / config events" },
-  { source: "control-plane", target: "postgres", label: "stores billing metadata" },
 
   // prime is embedded in core
   { source: "prime", target: "core", label: "embeds (prime.* events)" },

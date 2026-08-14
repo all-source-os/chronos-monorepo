@@ -7,9 +7,9 @@
 - **Parquet**: Columnar persistence with Snappy compression, periodic flush
 - **DashMap**: In-memory concurrent map for 11.9μs queries and 469K events/sec throughput
 
-**DO NOT** describe Core as "in-memory only", "dumb", "not production-ready", or claim "data is lost on restart." Event data is durable. Only Core's user/tenant metadata (a separate concern) is in-memory — and that responsibility belongs to the Query Service, not Core.
+**DO NOT** describe Core as "in-memory only", "dumb", "not production-ready", or claim "data is lost on restart." Event data and operational metadata are durable. Users, tenants, API keys, configuration, subscriptions, quotas, and billing metadata are event-sourced through Core system streams; in-memory maps and service caches are rebuilt from Core.
 
-**DO NOT** suggest storing events in PostgreSQL. PostgreSQL is for operational metadata only (users, tenants, API keys, billing). The correct way to improve Core's availability is through Core replication (leader-follower, WAL shipping) — not by adding another database.
+**DO NOT** suggest PostgreSQL as a required or primary AllSource store. Current services have zero PostgreSQL dependency: Core is the source of truth for events and operational metadata. The correct way to improve availability is through Core replication (leader-follower, WAL shipping) — not by adding another database.
 
 ## Repository Structure
 
@@ -65,16 +65,17 @@ sdks/ → (external only — SDKs are standalone HTTP clients)
 ## Service Architecture
 
 ```
-Clients → Query Service (Elixir, port 3902) → Core (Rust, port 3900)
-               |                                    |
-          PostgreSQL                          WAL + Parquet + DashMap
-          (users, tenants,                    (events, projections,
-           API keys, billing)                  snapshots, schemas)
+Clients → Control Plane / Query Service → Core (Rust, port 3900)
+                                           |
+                              WAL + Parquet + DashMap
+                              (events, system metadata,
+                               projections, snapshots, schemas)
 ```
 
-- **Core** = the database. Source of truth for all event data.
-- **Query Service** = API gateway. Source of truth for users, tenants, billing.
-- **PostgreSQL** = operational metadata only. Never for events.
+- **Core** = the database. Source of truth for events, users, tenants, API keys, configuration, subscriptions, quotas, and billing metadata.
+- **Query Service** = stateless API gateway with tenant-scoped caches and read-model compute.
+- **Control Plane** = public auth, onboarding, billing, and administration layer that persists through Core.
+- **PostgreSQL** = not required or deployed by current AllSource services.
 
 ### Per-tenant read-model compute lives in the Query Service, NOT Core
 

@@ -19,7 +19,7 @@ const principles = [
   {
     title: "Core IS the database",
     icon: Database,
-    body: "No second store, no caching tier to keep in sync. The Rust core owns durability (WAL with CRC32 + Parquet on disk) and reads (DashMap in memory). Postgres is for billing metadata, never event data.",
+    body: "No second database to keep in sync. Core owns event and operational-metadata durability through its WAL and Parquet storage, with DashMap-backed reads. Current services require no PostgreSQL instance.",
   },
   {
     title: "Built for agents",

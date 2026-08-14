@@ -10,7 +10,6 @@ import {
   Play,
   RotateCcw,
   ShieldCheck,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { type ProductVerticalId, productVerticals } from "@/lib/product-verticals";
@@ -124,9 +123,9 @@ const useCaseFaqs = [
       "AllSource is designed for audit trails, event replay and debugging, AI-agent memory with provenance, and financial transaction history. These workloads benefit from ordered, immutable events and point-in-time reconstruction.",
   },
   {
-    question: "Does AllSource replace PostgreSQL?",
+    question: "Does AllSource require PostgreSQL?",
     answer:
-      "Not generally. PostgreSQL remains a strong default for relational current-state workloads. Use AllSource when history, replay, provenance, or point-in-time state is a primary requirement, and use both when the application needs both models.",
+      "No. AllSource Core is the database for event history and event-sourced operational metadata, including tenants, users, API keys, configuration, subscriptions, quotas, and billing state. Current AllSource services run without PostgreSQL.",
   },
   {
     question: "Which AllSource product handles AI-agent memory?",
@@ -134,9 +133,9 @@ const useCaseFaqs = [
       "AllSource Prime is the agent-memory engine. It combines graph relationships, vector retrieval, temporal context, and source-event provenance. Core is the event-store database; MCP connectors expose explicit tools to compatible agents.",
   },
   {
-    question: "When should I not use AllSource?",
+    question: "Can one AllSource deployment serve multiple projects?",
     answer:
-      "Do not add an event store when simple relational CRUD is sufficient, when you only need message transport between services, or when document similarity is the entire problem. PostgreSQL, a streaming platform, or a vector database may be a better primary tool for those jobs.",
+      "Yes. Tenant-scoped streams, API keys, system metadata, and projections let one AllSource deployment isolate and serve multiple products. External databases and streaming systems are optional integrations, not prerequisites.",
   },
 ] as const;
 
@@ -370,35 +369,38 @@ export default function UseCasesPage() {
                 Architecture fit
               </p>
               <h2 id="fit-heading" className="mt-3 text-3xl font-semibold text-foreground">
-                Use event history where history is product-critical.
+                One event-native data layer across products.
               </h2>
               <p className="mt-4 text-base leading-7 text-muted-foreground">
-                AllSource complements current-state databases and transport systems. Add it when
-                losing sequence, provenance, or prior state creates product or operational risk.
+                Core owns durable source history and event-sourced operational metadata. Tenant
+                boundaries let one deployment serve multiple projects without adding a database per
+                application.
               </p>
             </div>
             <div className="border-y border-border">
               {[
                 {
                   icon: Check,
-                  label: "Choose AllSource",
-                  copy: "Replay, point-in-time state, audit provenance, or source-backed agent memory is central.",
+                  label: "Core is primary",
+                  copy: "Events and system metadata share one WAL-durable source of truth.",
                   positive: true,
                 },
                 {
                   icon: Database,
-                  label: "Keep PostgreSQL primary",
-                  copy: "Relational CRUD, constraints, joins, and current-state reporting are the main job.",
+                  label: "Serve many projects",
+                  copy: "Separate products with tenant-scoped streams, keys, metadata, and projections.",
+                  positive: true,
+                },
+                {
+                  icon: RotateCcw,
+                  label: "Derive current state",
+                  copy: "Build read models from retained events and rebuild them through replay when logic changes.",
+                  positive: true,
                 },
                 {
                   icon: GitBranch,
-                  label: "Use a streaming platform",
-                  copy: "The main requirement is transporting messages between services and consumers.",
-                },
-                {
-                  icon: X,
-                  label: "Use a vector database",
-                  copy: "Document similarity is the entire problem and event provenance is unnecessary.",
+                  label: "Integrate at edges",
+                  copy: "Connect external transport or specialist systems only when a workload explicitly needs them.",
                 },
               ].map((item) => {
                 const Icon = item.icon;

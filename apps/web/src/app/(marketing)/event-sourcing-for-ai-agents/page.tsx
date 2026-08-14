@@ -9,7 +9,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata: Metadata = constructMetadata({
   title: "Event Sourcing for AI Agents",
   description:
-    "Direct answers about event sourcing for AI agents: restart-safe memory, full provenance, time-travel queries, Core versus Prime, and when another database is a better fit.",
+    "Direct answers about event sourcing for AI agents: restart-safe memory, provenance, time-travel queries, Core versus Prime, and deployment without PostgreSQL.",
   canonical: "/event-sourcing-for-ai-agents",
 });
 
@@ -47,9 +47,9 @@ const DIRECT_ANSWERS = [
       "AllSource Core recovers accepted event history from its write-ahead log and Parquet persistence after restart. Configurable fsync controls the durability and throughput trade-off.",
   },
   {
-    question: "Does AllSource store events in PostgreSQL?",
+    question: "Does AllSource require PostgreSQL?",
     answer:
-      "No. AllSource Core is the event database: WAL and Parquet persist events, while an in-memory concurrent map serves projections. PostgreSQL is used for operational metadata, not the event path.",
+      "No. AllSource Core is the database: WAL and Parquet persist events and event-sourced system metadata, while concurrent in-memory indexes and service caches are rebuilt from Core. Current AllSource services require no PostgreSQL instance.",
   },
   {
     question: "Does AllSource replace a vector database?",

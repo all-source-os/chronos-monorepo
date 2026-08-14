@@ -51,11 +51,11 @@ export default function ArchitecturePage() {
             </p>
           </div>
           <div className="rounded-lg border bg-muted/10 p-4">
-            <div className="mb-1 text-sm font-semibold text-foreground">One gateway, one path</div>
+            <div className="mb-1 text-sm font-semibold text-foreground">One source of truth</div>
             <p className="text-xs text-muted-foreground">
-              Clients go through the Query Service (auth, billing, routing) to Core. The Control
-              Plane owns public auth and billing. PostgreSQL holds operational metadata only — never
-              events.
+              Core stores events plus event-sourced users, tenants, API keys, configuration,
+              subscriptions, quotas, and billing metadata. Query Service and Control Plane access
+              Core without a PostgreSQL dependency.
             </p>
           </div>
           <div className="rounded-lg border bg-muted/10 p-4">
