@@ -2,13 +2,14 @@ import { buttonVariants, Card, CardContent, cn } from "@allsource/ui";
 import { ArrowRight, Bot, ClipboardList, Code2, Layers, Radio, Terminal } from "lucide-react";
 import Link from "next/link";
 import { FaGithub } from "react-icons/fa";
+import { CapabilityWorkbench } from "@/components/demo/capability-workbench";
 import { FadeIn } from "@/components/ui/fade-in";
 import { siteConfig } from "@/lib/config";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata = constructMetadata({
-  title: "Examples",
-  description: `Working examples and reference projects built on ${siteConfig.name}.`,
+  title: "Interactive AllSource Demo: Timeline, Time Travel, Graph, Pipelines, Projections, MCP",
+  description: `Use one ${siteConfig.name} event stream to demo event timelines, point-in-time state, graph visualisation, pipelines, projections, and MCP data access.`,
 });
 
 const codeExamples = [
@@ -82,116 +83,162 @@ const useCases = [
 
 export default function ExamplesPage() {
   return (
-    <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
+    <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
       <FadeIn delay={0.1} inView>
-        <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">
-          Build with AllSource
+        <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          Product demo
+        </p>
+        <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+          See event history become useful.
         </h1>
-        <p className="text-lg text-muted-foreground">
-          Working code, reference projects, and walkthroughs for the most common AllSource shapes.
+        <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
+          Move through one order history. Watch AllSource reconstruct past state, reveal its event
+          timeline and graph, trace pipeline work, rebuild a projection, and answer through MCP.
         </p>
       </FadeIn>
 
-      <FadeIn delay={0.2} inView>
-        <h2 className="text-2xl font-semibold text-foreground mt-12 mb-4">Code snippets</h2>
-      </FadeIn>
+      <div className="mt-10">
+        <CapabilityWorkbench />
+      </div>
 
-      <div className="space-y-3">
-        {codeExamples.map((ex, i) => {
-          const isExternal = ex.href.startsWith("http");
-          return (
-            <FadeIn key={ex.title} delay={0.25 + i * 0.05} inView>
-              <Link
-                href={ex.href}
-                {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                className="block group"
-              >
+      <div className="mx-auto max-w-4xl">
+        <FadeIn delay={0.2} inView>
+          <div className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-3">
+            <div className="bg-background p-5">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Durable source
+              </p>
+              <p className="mt-2 text-sm leading-6">
+                Core keeps the ordered events in WAL + Parquet.
+              </p>
+            </div>
+            <div className="bg-background p-5">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Separate reads
+              </p>
+              <p className="mt-2 text-sm leading-6">
+                Query Service serves HTTP, realtime, analytics, and projections.
+              </p>
+            </div>
+            <div className="bg-background p-5">
+              <p className="font-mono text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                Agent interface
+              </p>
+              <p className="mt-2 text-sm leading-6">
+                MCP tools expose history and state without bulk prompt stuffing.
+              </p>
+            </div>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.2} inView>
+          <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">
+            Build from working code
+          </h2>
+          <p className="mb-5 text-sm leading-6 text-muted-foreground">
+            Demo explains the model. These examples show real SDK and service integration paths.
+          </p>
+        </FadeIn>
+
+        <div className="space-y-3">
+          {codeExamples.map((ex, i) => {
+            const isExternal = ex.href.startsWith("http");
+            return (
+              <FadeIn key={ex.title} delay={0.25 + i * 0.05} inView>
+                <Link
+                  href={ex.href}
+                  {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="block group"
+                >
+                  <Card className="transition-colors hover:border-foreground/20">
+                    <CardContent className="pt-6">
+                      <div className="flex items-start gap-4">
+                        <ex.icon className="h-5 w-5 text-foreground mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <div className="flex items-baseline justify-between gap-2 mb-1">
+                            <h3 className="font-semibold text-foreground">{ex.title}</h3>
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {ex.badge}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{ex.blurb}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </FadeIn>
+            );
+          })}
+        </div>
+
+        <FadeIn delay={0.45} inView>
+          <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">Reference projects</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Real services in the monorepo that consume AllSource as their data layer. Read the
+            source to see how the pieces fit together end-to-end.
+          </p>
+        </FadeIn>
+
+        <div className="space-y-3">
+          {referenceProjects.map((p, i) => (
+            <FadeIn key={p.title} delay={0.5 + i * 0.05} inView>
+              <Link href={p.href} target="_blank" rel="noopener noreferrer" className="block group">
                 <Card className="transition-colors hover:border-foreground/20">
                   <CardContent className="pt-6">
                     <div className="flex items-start gap-4">
-                      <ex.icon className="h-5 w-5 text-foreground mt-0.5 shrink-0" />
+                      <p.icon className="h-5 w-5 text-foreground mt-0.5 shrink-0" />
                       <div className="flex-1">
-                        <div className="flex items-baseline justify-between gap-2 mb-1">
-                          <h3 className="font-semibold text-foreground">{ex.title}</h3>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {ex.badge}
-                          </span>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-foreground">{p.title}</h3>
+                          <FaGithub className="h-3.5 w-3.5 text-muted-foreground" />
                         </div>
-                        <p className="text-sm text-muted-foreground">{ex.blurb}</p>
+                        <p className="text-sm text-muted-foreground">{p.blurb}</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </Link>
             </FadeIn>
-          );
-        })}
-      </div>
-
-      <FadeIn delay={0.45} inView>
-        <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">Reference projects</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Real services in the monorepo that consume AllSource as their data layer. Read the source
-          to see how the pieces fit together end-to-end.
-        </p>
-      </FadeIn>
-
-      <div className="space-y-3">
-        {referenceProjects.map((p, i) => (
-          <FadeIn key={p.title} delay={0.5 + i * 0.05} inView>
-            <Link href={p.href} target="_blank" rel="noopener noreferrer" className="block group">
-              <Card className="transition-colors hover:border-foreground/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-4">
-                    <p.icon className="h-5 w-5 text-foreground mt-0.5 shrink-0" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground">{p.title}</h3>
-                        <FaGithub className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                      <p className="text-sm text-muted-foreground">{p.blurb}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          </FadeIn>
-        ))}
-      </div>
-
-      <FadeIn delay={0.7} inView>
-        <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">Solution walkthroughs</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Long-form pages on how AllSource maps to specific problem shapes — closer to a tutorial
-          than a snippet.
-        </p>
-      </FadeIn>
-
-      <FadeIn delay={0.75} inView>
-        <div className="grid sm:grid-cols-2 gap-2">
-          {useCases.map((uc) => (
-            <Link
-              key={uc.href}
-              href={uc.href}
-              className="group inline-flex items-center justify-between rounded-md border px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
-            >
-              <span>{uc.title}</span>
-              <ArrowRight className="h-4 w-4 opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
-            </Link>
           ))}
         </div>
-      </FadeIn>
 
-      <FadeIn delay={0.85} inView>
-        <div className="mt-12 flex flex-wrap gap-3">
-          <Link href="/sdks" className={cn(buttonVariants({ variant: "default" }))}>
-            Pick an SDK <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-          <Link href="/docs" className={cn(buttonVariants({ variant: "outline" }))}>
-            Read the docs
-          </Link>
-        </div>
-      </FadeIn>
+        <FadeIn delay={0.7} inView>
+          <h2 className="text-2xl font-semibold text-foreground mt-16 mb-4">
+            Solution walkthroughs
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Long-form pages on how AllSource maps to specific problem shapes — closer to a tutorial
+            than a snippet.
+          </p>
+        </FadeIn>
+
+        <FadeIn delay={0.75} inView>
+          <div className="grid sm:grid-cols-2 gap-2">
+            {useCases.map((uc) => (
+              <Link
+                key={uc.href}
+                href={uc.href}
+                className="group inline-flex items-center justify-between rounded-md border px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-colors"
+              >
+                <span>{uc.title}</span>
+                <ArrowRight className="h-4 w-4 opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
+              </Link>
+            ))}
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.85} inView>
+          <div className="mt-12 flex flex-wrap gap-3">
+            <Link href="/sdks" className={cn(buttonVariants({ variant: "default" }))}>
+              Pick an SDK <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+            <Link href="/docs" className={cn(buttonVariants({ variant: "outline" }))}>
+              Read the docs
+            </Link>
+          </div>
+        </FadeIn>
+      </div>
     </div>
   );
 }

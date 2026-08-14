@@ -2,6 +2,7 @@
 
 import { cn } from "@allsource/ui";
 import { motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { siteConfig } from "@/lib/config";
 
@@ -152,7 +153,7 @@ export default function HeroDemo() {
       <div className="space-y-3 px-4 py-3">
         <div className="flex items-start gap-2">
           <span className="mt-0.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary sm:text-xs">
-            Claude
+            MCP · reconstruct_state
           </span>
           <p className="text-xs text-foreground sm:text-sm">
             What did the user do yesterday at 3pm?
@@ -181,6 +182,12 @@ export default function HeroDemo() {
             </p>
           )}
         </div>
+        <Link
+          href="/examples#capability-workbench"
+          className="inline-flex font-mono text-[10px] font-semibold text-primary hover:underline sm:text-xs"
+        >
+          Open timeline, graph, pipeline, and projection demo →
+        </Link>
       </div>
     </div>
   );

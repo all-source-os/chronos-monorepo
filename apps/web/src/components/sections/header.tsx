@@ -8,6 +8,7 @@ const primaryNavigation = [
   { href: "/platform/event-sourcing", label: "Event store" },
   { href: "/prime", label: "Agent memory" },
   { href: "/use-cases", label: "Use cases" },
+  { href: "/examples", label: "Demo" },
   { href: "/docs", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
 ];

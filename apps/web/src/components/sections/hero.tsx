@@ -52,6 +52,12 @@ function HeroCTA({ indiePrice }: { indiePrice: string }) {
           <Icons.github className="h-5 w-5" />
           Self-host on GitHub
         </Link>
+        <Link
+          href="/examples#capability-workbench"
+          className={cn(buttonVariants({ variant: "ghost" }), "flex w-full gap-2 px-5 sm:w-auto")}
+        >
+          Explore demo →
+        </Link>
       </div>
       <p className="mt-4 text-sm text-muted-foreground">
         Hosted plans from {indiePrice}/month after trial · Apache-2.0 Core available to self-host
