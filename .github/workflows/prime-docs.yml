@@ -17,7 +17,10 @@ permissions:
 
 concurrency:
   group: "prime-docs"
-  cancel-in-progress: true
+  # This workflow only fires on main pushes and releases, so there is no
+  # PR-supersede case to optimise for — cancelling only ever discards a
+  # permanent commit's docs verdict. See the same guard in ci.yml.
+  cancel-in-progress: false
 
 jobs:
   build:

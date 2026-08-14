@@ -10,7 +10,10 @@ on:
 
 concurrency:
   group: security-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel on main — see the same guard in ci.yml. A cancelled run on a
+  # permanent commit means that commit got no security verdict at all, while
+  # the branch still shows green from whichever run happened to finish last.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read

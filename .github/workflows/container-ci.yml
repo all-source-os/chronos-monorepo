@@ -19,7 +19,10 @@ on:
 
 concurrency:
   group: container-ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run for a main commit — see the same guard in ci.yml. This
+  # fires on workflow_run, so the branch under test is the triggering run's
+  # head_branch, not github.ref.
+  cancel-in-progress: ${{ github.event.workflow_run.head_branch != 'main' }}
 
 env:
   REGISTRY: ghcr.io
