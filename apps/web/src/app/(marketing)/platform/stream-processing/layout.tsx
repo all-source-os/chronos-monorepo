@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { constructMetadata } from "@/lib/utils";
 
 export const metadata: Metadata = constructMetadata({
-  title: "Stream Processing — Real-Time Pipelines with Filter, Map, and Reduce",
+  title: "AllSource Stream Processing: Core Pipeline Operators",
   description:
-    "Filter, map, reduce, enrich, route, and aggregate event streams inside AllSource. Build projections and publish live updates over WebSocket.",
+    "Configure self-hosted AllSource Core pipelines with filter, map, reduce, window, and branch operators. See exact API shape, runtime, and current limits.",
   canonical: "/platform/stream-processing",
 });
 
