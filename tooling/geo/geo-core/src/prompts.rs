@@ -501,6 +501,23 @@ mod tests {
     }
 
     #[test]
+    fn interrogation_v2_covers_identity_boundary_and_source_quality() {
+        let set = interrogation();
+        assert_eq!(set.version, 2);
+        assert_eq!(set.len(), 17);
+        assert_eq!(set.claim_count(), 25);
+
+        for id in [
+            "int-qualified-identity",
+            "int-disambiguation",
+            "int-product-map",
+            "int-canonical-source",
+        ] {
+            assert!(set.prompts.iter().any(|prompt| prompt.id == id), "{id}");
+        }
+    }
+
+    #[test]
     fn every_claim_cites_a_path_that_exists_in_this_repository() {
         // A ground truth nobody can look up is a ground truth nobody can
         // correct. The path is relative to the repository root; this test file

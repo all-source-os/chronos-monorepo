@@ -510,7 +510,7 @@ Two deliberately separate jobs:
 | | 3a — share of voice | 3b — interrogation |
 |---|---|---|
 | Question | Of the answers to buyer questions, what share name us? | When they name us, is what they say **true**? |
-| Prompts | 32, no brand named | 13, all brand-named, 19 ground-truth claims |
+| Prompts | 32, no brand named | 17, all brand-named, 25 ground-truth claims |
 | Event | `geo.sov.probed` | `geo.interrogation.probed` |
 | Output | a trend instrument | a concrete content backlog |
 
@@ -543,6 +543,18 @@ metric a metric.
 **Editing the set is allowed and starts a new baseline.** If you edit it: bump
 `version` in the file, note what changed and why in this runbook, and do not
 edit it in the same week as a site change.
+
+Interrogation version history:
+
+- **v1** — initial 13-prompt, 19-claim factual set.
+- **v2, 2026-08-14** — new baseline for canonical product identity. Added the
+  exact qualified-identity, ArcGIS-disambiguation, Core/Prime/Hosted/MCP product
+  map, and canonical-source questions. Updated resolved GBP, MCP-count, Prime,
+  and machine-readable facts. SOV remains frozen at v1. V2 was authored with
+  the site deployment but is not used for a comparative score until recrawl;
+  its digest starts a new baseline rather than extending v1. The immediate
+  post-deploy evidence that motivated this version is preserved in
+  [`geo-answer-engine-sweep-2026-08-14.md`](../marketing/geo-answer-engine-sweep-2026-08-14.md).
 
 The `#r<n>` suffix is load-bearing too. The contract's natural key for a probe
 is `run_id + engine + prompt_id`, so without the repetition in the id, the N
@@ -678,7 +690,7 @@ interrogation answer.
 
 | sweep | probe calls | judge calls |
 |---|---|---|
-| full, 4 engines, 3 reps | (32 + 13) × 4 × 3 = **540** | 19 × 4 × 3 = **228** |
+| full, 4 engines, 3 reps | (32 + 17) × 4 × 3 = **588** | 25 × 4 × 3 = **300** |
 | SOV only, 4 engines, 3 reps | 384 | 0 |
 | smoke (`--limit 5 --engine claude --repetitions 1`) | 5 | ~7 |
 
@@ -700,10 +712,10 @@ quote it:
 
 | line | calls | est. cost |
 |---|---|---|
-| `claude` engine (Opus 5, $5/$25 per MTok) | 135 | ~$5 |
-| judge (Opus 5, 19 claims × 4 engines × 3 reps) | 228 | ~$6 |
-| `chatgpt` / `gemini` / `perplexity` | 405 | **unpriced here** — roughly $8–12 at typical frontier list rates, but this repository has no maintained source for them and the tool will not guess |
-| **first full baseline** | 768 | **~$20–30** |
+| `claude` engine (Opus 5, $5/$25 per MTok) | 147 | ~$6 |
+| judge (Opus 5, 25 claims × 4 engines × 3 reps) | 300 | ~$8 |
+| `chatgpt` / `gemini` / `perplexity` | 441 | **unpriced here** — roughly $9–13 at typical frontier list rates, but this repository has no maintained source for them and the tool will not guess |
+| **first full baseline** | 888 | **~$25–35** |
 
 A smoke run (`--limit 5 --engine claude --repetitions 1`) is under $0.20.
 Setting `GEO_CLAUDE_MODEL` and `GEO_JUDGE_MODEL` to `claude-haiku-4-5` cuts the
@@ -732,7 +744,7 @@ because nothing downstream can tell the difference.
 
 ## Ground-truth contradictions found while writing the probe set
 
-Grounding the 19 interrogation claims meant reading what this repository
+Grounding the 25 version-2 interrogation claims meant reading what this repository
 actually says, and it does not always agree with itself. These are findings
 about **us**, not about any model, and several expectations in
 `interrogation.toml` are deliberately written to accommodate them — a model that
