@@ -123,6 +123,24 @@ Query events and fold them into a derived state with an `EventFolder<S>`.
 
 List projections from Core.
 
+### Projection replay analysis
+
+Replay operations run through Query Service and remain scoped to the API key's tenant:
+
+```ts
+const analysis = await client.analyzeProjectionReplay("event-count");
+
+if (analysis.ready_to_replay && analysis.total_events > 0) {
+  const run = await client.startProjectionReplay(analysis.projection_name);
+  const progress = await client.getProjectionReplay(run.replay_id);
+  console.log(progress.progress_percentage);
+}
+```
+
+Use `listProjectionReplays()` to inspect run history and
+`cancelProjectionReplay(id)` to stop a running rebuild without replacing the
+current read-model.
+
 ### Prime projections
 
 `definePrimeProjection(entityType, fieldPolicies)`,

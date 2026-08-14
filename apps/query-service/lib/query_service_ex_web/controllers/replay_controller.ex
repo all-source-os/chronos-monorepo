@@ -11,6 +11,7 @@ defmodule QueryServiceExWeb.ReplayController do
   use Phoenix.Controller, formats: [:json]
 
   alias QueryServiceEx.Projections.Enablement
+  alias QueryServiceEx.Projections.ReplayAnalysis
   alias QueryServiceEx.Projections.TenantProjections
 
   action_fallback(QueryServiceExWeb.FallbackController)
@@ -47,6 +48,28 @@ defmodule QueryServiceExWeb.ReplayController do
         conn
         |> put_status(:unprocessable_entity)
         |> json(%{error: "Projection is not enabled for this tenant"})
+
+      {:error, reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{error: to_string_reason(reason)})
+    end
+  end
+
+  def preview(conn, params) do
+    tenant_id = get_tenant_id!(conn)
+    projection_name = params["projection_name"]
+
+    with true <- is_binary(projection_name) and projection_name != "",
+         {:ok, enabled} <- Enablement.enabled_set(tenant_id),
+         true <- projection_name in enabled,
+         {:ok, analysis} <- ReplayAnalysis.analyze(tenant_id, projection_name) do
+      json(conn, %{data: analysis})
+    else
+      false ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Choose an enabled projection to analyze"})
 
       {:error, reason} ->
         conn

@@ -239,6 +239,7 @@ defmodule QueryServiceExWeb.Router do
     pipe_through([:tenant_scoped, :rate_limited])
 
     get("/replay", ReplayController, :index)
+    post("/replay/preview", ReplayController, :preview)
     post("/replay", ReplayController, :create)
     get("/replay/:id", ReplayController, :show)
     post("/replay/:id/cancel", ReplayController, :cancel)

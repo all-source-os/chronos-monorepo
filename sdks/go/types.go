@@ -32,6 +32,64 @@ type Projection struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
+// ProjectionReplayEventType is one event-type bucket from replay analysis.
+type ProjectionReplayEventType struct {
+	EventType string  `json:"event_type"`
+	Count     int     `json:"count"`
+	Share     float64 `json:"share"`
+}
+
+// ProjectionReplayEntity is one frequently affected entity from the analysis sample.
+type ProjectionReplayEntity struct {
+	EntityID   string `json:"entity_id"`
+	EventCount int    `json:"event_count"`
+}
+
+// ProjectionReplayCheck is a server-asserted replay invariant.
+type ProjectionReplayCheck struct {
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	Status string `json:"status"`
+	Detail string `json:"detail"`
+}
+
+// ProjectionReplayAnalysis describes replay impact without mutating state.
+type ProjectionReplayAnalysis struct {
+	ProjectionName        string                      `json:"projection_name"`
+	ProjectionTitle       string                      `json:"projection_title"`
+	ProjectionKind        string                      `json:"projection_kind"`
+	ProjectionStatus      string                      `json:"projection_status"`
+	CurrentEntityCount    int                         `json:"current_entity_count"`
+	TotalEvents           int                         `json:"total_events"`
+	SampledEvents         int                         `json:"sampled_events"`
+	AnalysisScope         string                      `json:"analysis_scope"`
+	EventTypeDistribution []ProjectionReplayEventType `json:"event_type_distribution"`
+	SampledEntityCount    int                         `json:"sampled_entity_count"`
+	SampledEntities       []ProjectionReplayEntity    `json:"sampled_entities"`
+	FirstEventAt          *string                     `json:"first_event_at"`
+	LastEventAt           *string                     `json:"last_event_at"`
+	AnalyzedAt            string                      `json:"analyzed_at"`
+	ReadyToReplay         bool                        `json:"ready_to_replay"`
+	Checks                []ProjectionReplayCheck     `json:"checks"`
+	Warnings              []string                    `json:"warnings"`
+}
+
+// ProjectionReplayRun is one tenant-scoped projection rebuild.
+type ProjectionReplayRun struct {
+	ReplayID           string  `json:"replay_id"`
+	ProjectionName     string  `json:"projection_name"`
+	Status             string  `json:"status"`
+	StartedAt          string  `json:"started_at"`
+	UpdatedAt          string  `json:"updated_at"`
+	CompletedAt        *string `json:"completed_at"`
+	TotalEvents        int     `json:"total_events"`
+	ProcessedEvents    int     `json:"processed_events"`
+	FailedEvents       int     `json:"failed_events"`
+	ProgressPercentage float64 `json:"progress_percentage"`
+	EventsPerSecond    float64 `json:"events_per_second"`
+	ErrorMessage       *string `json:"error_message"`
+}
+
 // APIError represents an error returned by the AllSource API.
 type APIError struct {
 	Code       string `json:"code"`

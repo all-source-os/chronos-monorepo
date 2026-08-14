@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { AllSourceClient, AllSourceError, CircuitOpenError } from "../src";
 import type { EventFolder } from "../src";
+import { AllSourceClient, AllSourceError, CircuitOpenError } from "../src";
 
 const MOCK_BASE_URL = "https://allsource-query.example.com";
 const MOCK_API_KEY = "test-api-key-123";
@@ -25,9 +25,7 @@ const originalFetch = globalThis.fetch;
 let mockFetch: ReturnType<typeof mock>;
 
 beforeEach(() => {
-  mockFetch = mock(() =>
-    Promise.resolve(new Response(JSON.stringify({}), { status: 200 })),
-  );
+  mockFetch = mock(() => Promise.resolve(new Response(JSON.stringify({}), { status: 200 })));
   globalThis.fetch = mockFetch as unknown as typeof fetch;
 });
 
@@ -47,7 +45,7 @@ describe("AllSourceClient constructor", () => {
   test("strips trailing slashes from baseUrl", async () => {
     const client = createClient({ baseUrl: "https://example.com///" });
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
     );
     await client.getHealth();
     const url = (mockFetch.mock.calls[0] as unknown[])[0] as string;
@@ -59,9 +57,7 @@ describe("getHealth", () => {
   test("sends GET /health with API key header", async () => {
     const client = createClient();
     mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
-      ),
+      Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
     );
 
     const result = await client.getHealth();
@@ -94,9 +90,7 @@ describe("ingestEvent", () => {
     };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ data: ack }), { status: 201 }),
-      ),
+      Promise.resolve(new Response(JSON.stringify({ data: ack }), { status: 201 }))
     );
 
     const result = await client.ingestEvent(event);
@@ -130,7 +124,7 @@ describe("ingestBatch", () => {
     };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(body), { status: 201 })),
+      Promise.resolve(new Response(JSON.stringify(body), { status: 201 }))
     );
 
     const result = await client.ingestBatch(events);
@@ -151,7 +145,7 @@ describe("queryEvents", () => {
     const response = { events: [], count: 0 };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(response), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify(response), { status: 200 }))
     );
 
     const result = await client.queryEvents();
@@ -166,7 +160,7 @@ describe("queryEvents", () => {
     const response = { events: [], count: 0 };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(response), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify(response), { status: 200 }))
     );
 
     await client.queryEvents({ entity_id: "user-123", limit: 10, event_type: "user.signup" });
@@ -181,7 +175,7 @@ describe("queryEvents", () => {
   test("sends since/until params (not start_time/end_time)", async () => {
     const client = createClient();
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({ events: [], count: 0 }), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify({ events: [], count: 0 }), { status: 200 }))
     );
 
     await client.queryEvents({ since: "2026-01-01T00:00:00Z", until: "2026-02-01T00:00:00Z" });
@@ -197,7 +191,7 @@ describe("queryEvents", () => {
   test("omits undefined params", async () => {
     const client = createClient();
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({ events: [], count: 0 }), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify({ events: [], count: 0 }), { status: 200 }))
     );
 
     await client.queryEvents({ entity_id: "user-123", limit: undefined });
@@ -218,7 +212,7 @@ describe("listProjections", () => {
     };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(response), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify(response), { status: 200 }))
     );
 
     const result = await client.listProjections();
@@ -233,6 +227,78 @@ describe("listProjections", () => {
   });
 });
 
+describe("projection replay workflow", () => {
+  const run = {
+    replay_id: "replay-1",
+    projection_name: "event-count",
+    status: "running",
+    started_at: "2026-08-14T10:00:00Z",
+    updated_at: "2026-08-14T10:00:00Z",
+    completed_at: null,
+    total_events: 42,
+    processed_events: 12,
+    failed_events: 0,
+    progress_percentage: 28.6,
+    events_per_second: 120,
+    error_message: null,
+  } as const;
+
+  test("analyzes replay impact without starting a run", async () => {
+    const client = createClient();
+    const analysis = {
+      projection_name: "event-count",
+      projection_title: "Event Count",
+      projection_kind: "counter",
+      projection_status: "ready",
+      current_entity_count: 1,
+      total_events: 42,
+      sampled_events: 42,
+      analysis_scope: "full",
+      event_type_distribution: [{ event_type: "order.created", count: 42, share: 100 }],
+      sampled_entity_count: 7,
+      sampled_entities: [{ entity_id: "order-1", event_count: 8 }],
+      first_event_at: "2026-08-01T00:00:00Z",
+      last_event_at: "2026-08-14T00:00:00Z",
+      analyzed_at: "2026-08-14T10:00:00Z",
+      ready_to_replay: true,
+      checks: [],
+      warnings: [],
+    } as const;
+
+    mockFetch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ data: analysis }), { status: 200 }))
+    );
+
+    expect(await client.analyzeProjectionReplay("event-count")).toEqual(analysis);
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`${MOCK_BASE_URL}/api/replay/preview`);
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body as string)).toEqual({ projection_name: "event-count" });
+  });
+
+  test("starts, lists, reads, and cancels replay runs", async () => {
+    const client = createClient();
+    mockFetch.mockImplementation((input, init) => {
+      const url = String(input);
+      const body = url.endsWith("/api/replay") && init?.method === "GET" ? [run] : run;
+      return Promise.resolve(new Response(JSON.stringify({ data: body }), { status: 200 }));
+    });
+
+    expect(await client.startProjectionReplay("event-count")).toEqual(run);
+    expect(await client.listProjectionReplays()).toEqual([run]);
+    expect(await client.getProjectionReplay("replay-1")).toEqual(run);
+    expect(await client.cancelProjectionReplay("replay-1")).toEqual(run);
+
+    const calls = mockFetch.mock.calls as unknown as [string, RequestInit][];
+    expect(calls.map(([url, options]) => [url, options.method])).toEqual([
+      [`${MOCK_BASE_URL}/api/replay`, "POST"],
+      [`${MOCK_BASE_URL}/api/replay`, "GET"],
+      [`${MOCK_BASE_URL}/api/replay/replay-1`, "GET"],
+      [`${MOCK_BASE_URL}/api/replay/replay-1/cancel`, "POST"],
+    ]);
+  });
+});
+
 describe("listPrimeProjections", () => {
   test("sends GET /api/v1/prime/projections and unwraps data", async () => {
     const client = createClient();
@@ -242,8 +308,8 @@ describe("listPrimeProjections", () => {
 
     mockFetch.mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ data: projections, count: 1 }), { status: 200 }),
-      ),
+        new Response(JSON.stringify({ data: projections, count: 1 }), { status: 200 })
+      )
     );
 
     const result = await client.listPrimeProjections();
@@ -263,7 +329,7 @@ describe("definePrimeProjection", () => {
     const ack = { entity_type: "user", persisted: true };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({ data: ack }), { status: 201 })),
+      Promise.resolve(new Response(JSON.stringify({ data: ack }), { status: 201 }))
     );
 
     const fieldPolicies = { name: "last_write", role: "most_specific" };
@@ -290,7 +356,7 @@ describe("projectNode", () => {
     };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({ data: snapshot }), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify({ data: snapshot }), { status: 200 }))
     );
 
     const result = await client.projectNode("user:abc");
@@ -315,7 +381,7 @@ describe("nodeFieldProvenance", () => {
     };
 
     mockFetch.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify({ data: provenance }), { status: 200 })),
+      Promise.resolve(new Response(JSON.stringify({ data: provenance }), { status: 200 }))
     );
 
     const result = await client.nodeFieldProvenance("user:abc", "name");
@@ -330,9 +396,7 @@ describe("nodeFieldProvenance", () => {
   test("rejects with AllSourceError (404) when no provenance exists", async () => {
     const client = createClient({ retry: { maxRetries: 0 } });
     mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ error: "not found" }), { status: 404 }),
-      ),
+      Promise.resolve(new Response(JSON.stringify({ error: "not found" }), { status: 404 }))
     );
 
     try {
@@ -349,9 +413,7 @@ describe("error handling", () => {
   test("throws AllSourceError on non-2xx response", async () => {
     const client = createClient({ retry: { maxRetries: 0 } });
     mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
-      ),
+      Promise.resolve(new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }))
     );
 
     try {
@@ -368,9 +430,7 @@ describe("error handling", () => {
   test("AllSourceError includes status text", async () => {
     const client = createClient({ retry: { maxRetries: 0 } });
     mockFetch.mockImplementation(() =>
-      Promise.resolve(
-        new Response("Not Found", { status: 404, statusText: "Not Found" }),
-      ),
+      Promise.resolve(new Response("Not Found", { status: 404, statusText: "Not Found" }))
     );
 
     try {
@@ -428,12 +488,10 @@ describe("retry logic", () => {
       callCount++;
       if (callCount <= 2) {
         return Promise.resolve(
-          new Response(JSON.stringify({ error: "Service Unavailable" }), { status: 503 }),
+          new Response(JSON.stringify({ error: "Service Unavailable" }), { status: 503 })
         );
       }
-      return Promise.resolve(
-        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
-      );
+      return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
     }) as unknown as typeof globalThis.fetch;
 
     const client = createClient({
@@ -451,7 +509,7 @@ describe("retry logic", () => {
     const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
       callCount++;
       return Promise.resolve(
-        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
+        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
       );
     }) as unknown as typeof globalThis.fetch;
 
@@ -477,9 +535,7 @@ describe("retry logic", () => {
       if (callCount <= 1) {
         return Promise.reject(new TypeError("fetch failed"));
       }
-      return Promise.resolve(
-        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
-      );
+      return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
     }) as unknown as typeof globalThis.fetch;
 
     const client = createClient({
@@ -499,7 +555,7 @@ describe("circuit breaker integration", () => {
     const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
       callCount++;
       return Promise.resolve(
-        new Response(JSON.stringify({ error: "Server Error" }), { status: 500 }),
+        new Response(JSON.stringify({ error: "Server Error" }), { status: 500 })
       );
     }) as unknown as typeof globalThis.fetch;
 
@@ -533,15 +589,34 @@ describe("circuit breaker integration", () => {
 describe("queryAndFold", () => {
   test("folds events into a state", async () => {
     const events = [
-      { id: "1", event_type: "counter.incremented", entity_id: "c1", payload: { amount: 5 }, metadata: {}, timestamp: "t1" },
-      { id: "2", event_type: "counter.incremented", entity_id: "c1", payload: { amount: 3 }, metadata: {}, timestamp: "t2" },
-      { id: "3", event_type: "counter.decremented", entity_id: "c1", payload: { amount: 2 }, metadata: {}, timestamp: "t3" },
+      {
+        id: "1",
+        event_type: "counter.incremented",
+        entity_id: "c1",
+        payload: { amount: 5 },
+        metadata: {},
+        timestamp: "t1",
+      },
+      {
+        id: "2",
+        event_type: "counter.incremented",
+        entity_id: "c1",
+        payload: { amount: 3 },
+        metadata: {},
+        timestamp: "t2",
+      },
+      {
+        id: "3",
+        event_type: "counter.decremented",
+        entity_id: "c1",
+        payload: { amount: 2 },
+        metadata: {},
+        timestamp: "t3",
+      },
     ];
 
     const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
-      return Promise.resolve(
-        new Response(JSON.stringify({ events, count: 3 }), { status: 200 }),
-      );
+      return Promise.resolve(new Response(JSON.stringify({ events, count: 3 }), { status: 200 }));
     }) as unknown as typeof globalThis.fetch;
 
     const client = createClient({ fetch: customFetch });
@@ -577,9 +652,7 @@ describe("custom fetch injection", () => {
     let called = false;
     const customFetch = mock((_url: string | URL | Request, _init?: RequestInit) => {
       called = true;
-      return Promise.resolve(
-        new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
-      );
+      return Promise.resolve(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
     }) as unknown as typeof globalThis.fetch;
 
     const client = createClient({ fetch: customFetch });

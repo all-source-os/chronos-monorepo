@@ -108,6 +108,66 @@ export interface ProjectionsResponse {
   total: number;
 }
 
+/** One event-type bucket from a replay impact analysis. */
+export interface ProjectionReplayEventType {
+  event_type: string;
+  count: number;
+  share: number;
+}
+
+/** One frequently affected entity from a replay impact analysis sample. */
+export interface ProjectionReplayEntity {
+  entity_id: string;
+  event_count: number;
+}
+
+/** Server-asserted invariant checked before a projection replay. */
+export interface ProjectionReplayCheck {
+  key: string;
+  label: string;
+  status: "pass" | "warn";
+  detail: string;
+}
+
+/** Read-only impact analysis returned before a projection replay starts. */
+export interface ProjectionReplayAnalysis {
+  projection_name: string;
+  projection_title: string;
+  projection_kind: string;
+  projection_status: string;
+  current_entity_count: number;
+  total_events: number;
+  sampled_events: number;
+  analysis_scope: "full" | "sample";
+  event_type_distribution: ProjectionReplayEventType[];
+  sampled_entity_count: number;
+  sampled_entities: ProjectionReplayEntity[];
+  first_event_at: string | null;
+  last_event_at: string | null;
+  analyzed_at: string;
+  ready_to_replay: boolean;
+  checks: ProjectionReplayCheck[];
+  warnings: string[];
+}
+
+export type ProjectionReplayStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+
+/** Tenant-scoped projection replay run. */
+export interface ProjectionReplayRun {
+  replay_id: string;
+  projection_name: string;
+  status: ProjectionReplayStatus;
+  started_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  total_events: number;
+  processed_events: number;
+  failed_events: number;
+  progress_percentage: number;
+  events_per_second: number;
+  error_message: string | null;
+}
+
 /** A Prime projection definition (entity type plus per-field merge policies). */
 export interface PrimeProjection {
   entity_type: string;
@@ -147,7 +207,7 @@ export class AllSourceError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly body?: unknown,
+    public readonly body?: unknown
   ) {
     super(message);
     this.name = "AllSourceError";

@@ -318,13 +318,15 @@ defmodule QueryServiceEx.Projections.TenantProjections do
           update_replay(state, replay_id, fn replay ->
             total_events = total || replay.total_events
             percentage = progress_percentage(processed, total_events)
+            now = now_iso8601()
 
             %{
               replay
               | processed_events: processed,
                 total_events: total_events,
                 progress_percentage: percentage,
-                updated_at: now_iso8601()
+                events_per_second: events_per_second(processed, replay.started_at, now),
+                updated_at: now
             }
           end)
 
@@ -359,7 +361,8 @@ defmodule QueryServiceEx.Projections.TenantProjections do
                   updated_at: now,
                   processed_events: processed,
                   total_events: processed,
-                  progress_percentage: 100.0
+                  progress_percentage: 100.0,
+                  events_per_second: events_per_second(processed, replay.started_at, now)
               }
             end)
           else
@@ -703,6 +706,16 @@ defmodule QueryServiceEx.Projections.TenantProjections do
 
   defp progress_percentage(_processed, total) when total in [nil, 0], do: 0.0
   defp progress_percentage(processed, total), do: min(processed / total * 100.0, 99.9)
+
+  defp events_per_second(processed, started_at, updated_at) do
+    with {:ok, started, _offset} <- DateTime.from_iso8601(started_at),
+         {:ok, updated, _offset} <- DateTime.from_iso8601(updated_at) do
+      elapsed_seconds = max(DateTime.diff(updated, started, :millisecond) / 1_000, 0.001)
+      Float.round(processed / elapsed_seconds, 1)
+    else
+      _ -> 0.0
+    end
+  end
 
   defp generate_id do
     :crypto.strong_rand_bytes(16)

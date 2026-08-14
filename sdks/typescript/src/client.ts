@@ -11,6 +11,8 @@ import {
   type PrimeProjectionAck,
   type PrimeProvenance,
   type PrimeSnapshot,
+  type ProjectionReplayAnalysis,
+  type ProjectionReplayRun,
   type ProjectionsResponse,
   type QueryEventsParams,
   type QueryEventsResponse,
@@ -132,6 +134,46 @@ export class AllSourceClient {
   /** List all projections from AllSource Core. */
   async listProjections(): Promise<ProjectionsResponse> {
     return this.request<ProjectionsResponse>("GET", "/api/v1/projections");
+  }
+
+  /** Analyze replay impact without changing events or projection state. */
+  async analyzeProjectionReplay(projectionName: string): Promise<ProjectionReplayAnalysis> {
+    const res = await this.request<{ data: ProjectionReplayAnalysis }>(
+      "POST",
+      "/api/replay/preview",
+      { projection_name: projectionName }
+    );
+    return res.data;
+  }
+
+  /** Start an atomic rebuild of one enabled tenant projection. */
+  async startProjectionReplay(projectionName: string): Promise<ProjectionReplayRun> {
+    const res = await this.request<{ data: ProjectionReplayRun }>("POST", "/api/replay", {
+      projection_name: projectionName,
+    });
+    return res.data;
+  }
+
+  /** List replay runs belonging to the authenticated tenant. */
+  async listProjectionReplays(): Promise<ProjectionReplayRun[]> {
+    const res = await this.request<{ data: ProjectionReplayRun[] }>("GET", "/api/replay");
+    return res.data;
+  }
+
+  /** Read one tenant-scoped replay run. */
+  async getProjectionReplay(replayId: string): Promise<ProjectionReplayRun> {
+    const res = await this.request<{ data: ProjectionReplayRun }>("GET", `/api/replay/${replayId}`);
+    return res.data;
+  }
+
+  /** Cancel a running rebuild without replacing the current read-model. */
+  async cancelProjectionReplay(replayId: string): Promise<ProjectionReplayRun> {
+    const res = await this.request<{ data: ProjectionReplayRun }>(
+      "POST",
+      `/api/replay/${replayId}/cancel`,
+      {}
+    );
+    return res.data;
   }
 
   /** List all Prime projection definitions from the gateway. */

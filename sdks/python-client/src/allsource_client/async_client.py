@@ -15,6 +15,8 @@ from allsource_client.types import (
     PrimeProvenance,
     PrimeSnapshot,
     Projection,
+    ProjectionReplayAnalysis,
+    ProjectionReplayRun,
     Webhook,
     WebhookDelivery,
 )
@@ -183,6 +185,42 @@ class AllSourceAsyncClient:
         result = await self._request("POST", "/api/projections", json=body)
         data = result.get("data", result)
         return Projection.from_dict(data)
+
+    # --- Projection replay ---
+
+    async def analyze_projection_replay(self, projection_name: str) -> ProjectionReplayAnalysis:
+        """Analyze replay impact without changing events or projection state."""
+        result = await self._request(
+            "POST",
+            "/api/replay/preview",
+            json={"projection_name": projection_name},
+        )
+        return ProjectionReplayAnalysis.from_dict(result.get("data", result))
+
+    async def start_projection_replay(self, projection_name: str) -> ProjectionReplayRun:
+        """Start an atomic rebuild of one enabled tenant projection."""
+        result = await self._request(
+            "POST",
+            "/api/replay",
+            json={"projection_name": projection_name},
+        )
+        return ProjectionReplayRun.from_dict(result.get("data", result))
+
+    async def list_projection_replays(self) -> List[ProjectionReplayRun]:
+        """List replay runs belonging to the authenticated tenant."""
+        result = await self._request("GET", "/api/replay")
+        data = result.get("data", result)
+        return [ProjectionReplayRun.from_dict(item) for item in data] if isinstance(data, list) else []
+
+    async def get_projection_replay(self, replay_id: str) -> ProjectionReplayRun:
+        """Read one tenant-scoped replay run."""
+        result = await self._request("GET", f"/api/replay/{replay_id}")
+        return ProjectionReplayRun.from_dict(result.get("data", result))
+
+    async def cancel_projection_replay(self, replay_id: str) -> ProjectionReplayRun:
+        """Stop a rebuild without publishing partial state."""
+        result = await self._request("POST", f"/api/replay/{replay_id}/cancel", json={})
+        return ProjectionReplayRun.from_dict(result.get("data", result))
 
     # --- Prime ---
 

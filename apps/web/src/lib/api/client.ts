@@ -490,6 +490,13 @@ export class ApiClient {
   }
 
   // Replay endpoints
+  async analyzeReplay(params: { projection_name: string }): Promise<ApiResponse<ReplayAnalysis>> {
+    return this.request<ReplayAnalysis>("/api/replay/preview", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
   async startReplay(params: StartReplayRequest): Promise<ApiResponse<ReplayProgress>> {
     return this.request<ReplayProgress>("/api/replay", {
       method: "POST",
@@ -992,6 +999,44 @@ export interface StartReplayRequest {
   entity_id?: string;
   projection_name?: string;
   config?: ReplayConfig;
+}
+
+export interface ReplayAnalysisEventType {
+  event_type: string;
+  count: number;
+  share: number;
+}
+
+export interface ReplayAnalysisEntity {
+  entity_id: string;
+  event_count: number;
+}
+
+export interface ReplayAnalysisCheck {
+  key: string;
+  label: string;
+  status: "pass" | "warn";
+  detail: string;
+}
+
+export interface ReplayAnalysis {
+  projection_name: string;
+  projection_title: string;
+  projection_kind: ProjectionKind;
+  projection_status: "building" | "ready";
+  current_entity_count: number;
+  total_events: number;
+  sampled_events: number;
+  analysis_scope: "full" | "sample";
+  event_type_distribution: ReplayAnalysisEventType[];
+  sampled_entity_count: number;
+  sampled_entities: ReplayAnalysisEntity[];
+  first_event_at: string | null;
+  last_event_at: string | null;
+  analyzed_at: string;
+  ready_to_replay: boolean;
+  checks: ReplayAnalysisCheck[];
+  warnings: string[];
 }
 
 export interface ReplayProgress {

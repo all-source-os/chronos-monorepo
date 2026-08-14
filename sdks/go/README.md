@@ -72,6 +72,29 @@ func main() {
 }
 ```
 
+## Projection replay analysis
+
+Preview impact through Query Service before starting an atomic rebuild:
+
+```go
+analysis, err := client.AnalyzeProjectionReplay(ctx, "event-count")
+if err != nil {
+	log.Fatal(err)
+}
+
+if analysis.ReadyToReplay && analysis.TotalEvents > 0 {
+	run, err := client.StartProjectionReplay(ctx, analysis.ProjectionName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	progress, err := client.GetProjectionReplay(ctx, run.ReplayID)
+	fmt.Printf("%.1f%%\n", progress.ProgressPercentage)
+}
+```
+
+`ListProjectionReplays` returns tenant run history.
+`CancelProjectionReplay` stops a rebuild without publishing partial state.
+
 ## Error Handling
 
 API errors are returned as `*allsource.APIError` with helper methods:

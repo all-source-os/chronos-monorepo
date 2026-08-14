@@ -16,11 +16,13 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Code2,
   Database,
   Layers3,
   Loader2,
   Play,
   RotateCcw,
+  Search,
   ShieldCheck,
   Square,
   Trash2,
@@ -33,6 +35,7 @@ import { useReplays } from "@/hooks/use-replay";
 import {
   apiClient,
   type Projection,
+  type ReplayAnalysis,
   type ReplayProgress,
   type ReplayStatus,
 } from "@/lib/api/client";
@@ -73,6 +76,8 @@ export default function ReplayPage() {
   const [projectionError, setProjectionError] = useState<string | null>(null);
   const [selectedProjection, setSelectedProjection] = useState("");
   const [isStarting, setIsStarting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<ReplayAnalysis | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,14 +108,33 @@ export default function ReplayPage() {
     [projections, selectedProjection]
   );
   const targetBusy = target?.status === "building";
+  const analyzedTarget = analysis?.projection_name === selectedProjection ? analysis : null;
+
+  const handleAnalyze = async () => {
+    if (!selectedProjection) return;
+    setFormError(null);
+    setAnalysis(null);
+    setIsAnalyzing(true);
+
+    try {
+      const response = await apiClient.analyzeReplay({ projection_name: selectedProjection });
+      if (response.error) throw new Error(response.error.message);
+      setAnalysis(response.data ?? null);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Replay impact could not be analyzed");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const handleStart = async () => {
-    if (!selectedProjection) return;
+    if (!selectedProjection || !analyzedTarget?.ready_to_replay) return;
     setFormError(null);
     setIsStarting(true);
 
     try {
       await startReplay({ projection_name: selectedProjection });
+      setAnalysis(null);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Replay could not start");
     } finally {
@@ -138,7 +162,7 @@ export default function ReplayPage() {
         </Badge>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.7fr)]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
         <Card className="overflow-hidden border-border/80">
           <CardHeader className="border-b border-border bg-muted/20">
             <CardTitle>Build plan</CardTitle>
@@ -173,7 +197,11 @@ export default function ReplayPage() {
                 <select
                   id="projection"
                   value={selectedProjection}
-                  onChange={(event) => setSelectedProjection(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedProjection(event.target.value);
+                    setAnalysis(null);
+                    setFormError(null);
+                  }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="">Choose projection</option>
@@ -220,7 +248,7 @@ export default function ReplayPage() {
                   </span>
                 ) : target ? (
                   <span className="text-muted-foreground">
-                    Ready to rebuild{" "}
+                    Analyze{" "}
                     <strong className="text-foreground">{target.title || target.name}</strong>.
                   </span>
                 ) : (
@@ -229,16 +257,16 @@ export default function ReplayPage() {
               </div>
               <Button
                 type="button"
-                onClick={handleStart}
-                disabled={projectionsLoading || !target || targetBusy || isStarting}
+                onClick={handleAnalyze}
+                disabled={projectionsLoading || !target || targetBusy || isAnalyzing}
                 className="shrink-0"
               >
-                {isStarting ? (
+                {isAnalyzing ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Play className="mr-2 h-4 w-4" />
+                  <Search className="mr-2 h-4 w-4" />
                 )}
-                Rebuild projection
+                Analyze impact
               </Button>
             </div>
             {formError && (
@@ -253,31 +281,44 @@ export default function ReplayPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-emerald-500/20 bg-emerald-500/[0.03]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="h-4 w-4 text-emerald-500" /> Safety contract
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-4 text-sm">
-              <SafetyItem
-                title="No downtime"
-                detail="Existing read-model serves traffic during fold."
-              />
-              <SafetyItem title="No source mutation" detail="Stored events remain unchanged." />
-              <SafetyItem
-                title="Failure is isolated"
-                detail="Partial output is discarded, never published."
-              />
-              <SafetyItem
-                title="One tenant, one target"
-                detail="Replay cannot reach another workspace."
-              />
-            </ul>
-          </CardContent>
-        </Card>
+        <ReplayImpact
+          analysis={analyzedTarget}
+          isAnalyzing={isAnalyzing}
+          hasTarget={Boolean(target)}
+          isStarting={isStarting}
+          onStart={handleStart}
+        />
       </div>
+
+      <Card className="overflow-hidden">
+        <div className="grid lg:grid-cols-[0.8fr_1.2fr]">
+          <CardHeader className="border-b border-border lg:border-r lg:border-b-0">
+            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Code2 className="h-4 w-4" />
+            </div>
+            <CardTitle className="text-base">Put replay checks in deployment workflows</CardTitle>
+            <CardDescription className="leading-6">
+              TypeScript, Rust, Python, and Go SDKs expose the same analysis and replay lifecycle as
+              this studio.
+            </CardDescription>
+            <Link
+              href="/sdks"
+              className="mt-2 inline-flex w-fit items-center gap-1 text-sm font-medium text-primary underline underline-offset-4"
+            >
+              SDK installation <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </CardHeader>
+          <CardContent className="bg-muted/20 p-5">
+            <pre className="overflow-x-auto rounded-lg border border-border bg-background p-4 text-xs leading-6 text-foreground">
+              <code>{`const analysis = await client.analyzeProjectionReplay("event-count");
+
+if (analysis.ready_to_replay) {
+  await client.startProjectionReplay(analysis.projection_name);
+}`}</code>
+            </pre>
+          </CardContent>
+        </div>
+      </Card>
 
       <Card>
         <CardHeader className="grid grid-cols-[1fr_auto] items-start">
@@ -361,6 +402,184 @@ function PlanArrow() {
   return (
     <div className="hidden items-center text-muted-foreground/50 md:flex">
       <ArrowRight className="h-4 w-4" />
+    </div>
+  );
+}
+
+function ReplayImpact({
+  analysis,
+  isAnalyzing,
+  hasTarget,
+  isStarting,
+  onStart,
+}: {
+  analysis: ReplayAnalysis | null;
+  isAnalyzing: boolean;
+  hasTarget: boolean;
+  isStarting: boolean;
+  onStart: () => Promise<void>;
+}) {
+  if (isAnalyzing) {
+    return (
+      <Card className="border-primary/20" aria-live="polite">
+        <CardContent className="flex min-h-80 flex-col items-center justify-center text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="mt-4 font-medium">Reading replay scope</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Counting events and checking publish safety.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <Card className="border-border/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" /> Replay impact
+          </CardTitle>
+          <CardDescription>
+            {hasTarget
+              ? "Analyze before rebuilding. No state changes during this step."
+              : "Choose a read-model to inspect replay scope."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-4 text-sm">
+            <SafetyItem
+              title="Current state stays live"
+              detail="A shadow generation builds beside the active read-model."
+            />
+            <SafetyItem
+              title="Source stays unchanged"
+              detail="Stored events are read, never rewritten."
+            />
+            <SafetyItem
+              title="Publish is atomic"
+              detail="One pointer swap publishes only a complete result."
+            />
+          </ul>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="overflow-hidden border-primary/25" aria-label="Replay impact analysis">
+      <CardHeader className="border-b border-border bg-primary/[0.04]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">Replay impact</CardTitle>
+            <CardDescription className="mt-1">
+              {analysis.projection_title} · {analysis.projection_kind.replace("_", " ")}
+            </CardDescription>
+          </div>
+          <Badge variant={analysis.analysis_scope === "full" ? "outline" : "secondary"}>
+            {analysis.analysis_scope === "full" ? "Full history" : "Sampled breakdown"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5 p-5">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border">
+          <ImpactMetric label="Events to fold" value={analysis.total_events.toLocaleString()} />
+          <ImpactMetric
+            label="Entities in sample"
+            value={analysis.sampled_entity_count.toLocaleString()}
+          />
+        </div>
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Event window
+          </p>
+          <p className="mt-1 text-sm font-medium">
+            {analysis.first_event_at && analysis.last_event_at
+              ? `${formatTimestamp(analysis.first_event_at)} → ${formatTimestamp(analysis.last_event_at)}`
+              : "No matching events"}
+          </p>
+        </div>
+
+        {analysis.event_type_distribution.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Event types{" "}
+              {analysis.analysis_scope === "sample" ? `· first ${analysis.sampled_events}` : ""}
+            </p>
+            <div className="mt-3 space-y-3">
+              {analysis.event_type_distribution.slice(0, 5).map((item) => (
+                <div key={item.event_type}>
+                  <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate font-mono text-foreground">{item.event_type}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {item.count.toLocaleString()} · {item.share.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${Math.min(Math.max(item.share, 0), 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <ul className="space-y-3 border-t border-border pt-4 text-sm">
+          {analysis.checks.map((check) => (
+            <li key={check.key} className="flex gap-3">
+              {check.status === "pass" ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+              ) : (
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              )}
+              <span>
+                <strong className="block font-medium text-foreground">{check.label}</strong>
+                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                  {check.detail}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        {analysis.warnings.map((warning) => (
+          <div
+            key={warning}
+            className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"
+            role="status"
+          >
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {warning}
+          </div>
+        ))}
+
+        <Button
+          type="button"
+          onClick={() => void onStart()}
+          disabled={!analysis.ready_to_replay || isStarting}
+          className="w-full"
+        >
+          {isStarting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="mr-2 h-4 w-4" />
+          )}
+          Start safe replay
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ImpactMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-background p-3">
+      <p className="text-xl font-semibold tabular-nums">{value}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -469,7 +688,12 @@ function ReplayRow({
         />
       </div>
       <div className="mt-2 flex justify-between text-xs tabular-nums text-muted-foreground">
-        <span>{replay.processed_events.toLocaleString()} events folded</span>
+        <span>
+          {replay.processed_events.toLocaleString()} events folded
+          {replay.events_per_second > 0
+            ? ` · ${replay.events_per_second.toLocaleString()} events/s`
+            : ""}
+        </span>
         <span>
           {replay.total_events > 0 ? `${progress.toFixed(0)}%` : running ? "Scanning history" : "—"}
         </span>

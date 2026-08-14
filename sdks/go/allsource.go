@@ -365,6 +365,70 @@ func (c *Client) GetProjections(ctx context.Context) (*ProjectionList, error) {
 	return &pl, nil
 }
 
+// AnalyzeProjectionReplay previews replay impact without changing events or projection state.
+func (c *Client) AnalyzeProjectionReplay(ctx context.Context, projectionName string) (*ProjectionReplayAnalysis, error) {
+	body := map[string]any{"projection_name": projectionName}
+	respData, _, err := c.do(ctx, http.MethodPost, "/api/replay/preview", body)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapper struct {
+		Data ProjectionReplayAnalysis `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &wrapper); err != nil {
+		return nil, fmt.Errorf("decode projection replay analysis: %w", err)
+	}
+	return &wrapper.Data, nil
+}
+
+// StartProjectionReplay starts an atomic rebuild of one enabled tenant projection.
+func (c *Client) StartProjectionReplay(ctx context.Context, projectionName string) (*ProjectionReplayRun, error) {
+	body := map[string]any{"projection_name": projectionName}
+	return c.projectionReplayRequest(ctx, http.MethodPost, "/api/replay", body)
+}
+
+// ListProjectionReplays returns replay runs for the authenticated tenant.
+func (c *Client) ListProjectionReplays(ctx context.Context) ([]ProjectionReplayRun, error) {
+	respData, _, err := c.do(ctx, http.MethodGet, "/api/replay", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapper struct {
+		Data []ProjectionReplayRun `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &wrapper); err != nil {
+		return nil, fmt.Errorf("decode projection replay list: %w", err)
+	}
+	return wrapper.Data, nil
+}
+
+// GetProjectionReplay reads one tenant-scoped replay run.
+func (c *Client) GetProjectionReplay(ctx context.Context, replayID string) (*ProjectionReplayRun, error) {
+	return c.projectionReplayRequest(ctx, http.MethodGet, "/api/replay/"+replayID, nil)
+}
+
+// CancelProjectionReplay stops a running rebuild without publishing partial state.
+func (c *Client) CancelProjectionReplay(ctx context.Context, replayID string) (*ProjectionReplayRun, error) {
+	return c.projectionReplayRequest(ctx, http.MethodPost, "/api/replay/"+replayID+"/cancel", map[string]any{})
+}
+
+func (c *Client) projectionReplayRequest(ctx context.Context, method, path string, body any) (*ProjectionReplayRun, error) {
+	respData, _, err := c.do(ctx, method, path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	var wrapper struct {
+		Data ProjectionReplayRun `json:"data"`
+	}
+	if err := json.Unmarshal(respData, &wrapper); err != nil {
+		return nil, fmt.Errorf("decode projection replay: %w", err)
+	}
+	return &wrapper.Data, nil
+}
+
 // PrimeProjection describes a Prime projection definition: the entity type and
 // the per-field merge policies that govern how observations fold into fields.
 type PrimeProjection struct {

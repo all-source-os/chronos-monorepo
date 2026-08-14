@@ -1,13 +1,13 @@
-export { AllSourceClient } from "./client";
-export { CircuitBreaker } from "./circuit-breaker";
 export type { CircuitState } from "./circuit-breaker";
-export { foldEvents } from "./fold";
+export { CircuitBreaker } from "./circuit-breaker";
+export { AllSourceClient } from "./client";
 export type { EventFolder } from "./fold";
+export { foldEvents } from "./fold";
 export {
-  AllSourceError,
-  CircuitOpenError,
   type AllSourceConfig,
+  AllSourceError,
   type CircuitBreakerConfig,
+  CircuitOpenError,
   type CreatedEvent,
   type Event,
   type HealthResponse,
@@ -17,6 +17,12 @@ export {
   type PrimeProvenance,
   type PrimeSnapshot,
   type Projection,
+  type ProjectionReplayAnalysis,
+  type ProjectionReplayCheck,
+  type ProjectionReplayEntity,
+  type ProjectionReplayEventType,
+  type ProjectionReplayRun,
+  type ProjectionReplayStatus,
   type ProjectionsResponse,
   type QueryEventsParams,
   type QueryEventsResponse,

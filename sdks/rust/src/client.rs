@@ -349,6 +349,63 @@ impl QueryClient {
         self.transport.get("/api/v1/projections").await
     }
 
+    /// Analyze one enabled tenant projection without mutating events or state.
+    pub async fn analyze_projection_replay(
+        &self,
+        projection_name: &str,
+    ) -> Result<ProjectionReplayAnalysis, Error> {
+        let resp: Envelope<ProjectionReplayAnalysis> = self
+            .transport
+            .post(
+                "/api/replay/preview",
+                &serde_json::json!({"projection_name": projection_name}),
+            )
+            .await?;
+        Ok(resp.data)
+    }
+
+    /// Start an atomic rebuild of one enabled tenant projection.
+    pub async fn start_projection_replay(
+        &self,
+        projection_name: &str,
+    ) -> Result<ProjectionReplayRun, Error> {
+        let resp: Envelope<ProjectionReplayRun> = self
+            .transport
+            .post(
+                "/api/replay",
+                &serde_json::json!({"projection_name": projection_name}),
+            )
+            .await?;
+        Ok(resp.data)
+    }
+
+    /// List replay runs belonging to the authenticated tenant.
+    pub async fn list_projection_replays(&self) -> Result<Vec<ProjectionReplayRun>, Error> {
+        let resp: Envelope<Vec<ProjectionReplayRun>> = self.transport.get("/api/replay").await?;
+        Ok(resp.data)
+    }
+
+    /// Read one tenant-scoped replay run.
+    pub async fn get_projection_replay(
+        &self,
+        replay_id: &str,
+    ) -> Result<ProjectionReplayRun, Error> {
+        let path = format!("/api/replay/{replay_id}");
+        let resp: Envelope<ProjectionReplayRun> = self.transport.get(&path).await?;
+        Ok(resp.data)
+    }
+
+    /// Cancel a running rebuild without publishing its partial generation.
+    pub async fn cancel_projection_replay(
+        &self,
+        replay_id: &str,
+    ) -> Result<ProjectionReplayRun, Error> {
+        let path = format!("/api/replay/{replay_id}/cancel");
+        let resp: Envelope<ProjectionReplayRun> =
+            self.transport.post(&path, &serde_json::json!({})).await?;
+        Ok(resp.data)
+    }
+
     /// List all Prime projection definitions.
     ///
     /// Proxies the gateway's `GET /api/v1/prime/projections`. Each entry maps an

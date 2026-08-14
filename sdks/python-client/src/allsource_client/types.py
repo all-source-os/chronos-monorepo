@@ -82,6 +82,146 @@ class Projection:
 
 
 @dataclass
+class ProjectionReplayEventType:
+    """One event-type bucket from replay impact analysis."""
+
+    event_type: str
+    count: int
+    share: float
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ProjectionReplayEventType:
+        return cls(
+            event_type=data.get("event_type", "unknown"),
+            count=data.get("count", 0),
+            share=data.get("share", 0.0),
+        )
+
+
+@dataclass
+class ProjectionReplayEntity:
+    """One frequently affected entity from replay analysis."""
+
+    entity_id: str
+    event_count: int
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ProjectionReplayEntity:
+        return cls(
+            entity_id=data.get("entity_id", ""),
+            event_count=data.get("event_count", 0),
+        )
+
+
+@dataclass
+class ProjectionReplayCheck:
+    """Server-asserted replay safety invariant."""
+
+    key: str
+    label: str
+    status: str
+    detail: str
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ProjectionReplayCheck:
+        return cls(
+            key=data.get("key", ""),
+            label=data.get("label", ""),
+            status=data.get("status", "warn"),
+            detail=data.get("detail", ""),
+        )
+
+
+@dataclass
+class ProjectionReplayAnalysis:
+    """Read-only impact analysis for one tenant projection replay."""
+
+    projection_name: str
+    projection_title: str
+    projection_kind: str
+    projection_status: str
+    current_entity_count: int
+    total_events: int
+    sampled_events: int
+    analysis_scope: str
+    event_type_distribution: List[ProjectionReplayEventType]
+    sampled_entity_count: int
+    sampled_entities: List[ProjectionReplayEntity]
+    first_event_at: Optional[str]
+    last_event_at: Optional[str]
+    analyzed_at: str
+    ready_to_replay: bool
+    checks: List[ProjectionReplayCheck]
+    warnings: List[str]
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ProjectionReplayAnalysis:
+        return cls(
+            projection_name=data.get("projection_name", ""),
+            projection_title=data.get("projection_title", ""),
+            projection_kind=data.get("projection_kind", ""),
+            projection_status=data.get("projection_status", "unknown"),
+            current_entity_count=data.get("current_entity_count", 0),
+            total_events=data.get("total_events", 0),
+            sampled_events=data.get("sampled_events", 0),
+            analysis_scope=data.get("analysis_scope", "full"),
+            event_type_distribution=[
+                ProjectionReplayEventType.from_dict(item)
+                for item in data.get("event_type_distribution", [])
+            ],
+            sampled_entity_count=data.get("sampled_entity_count", 0),
+            sampled_entities=[
+                ProjectionReplayEntity.from_dict(item)
+                for item in data.get("sampled_entities", [])
+            ],
+            first_event_at=data.get("first_event_at"),
+            last_event_at=data.get("last_event_at"),
+            analyzed_at=data.get("analyzed_at", ""),
+            ready_to_replay=data.get("ready_to_replay", False),
+            checks=[
+                ProjectionReplayCheck.from_dict(item)
+                for item in data.get("checks", [])
+            ],
+            warnings=data.get("warnings", []),
+        )
+
+
+@dataclass
+class ProjectionReplayRun:
+    """Tenant-scoped projection replay run."""
+
+    replay_id: str
+    projection_name: str
+    status: str
+    started_at: str
+    updated_at: str
+    completed_at: Optional[str]
+    total_events: int
+    processed_events: int
+    failed_events: int
+    progress_percentage: float
+    events_per_second: float
+    error_message: Optional[str]
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> ProjectionReplayRun:
+        return cls(
+            replay_id=data.get("replay_id", ""),
+            projection_name=data.get("projection_name", ""),
+            status=data.get("status", "unknown"),
+            started_at=data.get("started_at", ""),
+            updated_at=data.get("updated_at", ""),
+            completed_at=data.get("completed_at"),
+            total_events=data.get("total_events", 0),
+            processed_events=data.get("processed_events", 0),
+            failed_events=data.get("failed_events", 0),
+            progress_percentage=data.get("progress_percentage", 0.0),
+            events_per_second=data.get("events_per_second", 0.0),
+            error_message=data.get("error_message"),
+        )
+
+
+@dataclass
 class Webhook:
     """A registered webhook."""
 

@@ -93,6 +93,26 @@ The SDK defaults are tuned for typical use. A few things worth knowing:
 - **Validation** — Core does in-process hash lookup. Query Service adds a 120s ETS cache (SHA-256 keyed) before falling back to Core, so repeat calls through QS don't hammer Core.
 - **Rotate** by provisioning a new key, updating clients, then revoking the old one. See the [AllSource API key patterns blog post](https://all-source.xyz/blog/api-keys-and-connections) for rotation without downtime.
 
+## Analyze and rebuild a projection
+
+Replay operations belong to `QueryClient`: Query Service applies the tenant
+boundary and rebuilds into a shadow generation before publishing atomically.
+
+```rust,no_run
+let analysis = query.analyze_projection_replay("event-count").await?;
+
+if analysis.ready_to_replay && analysis.total_events > 0 {
+    let run = query.start_projection_replay(&analysis.projection_name).await?;
+    let progress = query.get_projection_replay(&run.replay_id).await?;
+    println!("{}%", progress.progress_percentage);
+}
+# Ok::<(), allsource::Error>(())
+```
+
+Use `list_projection_replays` for tenant run history and
+`cancel_projection_replay` to stop a running rebuild without publishing partial
+state.
+
 ## Building custom projections
 
 `ProjectionWorker` is a first-party worker for reducing events into domain state without reimplementing WebSocket subscription, checkpointing, dedup, and reconnection boilerplate.

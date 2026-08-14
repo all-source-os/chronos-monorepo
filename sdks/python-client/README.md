@@ -45,6 +45,13 @@ projection = client.get_projection("user-count")
 # Webhooks
 webhook = client.create_webhook("https://example.com/hook", event_types=["user.*"])
 client.delete_webhook(webhook.id)
+
+# Analyze before rebuilding a projection
+analysis = client.analyze_projection_replay("event-count")
+if analysis.ready_to_replay and analysis.total_events > 0:
+    run = client.start_projection_replay(analysis.projection_name)
+    progress = client.get_projection_replay(run.replay_id)
+    print(progress.progress_percentage)
 ```
 
 ## Async Usage
@@ -76,6 +83,11 @@ asyncio.run(main())
 | `get_projections()` | List projections |
 | `get_projection(name)` | Get a projection |
 | `create_projection(name, definition, version, initial_state)` | Create a projection |
+| `analyze_projection_replay(name)` | Preview replay scope and safety checks |
+| `start_projection_replay(name)` | Start an atomic projection rebuild |
+| `list_projection_replays()` | List tenant replay runs |
+| `get_projection_replay(id)` | Read replay progress |
+| `cancel_projection_replay(id)` | Cancel without publishing partial state |
 | `create_webhook(url, event_types, entity_id)` | Register a webhook |
 | `list_webhooks()` | List webhooks |
 | `delete_webhook(webhook_id)` | Delete a webhook |

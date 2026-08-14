@@ -463,6 +463,69 @@ pub struct ProjectionsResponse {
     pub total: u64,
 }
 
+/// Event-type bucket from a projection replay impact analysis.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectionReplayEventType {
+    pub event_type: String,
+    pub count: u64,
+    pub share: f64,
+}
+
+/// Frequently affected entity from a replay analysis sample.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectionReplayEntity {
+    pub entity_id: String,
+    pub event_count: u64,
+}
+
+/// Server-asserted replay safety invariant.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectionReplayCheck {
+    pub key: String,
+    pub label: String,
+    pub status: String,
+    pub detail: String,
+}
+
+/// Read-only impact analysis for one tenant projection replay.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectionReplayAnalysis {
+    pub projection_name: String,
+    pub projection_title: String,
+    pub projection_kind: String,
+    pub projection_status: String,
+    pub current_entity_count: u64,
+    pub total_events: u64,
+    pub sampled_events: u64,
+    pub analysis_scope: String,
+    pub event_type_distribution: Vec<ProjectionReplayEventType>,
+    pub sampled_entity_count: u64,
+    pub sampled_entities: Vec<ProjectionReplayEntity>,
+    pub first_event_at: Option<String>,
+    pub last_event_at: Option<String>,
+    pub analyzed_at: String,
+    pub ready_to_replay: bool,
+    pub checks: Vec<ProjectionReplayCheck>,
+    pub warnings: Vec<String>,
+}
+
+/// Tenant-scoped projection replay run.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectionReplayRun {
+    pub replay_id: String,
+    pub projection_name: String,
+    pub status: String,
+    pub started_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+    pub total_events: u64,
+    pub processed_events: u64,
+    pub failed_events: u64,
+    pub progress_percentage: f64,
+    pub events_per_second: f64,
+    pub error_message: Option<String>,
+}
+
 /// A Prime projection definition: an entity type and its per-field merge policies.
 ///
 /// `field_policies` maps a field name to a policy string

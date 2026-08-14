@@ -213,6 +213,100 @@ class TestProjections:
         assert projection.name == "order-totals"
 
 
+class TestProjectionReplay:
+    def test_analyze_projection_replay(
+        self, client: AllSourceClient, httpx_mock: HTTPXMock
+    ) -> None:
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay/preview",
+            method="POST",
+            json={
+                "data": {
+                    "projection_name": "event-count",
+                    "projection_title": "Event Count",
+                    "projection_kind": "counter",
+                    "projection_status": "ready",
+                    "current_entity_count": 1,
+                    "total_events": 42,
+                    "sampled_events": 42,
+                    "analysis_scope": "full",
+                    "event_type_distribution": [
+                        {"event_type": "order.created", "count": 42, "share": 100.0}
+                    ],
+                    "sampled_entity_count": 10,
+                    "sampled_entities": [
+                        {"entity_id": "order-1", "event_count": 4}
+                    ],
+                    "first_event_at": "2026-08-01T10:00:00Z",
+                    "last_event_at": "2026-08-02T10:00:00Z",
+                    "analyzed_at": "2026-08-14T10:00:00Z",
+                    "ready_to_replay": True,
+                    "checks": [
+                        {
+                            "key": "tenant_scope",
+                            "label": "Tenant boundary",
+                            "status": "pass",
+                            "detail": "Authenticated tenant only.",
+                        }
+                    ],
+                    "warnings": [],
+                }
+            },
+        )
+
+        analysis = client.analyze_projection_replay("event-count")
+
+        assert analysis.total_events == 42
+        assert analysis.ready_to_replay is True
+        assert analysis.event_type_distribution[0].share == 100.0
+
+        request = httpx_mock.get_request()
+        assert request is not None
+        assert json.loads(request.content) == {"projection_name": "event-count"}
+
+    def test_projection_replay_lifecycle(
+        self, client: AllSourceClient, httpx_mock: HTTPXMock
+    ) -> None:
+        run = {
+            "replay_id": "replay-1",
+            "projection_name": "event-count",
+            "status": "running",
+            "started_at": "2026-08-14T10:00:00Z",
+            "updated_at": "2026-08-14T10:00:01Z",
+            "completed_at": None,
+            "total_events": 42,
+            "processed_events": 12,
+            "failed_events": 0,
+            "progress_percentage": 28.6,
+            "events_per_second": 12.0,
+            "error_message": None,
+        }
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay", method="POST", json={"data": run}
+        )
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay", method="GET", json={"data": [run]}
+        )
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay/replay-1", method="GET", json={"data": run}
+        )
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay/replay-1/cancel",
+            method="POST",
+            json={"data": {**run, "status": "cancelled"}},
+        )
+
+        started = client.start_projection_replay("event-count")
+        listed = client.list_projection_replays()
+        fetched = client.get_projection_replay("replay-1")
+        cancelled = client.cancel_projection_replay("replay-1")
+
+        assert started.replay_id == "replay-1"
+        assert listed[0].processed_events == 12
+        assert fetched.projection_name == "event-count"
+        assert cancelled.status == "cancelled"
+
+
 class TestPrime:
     def test_list_prime_projections(self, client: AllSourceClient, httpx_mock: HTTPXMock) -> None:
         httpx_mock.add_response(

@@ -104,6 +104,76 @@ defmodule QueryServiceExWeb.ReplayControllerTest do
     assert body(conn)["error"] == "Choose an enabled projection to rebuild"
   end
 
+  test "previews replay impact without starting a replay" do
+    tenant = "tenant-replay-preview"
+
+    Application.put_env(:query_service_ex, :tenant_projection_query_fun, fn ^tenant, _params ->
+      {:ok,
+       [
+         %{
+           "event_type" => "order.created",
+           "entity_id" => "order-1",
+           "timestamp" => "2026-08-01T10:00:00Z"
+         },
+         %{
+           "event_type" => "order.paid",
+           "entity_id" => "order-1",
+           "timestamp" => "2026-08-01T10:01:00Z"
+         },
+         %{
+           "event_type" => "order.created",
+           "entity_id" => "order-2",
+           "timestamp" => "2026-08-02T09:00:00Z"
+         }
+       ]}
+    end)
+
+    assert {:ok, _} = Enablement.enable(tenant, "event-count")
+    wait_until(fn -> TenantProjections.status(tenant, "event-count") == :ready end)
+
+    conn =
+      ReplayController.preview(tenant_conn(:post, "/api/replay/preview", tenant), %{
+        "projection_name" => "event-count"
+      })
+
+    assert conn.status == 200
+    analysis = body(conn)["data"]
+    assert analysis["total_events"] == 3
+    assert analysis["sampled_entity_count"] == 2
+    assert analysis["analysis_scope"] == "full"
+    assert analysis["ready_to_replay"]
+
+    assert [
+             %{"event_type" => "order.created", "count" => 2},
+             %{"event_type" => "order.paid", "count" => 1}
+           ] = analysis["event_type_distribution"]
+
+    assert analysis["first_event_at"] == "2026-08-01T10:00:00Z"
+    assert analysis["last_event_at"] == "2026-08-02T09:00:00Z"
+    assert TenantProjections.list_replays(tenant) == []
+  end
+
+  test "previews empty history as a safe no-op" do
+    tenant = "tenant-replay-empty-preview"
+
+    Application.put_env(:query_service_ex, :tenant_projection_query_fun, fn ^tenant, _params ->
+      {:ok, []}
+    end)
+
+    assert {:ok, _} = Enablement.enable(tenant, "event-count")
+    wait_until(fn -> TenantProjections.status(tenant, "event-count") == :ready end)
+
+    conn =
+      ReplayController.preview(tenant_conn(:post, "/api/replay/preview", tenant), %{
+        "projection_name" => "event-count"
+      })
+
+    analysis = body(conn)["data"]
+    assert analysis["total_events"] == 0
+    refute analysis["ready_to_replay"]
+    assert analysis["warnings"] == ["No events match this tenant. Nothing will be rebuilt."]
+  end
+
   defp tenant_conn(method, path, tenant_id) do
     conn(method, path)
     |> put_req_header("content-type", "application/json")

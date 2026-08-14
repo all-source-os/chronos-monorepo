@@ -115,6 +115,63 @@ class TestAsyncProjections:
         await client.close()
 
 
+class TestAsyncProjectionReplay:
+    async def test_analyze_and_run_projection_replay(
+        self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
+    ) -> None:
+        analysis = {
+            "projection_name": "event-count",
+            "projection_title": "Event Count",
+            "projection_kind": "counter",
+            "projection_status": "ready",
+            "current_entity_count": 1,
+            "total_events": 1,
+            "sampled_events": 1,
+            "analysis_scope": "full",
+            "event_type_distribution": [
+                {"event_type": "order.created", "count": 1, "share": 100.0}
+            ],
+            "sampled_entity_count": 1,
+            "sampled_entities": [{"entity_id": "order-1", "event_count": 1}],
+            "first_event_at": "2026-08-14T10:00:00Z",
+            "last_event_at": "2026-08-14T10:00:00Z",
+            "analyzed_at": "2026-08-14T10:01:00Z",
+            "ready_to_replay": True,
+            "checks": [],
+            "warnings": [],
+        }
+        run = {
+            "replay_id": "replay-1",
+            "projection_name": "event-count",
+            "status": "running",
+            "started_at": "2026-08-14T10:01:00Z",
+            "updated_at": "2026-08-14T10:01:00Z",
+            "completed_at": None,
+            "total_events": 1,
+            "processed_events": 0,
+            "failed_events": 0,
+            "progress_percentage": 0.0,
+            "events_per_second": 0.0,
+            "error_message": None,
+        }
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay/preview",
+            method="POST",
+            json={"data": analysis},
+        )
+        httpx_mock.add_response(
+            url=f"{BASE_URL}/api/replay", method="POST", json={"data": run}
+        )
+
+        preview = await client.analyze_projection_replay("event-count")
+        started = await client.start_projection_replay("event-count")
+
+        assert preview.ready_to_replay is True
+        assert preview.total_events == 1
+        assert started.replay_id == "replay-1"
+        await client.close()
+
+
 class TestAsyncPrime:
     async def test_list_prime_projections(
         self, client: AllSourceAsyncClient, httpx_mock: HTTPXMock
