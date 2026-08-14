@@ -8,7 +8,7 @@
  * the right code. Plus the plan-validity + degraded-path edges.
  */
 
-/// <reference path="../../../../node_modules/bun-types/test.d.ts" />
+/// <reference types="bun" />
 import { describe, expect, test } from "bun:test";
 import {
   analyzeTenant,
