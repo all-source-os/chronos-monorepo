@@ -74,7 +74,7 @@ const distinctions = [
   {
     title: "Point-in-time reconstruction",
     answer:
-      "Fold events through chosen timestamp to inspect what application state should have been then.",
+      "Fold events through a chosen timestamp to inspect what application state should have been then.",
   },
   {
     title: "Projection replay",
@@ -85,6 +85,34 @@ const distinctions = [
     title: "Execution replay",
     answer:
       "Re-run application or agent behaviour. External calls, model responses, time, randomness, and side effects require separate capture or stubbing.",
+  },
+] as const;
+
+const analysisOutput = [
+  {
+    field: "Scope",
+    sdk: "total_events · sampled_events · analysis_scope",
+    decision: "Whether review covers full tenant history or a sample.",
+  },
+  {
+    field: "Time range",
+    sdk: "first_event_at · last_event_at",
+    decision: "Whether source window matches incident or migration boundary.",
+  },
+  {
+    field: "Affected data",
+    sdk: "event_type_distribution · sampled_entities",
+    decision: "Which event types and entities deserve validation before rebuild.",
+  },
+  {
+    field: "Readiness",
+    sdk: "checks · warnings · ready_to_replay",
+    decision: "Whether server-side invariants permit replay to start.",
+  },
+  {
+    field: "Run evidence",
+    sdk: "processed_events · failed_events · events_per_second",
+    decision: "Whether completed run processed expected scope without hidden failures.",
   },
 ] as const;
 
@@ -213,17 +241,17 @@ export default function EventReplayDebuggingPage() {
           </h2>
           <div className="mt-6 space-y-5 text-base leading-8 text-muted-foreground">
             <p>
-              Event replay debugging uses durable sequence of domain events to reconstruct how state
-              changed. Instead of beginning with incorrect current row and guessing, engineer reads
-              events in order, derives state at selected boundaries, and identifies first transition
-              where actual result diverges from expected result.
+              Event replay debugging uses the durable sequence of domain events to reconstruct how
+              state changed. Instead of starting with an incorrect current row and guessing, an
+              engineer reads events in order, derives state at selected boundaries, and identifies
+              the first transition where the actual result diverges from the expected result.
             </p>
             <p>
-              Projection replay is narrower operational action. It runs existing source events
-              through read-model logic again. This can rebuild projection after code correction, add
-              historical data to new view, or validate changed interpretation. It should not mutate
-              accepted source events. Incorrect facts require explicit correction or compensating
-              events, not silent history edits.
+              Projection replay is a narrower operation. It runs existing source events through
+              read-model logic again. This can rebuild a projection after a code correction, add
+              historical data to a new view, or validate a changed interpretation. It should not
+              mutate accepted source events. Incorrect facts require explicit correction or
+              compensating events, not silent history edits.
             </p>
           </div>
         </div>
@@ -239,8 +267,8 @@ export default function EventReplayDebuggingPage() {
               Move from symptom to bounded replay.
             </h2>
             <p className="mt-4 text-lg leading-8 text-muted-foreground">
-              Replay everything is not first step. Narrow evidence, prove impact, then rebuild
-              disposable view.
+              Do not start by replaying everything. Bound the evidence, inspect impact, then rebuild
+              one disposable view.
             </p>
           </div>
           <ol className="mt-10 grid gap-px overflow-hidden border border-border bg-border md:grid-cols-2 lg:grid-cols-3">
@@ -258,6 +286,63 @@ export default function EventReplayDebuggingPage() {
               );
             })}
           </ol>
+        </div>
+      </Section>
+
+      <Section className="border-b border-border py-16 sm:py-24">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">
+              Concrete replay contract
+            </p>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+              What does replay analysis return?
+            </h2>
+            <p className="mt-5 text-lg leading-8 text-muted-foreground">
+              TypeScript and Rust SDKs expose the same tenant-scoped analysis fields before a replay
+              starts. Those fields turn “rebuild it” into a reviewable decision with a bounded
+              source range, affected entities, server checks, warnings, and run evidence.
+            </p>
+          </div>
+          <div className="mt-10 hidden overflow-x-auto border border-border sm:block">
+            <table className="w-full min-w-[48rem] border-collapse text-left">
+              <thead className="bg-muted/40 font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                <tr>
+                  <th className="border-b border-border px-5 py-4 font-medium" scope="col">
+                    Review
+                  </th>
+                  <th className="border-b border-border px-5 py-4 font-medium" scope="col">
+                    SDK fields
+                  </th>
+                  <th className="border-b border-border px-5 py-4 font-medium" scope="col">
+                    Operator decision
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysisOutput.map((row) => (
+                  <tr key={row.field} className="border-b border-border last:border-b-0">
+                    <th className="px-5 py-4 font-semibold" scope="row">
+                      {row.field}
+                    </th>
+                    <td className="px-5 py-4 font-mono text-sm text-primary">{row.sdk}</td>
+                    <td className="px-5 py-4 text-sm leading-6 text-muted-foreground">
+                      {row.decision}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <dl className="mt-8 grid gap-3 sm:hidden">
+            {analysisOutput.map((row) => (
+              <div key={row.field} className="border border-border bg-card p-5">
+                <dt className="font-semibold">{row.field}</dt>
+                <dd className="mt-3 font-mono text-sm leading-6 text-primary">{row.sdk}</dd>
+                <dd className="mt-3 text-sm leading-6 text-muted-foreground">{row.decision}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </Section>
 
@@ -334,14 +419,14 @@ export default function EventReplayDebuggingPage() {
             </h2>
             <div className="mt-6 space-y-4 leading-7 text-muted-foreground">
               <p>
-                AllSource Core remains durable source of truth through WAL and Parquet. Query
+                AllSource Core remains the durable source of truth through WAL and Parquet. Query
                 Service owns tenant-facing projection compute and replay jobs. Projection state is
                 rebuildable; event history is not swapped or deleted by projection replay.
               </p>
               <p>
                 Replay Studio requires impact analysis before starting atomic rebuild. Current read
                 model stays live during build. Failed or cancelled run does not replace it. This
-                protects availability, but application team still must validate projector
+                protects availability, but the application team still must validate projector
                 determinism, schema compatibility, and expected result.
               </p>
             </div>
@@ -360,6 +445,43 @@ export default function EventReplayDebuggingPage() {
         </div>
       </Section>
 
+      <Section className="border-t border-border py-12">
+        <div className="mx-auto grid max-w-6xl gap-5 md:grid-cols-[14rem_1fr]">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">
+              Primary references
+            </p>
+            <h2 className="mt-3 text-xl font-semibold">Verify the model and SDK contract.</h2>
+          </div>
+          <ul className="divide-y divide-border border-y border-border">
+            <li>
+              <Link
+                href="https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing"
+                className="flex min-h-14 items-center py-3 font-medium text-primary underline underline-offset-4"
+              >
+                Microsoft Azure Architecture Center: Event Sourcing pattern
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="https://martinfowler.com/eaaDev/EventSourcing.html"
+                className="flex min-h-14 items-center py-3 font-medium text-primary underline underline-offset-4"
+              >
+                Martin Fowler: Event Sourcing
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="https://github.com/all-source-os/all-source/blob/main/sdks/typescript/README.md#projection-replay-analysis"
+                className="flex min-h-14 items-center py-3 font-medium text-primary underline underline-offset-4"
+              >
+                AllSource TypeScript SDK: projection replay analysis
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </Section>
+
       <Section className="border-t border-border py-16 text-center sm:py-24">
         <h2 className="text-3xl font-semibold tracking-tight">
           Debug from history, not guesswork.
@@ -367,7 +489,7 @@ export default function EventReplayDebuggingPage() {
         <p className="mx-auto mt-5 max-w-2xl leading-7 text-muted-foreground">
           Start hosted trial, inspect API and SDK workflow, or self-host Apache-2.0 Core. Replay
           features matter when source history, projection rebuilds, and point-in-time evidence are
-          part of product operation—not when current state alone is enough.
+          part of normal product operation—not when current state alone is enough.
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link href="/pricing" className={cn(buttonVariants({ variant: "default" }))}>
