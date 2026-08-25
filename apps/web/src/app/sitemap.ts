@@ -35,6 +35,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.9,
       changeFrequency: "weekly" as const,
     },
+    {
+      url: `${base}/event-replay-debugging`,
+      priority: 0.9,
+      changeFrequency: "monthly" as const,
+    },
     { url: `${base}/vs/mem0`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/vs/letta`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/vs/zep`, priority: 0.8, changeFrequency: "monthly" as const },

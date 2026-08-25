@@ -68,8 +68,8 @@ const useCases: readonly UseCase[] = [
       "Published Core reference: 11.9µs p99 indexed reads",
     ],
     products: ["core", "query", "hosted"],
-    href: "/platform/event-sourcing",
-    linkLabel: "See Core replay architecture",
+    href: "/event-replay-debugging",
+    linkLabel: "See event replay debugging",
     icon: RotateCcw,
   },
   {
