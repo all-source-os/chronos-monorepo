@@ -23,8 +23,11 @@ from reaching Google Analytics.
 - [x] GA4 property and web stream created
 - [x] Measurement ID configured with a canonical-production-host fallback and environment override
 - [x] TypeScript checks, lint, tests, and production build pass
-- [ ] Production Google tag detected after deployment
-- [ ] Tag Assistant shows a `Page View` hit for `G-3347JLG51K`
+- [x] Production Google tag detected after deployment
+- [x] Tag Assistant shows a `Page View` hit for `G-3347JLG51K`
 - [ ] GA4 Data API returns production traffic
+
+GA4 Data API authentication and property access pass without error. Production traffic remains
+unknown until rows aggregate; current empty results are not recorded as zero.
 
 Unknown data must remain unknown, not zero. GA4 has no AllSource history before collector deployment.
