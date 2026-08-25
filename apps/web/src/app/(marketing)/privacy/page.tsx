@@ -168,9 +168,13 @@ export default function PrivacyPolicy() {
         <section>
           <h2 className="text-xl font-semibold text-foreground mb-3">8. Cookies</h2>
           <p className="text-muted-foreground leading-relaxed">
-            We use essential cookies for authentication and session management. We do not use
-            advertising or tracking cookies. Analytics, if enabled, use privacy-respecting methods
-            without third-party trackers.
+            We use essential cookies for authentication and session management. Google Analytics 4
+            receives cookieless measurement pings with analytics and advertising storage denied by
+            default. We remove URL query strings and referrer query strings, disable Google Signals
+            and advertising personalisation, and do not set advertising cookies. Enhanced
+            measurement covers aggregate interactions such as scrolls, outbound links, forms,
+            videos, and downloads; automatic browser-history page views and site-search capture are
+            disabled.
           </p>
         </section>
 

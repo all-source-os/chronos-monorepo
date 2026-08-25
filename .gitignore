@@ -115,6 +115,7 @@ tasks
 /mix.lock
 .claude/skills/
 .gstack/
+.seo-cache/
 
 # npm auth tokens — never commit
 .npmrc
