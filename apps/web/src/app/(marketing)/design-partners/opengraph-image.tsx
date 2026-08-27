@@ -11,7 +11,7 @@ export default function DesignPartnersOpenGraphImage() {
         width: "100%",
         height: "100%",
         display: "flex",
-        background: "#0E1A2A",
+        background: "#07549A",
         color: "white",
         padding: "64px 72px",
         position: "relative",
@@ -96,7 +96,7 @@ export default function DesignPartnersOpenGraphImage() {
           bottom: 44,
           display: "flex",
           fontSize: 22,
-          color: "#8FA3BC",
+          color: "#D4E5F7",
         }}
       >
         all-source.xyz/design-partners

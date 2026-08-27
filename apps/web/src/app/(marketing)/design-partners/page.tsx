@@ -32,7 +32,7 @@ export default async function DesignPartnerPage({ searchParams }: DesignPartnerP
   };
 
   return (
-    <div className="bg-[#0B1522] text-white">
+    <div className="bg-[#07549A] text-white">
       <section className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
         <header>
           <p className="border-l-2 border-[#33C6D0] pl-3 text-sm font-semibold text-[#72E7E2]">
@@ -62,7 +62,7 @@ export default async function DesignPartnerPage({ searchParams }: DesignPartnerP
           <DesignPartnerForm campaignSource={campaignSource} />
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 border-t border-white/15 pt-5 text-sm leading-6 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-3 border-t border-white/20 pt-5 text-sm leading-6 text-slate-200 sm:flex-row sm:items-center sm:justify-between">
           <p>Reply within five business days. No review or public mention required.</p>
           <div className="flex gap-5">
             <Link
