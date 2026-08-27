@@ -1353,12 +1353,16 @@ impl Prime {
         &self,
         query: super::types::RecallQuery,
     ) -> PrimeResult<super::types::RecallResult> {
-        use super::types::{RecallResult, ScoreComponents, ScoredNode};
+        use super::types::{RecallResult, Retrieval, ScoreComponents, ScoredNode};
         use std::collections::HashMap;
 
         let now = chrono::Utc::now();
         let mut scored: HashMap<String, ScoredNode> = HashMap::new();
         let mut vector_results = Vec::new();
+        let mut retrieval = Retrieval::Empty;
+        // Every seeding arm is capped at this, so graph expansion runs over a
+        // bounded frontier no matter which arm produced the seeds.
+        let seed_cap = query.top_k * 2;
 
         // Normalize weights so they sum to 1.0
         let total_weight = query.similarity_weight + query.proximity_weight + query.recency_weight;
@@ -1374,7 +1378,8 @@ impl Prime {
 
         // Step 1: Vector similarity (if query vector provided)
         if let Some(ref qvec) = query.vector {
-            let hits = self.vector_search(qvec, query.top_k * 2); // Over-fetch for graph expansion
+            retrieval = Retrieval::Semantic;
+            let hits = self.vector_search(qvec, seed_cap); // Over-fetch for graph expansion
             vector_results = hits
                 .iter()
                 .map(|h| super::vectors::VectorSearchResult {
@@ -1407,6 +1412,67 @@ impl Prime {
                         },
                     );
                 }
+            }
+        }
+
+        // Step 1b: No vector — rank by how well node text matches the query.
+        // Must run before Step 2, which seeds from `scored`: an arm that fills
+        // `scored` after it gets no graph expansion and `depth` is silently dead.
+        if query.vector.is_none() {
+            let terms = query
+                .text
+                .as_deref()
+                .map(super::lexical::terms)
+                .unwrap_or_default();
+
+            let candidates = match query.node_type {
+                Some(ref nt) => self.nodes_by_type(nt),
+                None => self.node_state.all_nodes(),
+            };
+
+            let mut hits: Vec<(f64, Node)> = if terms.is_empty() {
+                Vec::new()
+            } else {
+                candidates
+                    .iter()
+                    .filter_map(|n| {
+                        let s = super::lexical::score(n, &terms);
+                        (s > 0.0).then(|| (s, n.clone()))
+                    })
+                    .collect()
+            };
+
+            if hits.is_empty() {
+                // Gated on node_type: "every node in the graph, by recency" is
+                // not an answer to an unmatched query.
+                if query.node_type.is_some() {
+                    retrieval = Retrieval::TypeScan;
+                    hits = candidates.into_iter().map(|n| (0.0, n)).collect();
+                    hits.sort_by(|a, b| b.1.updated_at.cmp(&a.1.updated_at));
+                }
+            } else {
+                retrieval = Retrieval::Lexical;
+                hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+            }
+
+            for (similarity, node) in hits.into_iter().take(seed_cap) {
+                let entity_id = node_entity_id(&node.node_type, node.id.as_str());
+                let recency = recency_score(node.updated_at, now);
+                let components = ScoreComponents {
+                    similarity,
+                    proximity: 1.0,
+                    recency,
+                };
+                let score = sw * similarity + pw * 1.0 + rw * recency;
+                scored.insert(
+                    entity_id,
+                    ScoredNode {
+                        node,
+                        score,
+                        depth: 0,
+                        components,
+                    },
+                );
             }
         }
 
@@ -1453,32 +1519,6 @@ impl Prime {
             }
         }
 
-        // Step 3: If no vector, do graph-only (all nodes of type, sorted by recency)
-        if query.vector.is_none()
-            && let Some(ref nt) = query.node_type
-        {
-            let nodes = self.nodes_by_type(nt);
-            for node in nodes {
-                let entity_id = node_entity_id(&node.node_type, node.id.as_str());
-                let recency = recency_score(node.updated_at, now);
-                let components = ScoreComponents {
-                    similarity: 0.0,
-                    proximity: 0.0,
-                    recency,
-                };
-                let score = rw * recency;
-                scored.insert(
-                    entity_id,
-                    ScoredNode {
-                        node,
-                        score,
-                        depth: 0,
-                        components,
-                    },
-                );
-            }
-        }
-
         // Sort by score descending
         let mut nodes: Vec<ScoredNode> = scored.into_values().collect();
         nodes.sort_by(|a, b| {
@@ -1490,10 +1530,15 @@ impl Prime {
         // MMR re-ranking: boost diversity across domains/types
         mmr_rerank(&mut nodes, query.top_k, 0.7);
 
+        if nodes.is_empty() {
+            retrieval = Retrieval::Empty;
+        }
+
         Ok(RecallResult {
             nodes,
             vectors: vector_results,
             edges: Vec::new(),
+            retrieval,
         })
     }
 

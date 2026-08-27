@@ -185,7 +185,10 @@ mod tests {
 
     #[test]
     fn summary_row_is_flat_and_all_scalar() {
-        let n = node("function", json!({ "name": "f", "file": "src/a.rs", "line": 12 }));
+        let n = node(
+            "function",
+            json!({ "name": "f", "file": "src/a.rs", "line": 12 }),
+        );
         let row = node_row(&n, Fields::Summary);
         let obj = row.as_object().expect("row is an object");
         assert!(
@@ -232,7 +235,10 @@ mod tests {
 
     #[test]
     fn a_truncated_page_says_so_and_names_the_next_offset() {
-        let page = Page { limit: 2, offset: 0 };
+        let page = Page {
+            limit: 2,
+            offset: 0,
+        };
         let out = paged("nodes", vec![json!(1), json!(2)], page, 7);
         assert_eq!(out["total"], json!(7));
         assert_eq!(out["returned"], json!(2));
@@ -247,7 +253,12 @@ mod tests {
     #[test]
     fn summary_rows_reach_the_tabular_toon_path_and_full_rows_do_not() {
         let nodes: Vec<Node> = (0..3)
-            .map(|i| node("function", json!({ "name": format!("fn_{i}"), "file": "a.rs", "line": i })))
+            .map(|i| {
+                node(
+                    "function",
+                    json!({ "name": format!("fn_{i}"), "file": "a.rs", "line": i }),
+                )
+            })
             .collect();
         let page = Page {
             limit: 50,
@@ -280,7 +291,10 @@ mod tests {
 
     #[test]
     fn a_complete_page_carries_no_next_offset() {
-        let page = Page { limit: 50, offset: 0 };
+        let page = Page {
+            limit: 50,
+            offset: 0,
+        };
         let out = paged("nodes", vec![json!(1)], page, 1);
         assert!(out.get("next_offset").is_none());
         assert!(out.get("note").is_none());

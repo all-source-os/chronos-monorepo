@@ -5,7 +5,7 @@
 
 use std::sync::OnceLock;
 
-use allsource_core::prime::{Prime, recall::RecallEngine};
+use allsource_core::prime::{Prime, recall::RecallEngine, types::Retrieval};
 use serde_json::{Value, json};
 
 use crate::wire::{Fields, Page, node_row, paged};
@@ -250,7 +250,7 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "prime_recall",
-            "description": "Hybrid recall: vectors + graph + temporal recency. Your PRIMARY tool for 'what do I know about X?' questions. Finds semantically similar facts via embedding, then expands through graph connections to discover related context. Supply 'text' alone and the server embeds it in-process via fastembed (AllMiniLML6V2, 384 dims) — no client-side embedding model required. Supply 'vector' if you already have a precomputed query embedding. Set depth=0 for vector-only, depth=1+ to include graph neighbors. For cross-domain questions, use prime_context instead (it adds the compressed index).",
+            "description": "Hybrid recall: vectors + graph + temporal recency. Your PRIMARY tool for 'what do I know about X?' questions. Finds semantically similar facts via embedding, then expands through graph connections to discover related context. Supply 'text' alone and the server embeds it in-process via fastembed (AllMiniLML6V2, 384 dims) — no client-side embedding model required. Supply 'vector' if you already have a precomputed query embedding. Set depth=0 for vector-only, depth=1+ to include graph neighbors. Every result names its 'retrieval' mode: 'semantic' means vectors ranked it, 'lexical' means the embedder was unavailable and text was matched against node properties instead, 'type_scan' means nothing matched and these are the most recent nodes of the type. A 'degraded' field appears with the reason whenever the answer is not semantic — keep using this tool, do NOT fall back to prime_search. For cross-domain questions, use prime_context instead (it adds the compressed index).",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -884,10 +884,7 @@ fn call_shortest_path(prime: &Prime, args: &Value) -> Value {
 
     match prime.shortest_path(from, to, relation) {
         Some(path) => {
-            let path_json: Vec<Value> = path
-                .iter()
-                .map(|n| node_row(n, Fields::Full))
-                .collect();
+            let path_json: Vec<Value> = path.iter().map(|n| node_row(n, Fields::Full)).collect();
             tool_result(json!({ "path": path_json }))
         }
         None => tool_result(json!({ "path": null, "message": "No path found" })),
@@ -1225,6 +1222,10 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
         .and_then(Value::as_str)
         .map(String::from);
 
+    // An unavailable embedder is not a reason to answer nothing: `text` is
+    // still a retrieval input, so fall through with no vector and let recall
+    // score lexically. The reason travels to the client on the result.
+    let mut embed_failure: Option<String> = None;
     let vector: Option<Vec<f32>> = if let Some(arr) = args.get("vector").and_then(|v| v.as_array())
     {
         Some(
@@ -1235,13 +1236,16 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
     } else if let Some(ref t) = text {
         match prime.embed_text(t) {
             Ok(v) => Some(v),
-            Err(e) => return tool_error(&format!("server-side embedding failed: {e}")),
+            Err(e) => {
+                embed_failure = Some(e.to_string());
+                None
+            }
         }
     } else {
         None
     };
 
-    if vector.is_none() && node_type.is_none() {
+    if vector.is_none() && node_type.is_none() && text.is_none() {
         return tool_error(
             "missing input — supply 'text', 'vector', or 'node_type' so recall has something to search on",
         );
@@ -1287,14 +1291,42 @@ async fn call_recall(prime: &Prime, args: &Value) -> Value {
                 })
                 .collect();
 
-            tool_result(json!({
+            let mut out = json!({
                 "nodes": nodes_json,
                 "vectors": vectors_json,
                 "edges": result.edges.len(),
-            }))
+                "retrieval": result.retrieval,
+            });
+            if let Some(note) = degraded_note(result.retrieval, embed_failure.as_deref()) {
+                out["degraded"] = json!(note);
+            }
+            tool_result(out)
         }
         Err(e) => tool_error(&e.to_string()),
     }
+}
+
+/// One line telling the model these results are not semantic, so it does not
+/// read a lexical answer as a meaning-based one.
+pub fn degraded_note(retrieval: Retrieval, embed_failure: Option<&str>) -> Option<String> {
+    if !retrieval.is_degraded() {
+        return None;
+    }
+    let how = match retrieval {
+        Retrieval::Lexical => "ranked by text match against node properties, not by meaning",
+        Retrieval::TypeScan => {
+            "nothing matched the query text; these are the most recent nodes of \
+                                this type"
+        }
+        _ => return None,
+    };
+    Some(match embed_failure {
+        Some(e) => format!(
+            "{how}. The embedding model is unavailable ({e}) — run `allsource-prime --mode warm` \
+             once with network access, or set PRIME_EMBED_MODEL_DIR to a vendored model directory."
+        ),
+        None => format!("{how}. Pass 'text' with a working embedder for semantic recall."),
+    })
 }
 
 async fn call_context(prime: &Prime, recall: &RecallEngine, args: &Value) -> Value {
@@ -1837,6 +1869,52 @@ mod tests {
             &json!({ "type": "function", "fields": "full" }),
         ));
         assert_eq!(full["nodes"][0]["properties"]["name"], json!("fn_0"));
+    }
+
+    // ─── Recall degradation ──────────────────────────────────────────────
+
+    /// A `node_type`-only recall takes no embedder path, so this pins the
+    /// MCP-layer shaping (retrieval mode + banner) without a model on disk.
+    /// The lexical arm itself is covered in core's `recall_degradation_tests`.
+    #[tokio::test]
+    async fn a_type_only_recall_reports_its_retrieval_mode_and_banner() {
+        let prime = Prime::open_in_memory().await.unwrap();
+        prime
+            .add_node("person", json!({ "name": "Alice" }))
+            .await
+            .unwrap();
+
+        let parsed = parse_result(&call_recall(&prime, &json!({ "node_type": "person" })).await);
+
+        assert_eq!(parsed["retrieval"], json!("type_scan"));
+        assert_eq!(parsed["nodes"].as_array().unwrap().len(), 1);
+        assert!(
+            parsed["degraded"]
+                .as_str()
+                .unwrap()
+                .contains("nothing matched")
+        );
+    }
+
+    #[tokio::test]
+    async fn recall_with_no_retrieval_input_at_all_still_errors() {
+        let prime = Prime::open_in_memory().await.unwrap();
+        let result = call_recall(&prime, &json!({ "depth": 2 })).await;
+        assert_eq!(result["isError"], json!(true));
+    }
+
+    #[test]
+    fn the_degraded_note_names_the_recovery_command() {
+        let note = degraded_note(Retrieval::Lexical, Some("cannot fetch model.onnx")).unwrap();
+        assert!(note.contains("--mode warm"), "{note}");
+        assert!(note.contains("PRIME_EMBED_MODEL_DIR"), "{note}");
+        assert!(note.contains("cannot fetch model.onnx"), "{note}");
+    }
+
+    #[test]
+    fn a_semantic_retrieval_produces_no_note() {
+        assert!(degraded_note(Retrieval::Semantic, None).is_none());
+        assert!(degraded_note(Retrieval::Empty, None).is_none());
     }
 
     #[test]

@@ -300,6 +300,10 @@ jobs:
         working-directory: apps/prime-mcp
         run: cargo clippy --all-targets -- -D warnings
 
+      - name: Run tests
+        working-directory: apps/prime-mcp
+        run: cargo test --bins
+
       - name: Build release
         working-directory: apps/prime-mcp
         run: cargo build --release
