@@ -221,6 +221,9 @@ function ApplicationDetail({
   }
 
   const source = application.campaign_source;
+  const usesCombinedAnswer =
+    application.project === "Not provided" &&
+    application.agent_use_case === application.memory_problem;
   return (
     <Card className="overflow-hidden">
       <div className="border-b p-5 sm:p-6">
@@ -230,7 +233,9 @@ function ApplicationDetail({
               <h2 className="text-2xl font-semibold tracking-tight">{application.name}</h2>
               <StatusBadge status={application.status} />
             </div>
-            <p className="mt-1 text-muted-foreground">{application.project}</p>
+            {!usesCombinedAnswer && (
+              <p className="mt-1 text-muted-foreground">{application.project}</p>
+            )}
             <a
               href={`mailto:${application.email}`}
               className="mt-2 inline-flex items-center gap-2 text-sm text-primary underline underline-offset-4"
@@ -248,8 +253,12 @@ function ApplicationDetail({
       <CardContent className="space-y-7 p-5 sm:p-6">
         <div className="grid gap-5 sm:grid-cols-2">
           <Answer
-            label="Integration timeline"
-            body={timelineLabels[application.timeline] || application.timeline}
+            label={usesCombinedAnswer ? "Timing" : "Integration timeline"}
+            body={
+              usesCombinedAnswer
+                ? "Discuss on fit call"
+                : timelineLabels[application.timeline] || application.timeline
+            }
           />
           <Answer
             label="Acquisition source"
@@ -258,8 +267,14 @@ function ApplicationDetail({
               .join(" · ")}
           />
         </div>
-        <Answer label="Agent use case" body={application.agent_use_case} />
-        <Answer label="Current memory problem" body={application.memory_problem} />
+        {usesCombinedAnswer ? (
+          <Answer label="Project and memory problem" body={application.memory_problem} />
+        ) : (
+          <>
+            <Answer label="Agent use case" body={application.agent_use_case} />
+            <Answer label="Current memory problem" body={application.memory_problem} />
+          </>
+        )}
 
         <div className="rounded-xl border bg-muted/30 p-4">
           <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">

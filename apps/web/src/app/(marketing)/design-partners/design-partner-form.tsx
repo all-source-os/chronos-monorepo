@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input, Label, Select, Textarea } from "@allsource/ui";
+import { Button, Input, Label, Textarea } from "@allsource/ui";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -48,6 +48,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
     setError("");
     setPending(true);
     const form = new FormData(event.currentTarget);
+    const memoryProblem = form.get("memory_problem");
     if (!idempotencyKey.current) {
       idempotencyKey.current = crypto.randomUUID();
     }
@@ -59,10 +60,12 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
         body: JSON.stringify({
           name: form.get("name"),
           email: form.get("email"),
-          project: form.get("project"),
-          agent_use_case: form.get("agent_use_case"),
-          memory_problem: form.get("memory_problem"),
-          timeline: form.get("timeline"),
+          // Keep wire compatibility during rollout. Project and timing belong
+          // in the follow-up call; older Control Plane versions require values.
+          project: "Not provided",
+          agent_use_case: memoryProblem,
+          memory_problem: memoryProblem,
+          timeline: "exploring",
           consent: form.get("consent") === "yes",
           idempotency_key: idempotencyKey.current,
           campaign_source: campaignSource,
@@ -96,13 +99,13 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   if (applicationID) {
     return (
       <div
-        className="rounded-2xl border border-[#33C6D0]/45 bg-[#F7F9FC] p-7 text-[#122033] shadow-xl shadow-black/20 sm:p-9"
+        className="rounded-xl border border-[#33C6D0]/45 bg-[#F7F9FC] p-6 text-[#122033] shadow-lg shadow-black/20 sm:p-8"
         role="status"
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#33C6D0]/15">
           <CheckCircle2 className="h-6 w-6 text-[#087C72]" aria-hidden="true" />
         </div>
-        <h2 className="mt-7 text-3xl font-semibold tracking-tight">Application received.</h2>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight">Application received.</h2>
         <p className="mt-4 max-w-xl leading-7 text-slate-600">
           We&apos;ll read every application and reply by email within five business days. No review,
           endorsement, or public post is expected.
@@ -121,21 +124,13 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-2xl border border-slate-300 bg-[#F7F9FC] p-5 text-[#122033] shadow-xl shadow-black/20 sm:p-8"
+      className="rounded-xl border border-slate-300 bg-[#F7F9FC] p-5 text-[#122033] shadow-lg shadow-black/20 sm:p-7"
       aria-busy={pending}
-      aria-labelledby="design-partner-form-title"
+      aria-label="Design partner application"
     >
-      <div className="border-b border-slate-300 pb-5">
-        <p className="text-sm font-semibold text-[#0C69C7]">Apply for one of five places</p>
-        <h2
-          id="design-partner-form-title"
-          className="mt-2 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl"
-        >
-          Show us one failing memory flow.
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          Usually takes three minutes. Every field is required.
-        </p>
+      <div className="flex flex-col gap-1 border-b border-slate-300 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-semibold tracking-[-0.02em]">Apply</h2>
+        <p className="text-sm leading-6 text-slate-600">About one minute · All fields required</p>
       </div>
 
       {error && (
@@ -178,47 +173,10 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
       </div>
 
       <div className="mt-4">
-        <Field label="Project or company" htmlFor="dp-project">
-          <Input
-            id="dp-project"
-            name="project"
-            className={fieldClassName}
-            autoComplete="organization"
-            minLength={2}
-            maxLength={120}
-            required
-            disabled={pending}
-            placeholder="Project, product, or agent name"
-          />
-        </Field>
-      </div>
-
-      <div className="mt-4">
         <Field
-          label="What does the agent do?"
-          htmlFor="dp-use-case"
-          hint="30–1,000 characters · Who uses it, what job it runs, and what must persist."
-        >
-          <Textarea
-            id="dp-use-case"
-            name="agent_use_case"
-            className={fieldClassName}
-            aria-describedby="dp-use-case-hint"
-            minLength={30}
-            maxLength={1000}
-            rows={4}
-            required
-            disabled={pending}
-            placeholder="Describe its users, job, and cross-session state."
-          />
-        </Field>
-      </div>
-
-      <div className="mt-4">
-        <Field
-          label="Where does memory fail?"
+          label="What are you building, and where does memory fail?"
           htmlFor="dp-memory-problem"
-          hint="30–1,000 characters · Name one failure: lost context, stale recall, missing source, or no historical state."
+          hint="30–1,000 characters · One concrete example is enough."
         >
           <Textarea
             id="dp-memory-problem"
@@ -227,37 +185,11 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
             aria-describedby="dp-memory-problem-hint"
             minLength={30}
             maxLength={1000}
-            rows={4}
+            rows={3}
             required
             disabled={pending}
-            placeholder="Describe what fails today and how you notice."
+            placeholder="Example: Our support agent loses source links after a restart and repeats old decisions."
           />
-        </Field>
-      </div>
-
-      <div className="mt-4">
-        <Field
-          label="When can you integrate?"
-          htmlFor="dp-timeline"
-          hint="Choose the earliest realistic start."
-        >
-          <Select
-            id="dp-timeline"
-            name="timeline"
-            aria-describedby="dp-timeline-hint"
-            required
-            disabled={pending}
-            defaultValue=""
-            className={fieldClassName}
-          >
-            <option value="" disabled>
-              Choose one
-            </option>
-            <option value="ready_now">Ready now</option>
-            <option value="within_30_days">Within 30 days</option>
-            <option value="within_60_days">Within 60 days</option>
-            <option value="exploring">Exploring; timing not fixed</option>
-          </Select>
         </Field>
       </div>
 
@@ -273,8 +205,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
           className="h-6 w-6 shrink-0 rounded border-slate-400 accent-[#0C69C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
         />
         <span id="dp-consent-copy">
-          AllSource may use these answers to review my application and contact me about this
-          program. See{" "}
+          AllSource may use these answers to assess my application and contact me. See{" "}
           <Link
             href="/privacy#design-partner-applications"
             className="rounded-sm font-medium text-[#0C69C7] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
@@ -308,14 +239,13 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
           </>
         ) : (
           <>
-            Send design-partner application
+            Apply for design partnership
             <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
           </>
         )}
       </Button>
       <p className="mt-4 text-xs leading-5 text-slate-600">
-        Applicant details stay in a private admin stream. We do not place them in public analytics,
-        issues, or campaign URLs.
+        Private application. No public review or testimonial required.
       </p>
     </form>
   );

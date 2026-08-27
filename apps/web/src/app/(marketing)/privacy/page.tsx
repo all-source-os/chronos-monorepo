@@ -86,8 +86,8 @@ export default function PrivacyPolicy() {
             2.6 Design Partner Applications
           </h3>
           <p className="text-muted-foreground leading-relaxed">
-            If you apply to the design partner program, we collect your name, work email, project or
-            company, agent use case, current memory problem, integration timeline, campaign
+            If you apply to the design partner program, we collect your name, work email, a short
+            description of what you are building and its current memory problem, campaign
             attribution parameters, consent version, and submission time. We use this information
             only to assess fit, contact you about the program, support an accepted integration, and
             evaluate which campaign sources produce qualified applications.
