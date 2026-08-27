@@ -4,11 +4,11 @@ import { Button, Input, Label, Select, Textarea } from "@allsource/ui";
 import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { AlertCircle, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 const fieldClassName =
-  "border-slate-300 bg-white text-[#0E1A2A] placeholder:text-slate-400 focus-visible:border-[#2F8CFF] focus-visible:ring-[#2F8CFF]/30 dark:bg-white";
+  "min-h-11 border-slate-400 bg-white text-[#122033] placeholder:text-slate-500 focus-visible:border-[#0C69C7] focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7F9FC] dark:bg-white";
 
 interface CampaignSource {
   source: string;
@@ -35,6 +35,13 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   const [turnstileToken, setTurnstileToken] = useState("");
   const idempotencyKey = useRef("");
   const turnstile = useRef<TurnstileInstance>(null);
+  const errorAlert = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error) {
+      errorAlert.current?.focus();
+    }
+  }, [error]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,26 +96,21 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   if (applicationID) {
     return (
       <div
-        className="rounded-[1.5rem] border border-[#38D6C8]/35 bg-[#F4F7FB] p-8 text-[#0E1A2A] shadow-2xl shadow-black/25 sm:p-10"
+        className="rounded-2xl border border-[#33C6D0]/45 bg-[#F7F9FC] p-7 text-[#122033] shadow-xl shadow-black/20 sm:p-9"
         role="status"
       >
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#38D6C8]/15">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#33C6D0]/15">
           <CheckCircle2 className="h-6 w-6 text-[#087C72]" aria-hidden="true" />
         </div>
-        <p className="mt-7 font-mono text-xs uppercase tracking-[0.18em] text-[#087C72]">
-          application_submitted
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-          You&apos;re in the review queue.
-        </h2>
+        <h2 className="mt-7 text-3xl font-semibold tracking-tight">Application received.</h2>
         <p className="mt-4 max-w-xl leading-7 text-slate-600">
           We&apos;ll read every application and reply by email within five business days. No review,
           endorsement, or public post is expected.
         </p>
-        <p className="mt-7 font-mono text-xs text-slate-500">reference · {applicationID}</p>
+        <p className="mt-7 font-mono text-xs text-slate-600">reference · {applicationID}</p>
         <Link
           href="/docs/prime/quickstart"
-          className="mt-8 inline-flex items-center gap-2 font-medium text-[#176FD1] underline decoration-[#176FD1]/30 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F8CFF]"
+          className="mt-8 inline-flex min-h-6 items-center gap-2 font-medium text-[#0C69C7] underline decoration-[#0C69C7]/35 underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
         >
           Explore Prime while you wait <ArrowRight className="h-4 w-4" />
         </Link>
@@ -119,33 +121,37 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-[1.5rem] border border-white/15 bg-[#F4F7FB] p-6 text-[#0E1A2A] shadow-2xl shadow-black/30 sm:p-9"
+      className="rounded-2xl border border-slate-300 bg-[#F7F9FC] p-5 text-[#122033] shadow-xl shadow-black/20 sm:p-8"
       aria-busy={pending}
+      aria-labelledby="design-partner-form-title"
     >
-      <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-6">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#176FD1]">Apply</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-            Tell us what memory must do.
-          </h2>
-        </div>
-        <span className="shrink-0 rounded-full border border-[#F0B44D]/40 bg-[#F0B44D]/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[#8A5A00]">
-          3 min
-        </span>
+      <div className="border-b border-slate-300 pb-5">
+        <p className="text-sm font-semibold text-[#0C69C7]">Apply for one of five places</p>
+        <h2
+          id="design-partner-form-title"
+          className="mt-2 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl"
+        >
+          Show us one failing memory flow.
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Usually takes three minutes. Every field is required.
+        </p>
       </div>
 
       {error && (
         <div
-          className="mt-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          ref={errorAlert}
+          className="mt-5 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2"
           role="alert"
+          tabIndex={-1}
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="mt-7 grid gap-5 sm:grid-cols-2">
-        <Field label="Name" htmlFor="dp-name">
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <Field label="Your name" htmlFor="dp-name">
           <Input
             id="dp-name"
             name="name"
@@ -171,7 +177,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
         </Field>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <Field label="Project or company" htmlFor="dp-project">
           <Input
             id="dp-project"
@@ -182,52 +188,63 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
             maxLength={120}
             required
             disabled={pending}
-            placeholder="What are you building?"
+            placeholder="Project, product, or agent name"
           />
         </Field>
       </div>
 
-      <div className="mt-5">
-        <Field label="Agent use case" htmlFor="dp-use-case" hint="30–1,000 characters">
+      <div className="mt-4">
+        <Field
+          label="What does the agent do?"
+          htmlFor="dp-use-case"
+          hint="30–1,000 characters · Who uses it, what job it runs, and what must persist."
+        >
           <Textarea
             id="dp-use-case"
             name="agent_use_case"
             className={fieldClassName}
+            aria-describedby="dp-use-case-hint"
             minLength={30}
             maxLength={1000}
-            rows={5}
+            rows={4}
             required
             disabled={pending}
-            placeholder="What does the agent do, for whom, and what state must carry across sessions?"
+            placeholder="Describe its users, job, and cross-session state."
           />
         </Field>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-4">
         <Field
-          label="Current memory problem"
+          label="Where does memory fail?"
           htmlFor="dp-memory-problem"
-          hint="30–1,000 characters"
+          hint="30–1,000 characters · Name one failure: lost context, stale recall, missing source, or no historical state."
         >
           <Textarea
             id="dp-memory-problem"
             name="memory_problem"
             className={fieldClassName}
+            aria-describedby="dp-memory-problem-hint"
             minLength={30}
             maxLength={1000}
-            rows={5}
+            rows={4}
             required
             disabled={pending}
-            placeholder="Where do summaries, vectors, local files, or existing memory tools break down?"
+            placeholder="Describe what fails today and how you notice."
           />
         </Field>
       </div>
 
-      <div className="mt-5">
-        <Field label="Integration timeline" htmlFor="dp-timeline">
+      <div className="mt-4">
+        <Field
+          label="When can you integrate?"
+          htmlFor="dp-timeline"
+          hint="Choose the earliest realistic start."
+        >
           <Select
             id="dp-timeline"
             name="timeline"
+            aria-describedby="dp-timeline-hint"
             required
             disabled={pending}
             defaultValue=""
@@ -244,21 +261,23 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
         </Field>
       </div>
 
-      <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-600">
+      <label className="mt-5 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-700">
         <input
           name="consent"
           value="yes"
           type="checkbox"
+          aria-label="I consent to application review and contact."
+          aria-describedby="dp-consent-copy"
           required
           disabled={pending}
-          className="mt-1 h-4 w-4 rounded border-slate-300 accent-[#176FD1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2F8CFF]"
+          className="h-6 w-6 shrink-0 rounded border-slate-400 accent-[#0C69C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
         />
-        <span>
+        <span id="dp-consent-copy">
           AllSource may use these answers to review my application and contact me about this
           program. See{" "}
           <Link
             href="/privacy#design-partner-applications"
-            className="font-medium text-[#176FD1] underline underline-offset-2"
+            className="rounded-sm font-medium text-[#0C69C7] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
           >
             application privacy
           </Link>
@@ -280,7 +299,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
       <Button
         type="submit"
         disabled={pending || Boolean(TURNSTILE_SITE_KEY && !turnstileToken)}
-        className="mt-6 h-12 w-full bg-[#176FD1] text-white hover:bg-[#115FAF] focus-visible:ring-[#2F8CFF]"
+        className="mt-5 min-h-12 w-full bg-[#0C69C7] text-white hover:bg-[#0959A9] focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7F9FC]"
       >
         {pending ? (
           <>
@@ -289,11 +308,12 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
           </>
         ) : (
           <>
-            Apply for one of five spots <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+            Send design-partner application
+            <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
           </>
         )}
       </Button>
-      <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+      <p className="mt-4 text-xs leading-5 text-slate-600">
         Applicant details stay in a private admin stream. We do not place them in public analytics,
         issues, or campaign URLs.
       </p>
@@ -314,17 +334,15 @@ function Field({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-end justify-between gap-3">
-        <Label htmlFor={htmlFor} className="font-medium text-slate-800">
-          {label}
-        </Label>
-        {hint && (
-          <span className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
-            {hint}
-          </span>
-        )}
-      </div>
+      <Label htmlFor={htmlFor} className="font-medium text-slate-900">
+        {label}
+      </Label>
       {children}
+      {hint && (
+        <p id={`${htmlFor}-hint`} className="text-xs leading-5 text-slate-600">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
