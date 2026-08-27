@@ -71,7 +71,7 @@ export default function PricingSection({
             )}
           >
             Yearly
-            <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full">-20%</span>
+            <span className="rounded-full bg-green-700 px-1.5 py-0.5 text-xs text-white">-20%</span>
           </button>
         </div>
       </div>
@@ -114,8 +114,10 @@ export default function PricingSection({
             >
               {plan.isPopular && (
                 <div className="absolute top-0 right-0 bg-primary py-0.5 px-2 rounded-bl-xl rounded-tr-xl flex items-center">
-                  <FaStar className="text-white" />
-                  <span className="text-white ml-1 font-sans font-semibold">Popular</span>
+                  <FaStar className="text-primary-foreground" />
+                  <span className="ml-1 font-sans font-semibold text-primary-foreground">
+                    Popular
+                  </span>
                 </div>
               )}
               <div>
@@ -171,10 +173,12 @@ export default function PricingSection({
                 <Link
                   href={plan.href}
                   className={cn(
-                    buttonVariants({ variant: "outline" }),
+                    buttonVariants({ variant: plan.isPopular ? "default" : "outline" }),
                     "group relative w-full gap-2 overflow-hidden text-base font-semibold tracking-tight",
-                    "transform-gpu ring-offset-current transition-all duration-300 ease-out hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:bg-primary hover:text-white",
-                    plan.isPopular ? "bg-primary text-white" : "bg-background text-foreground"
+                    "transform-gpu ring-offset-current transition-all duration-300 ease-out hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:bg-primary hover:text-primary-foreground",
+                    plan.isPopular
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-foreground"
                   )}
                 >
                   {plan.buttonText}
@@ -201,7 +205,7 @@ export default function PricingSection({
             href={enterpriseTier.href}
             className={cn(
               buttonVariants({ variant: "outline" }),
-              "shrink-0 bg-background text-foreground hover:bg-background/90"
+              "bg-brand-paper text-brand-ink hover:bg-brand-paper/90 shrink-0"
             )}
           >
             {enterpriseTier.buttonText}

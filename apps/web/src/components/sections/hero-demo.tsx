@@ -152,7 +152,7 @@ export default function HeroDemo() {
       {/* Bottom pane: agent recall */}
       <div className="space-y-3 px-4 py-3">
         <div className="flex items-start gap-2">
-          <span className="mt-0.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary sm:text-xs">
+          <span className="mt-0.5 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-foreground sm:text-xs">
             MCP · reconstruct_state
           </span>
           <p className="text-xs text-foreground sm:text-sm">
@@ -163,7 +163,7 @@ export default function HeroDemo() {
         <div
           className={cn(
             "rounded-lg border border-border bg-background/60 px-3 py-2 transition-opacity duration-300",
-            answered ? "opacity-100" : "opacity-40"
+            answered ? "opacity-100" : "border-dashed"
           )}
         >
           {answered ? (

@@ -15,7 +15,7 @@ export const Highlight = ({
   return (
     <span
       className={cn(
-        "bg-primary/20 p-1 py-0.5 font-bold text-primary dark:bg-primary/20 dark:text-primary",
+        "bg-primary/20 p-1 py-0.5 font-bold text-foreground dark:bg-primary/20 dark:text-foreground",
         className
       )}
     >
@@ -261,7 +261,7 @@ export default function Testimonials() {
             .map((_, i) => (
               <Marquee
                 vertical
-                key={`marquee-col-${i}`}
+                key={testimonials[i * 3]?.name}
                 className={cn({
                   "[--duration:60s]": i === 1,
                   "[--duration:30s]": i === 2,

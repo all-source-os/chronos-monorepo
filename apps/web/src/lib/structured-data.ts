@@ -17,7 +17,7 @@ const ORG_ID = `${siteConfig.url}/#organization`;
 const WEBSITE_ID = `${siteConfig.url}/#website`;
 
 /** Public profiles that prove the entity is the same one across the web. */
-const sameAs = [siteConfig.links.github, siteConfig.links.twitter, siteConfig.links.instagram];
+const sameAs = [siteConfig.links.github, siteConfig.links.twitter];
 
 export function organizationSchema() {
   return {

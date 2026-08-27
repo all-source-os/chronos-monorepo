@@ -32,7 +32,7 @@ const capabilities = [
       "Compressed index: navigational scaffolding",
     ],
     metric: "469K events/sec",
-    color: "from-blue-500/20 to-blue-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     question: "How fast is recall?",
@@ -58,7 +58,7 @@ const capabilities = [
       "Evaluation method and corpus are published",
     ],
     metric: "Published evaluation",
-    color: "from-purple-500/20 to-purple-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     question: "Can I time-travel?",
@@ -294,7 +294,7 @@ export default function AgentMemoryPage() {
                 viewport={{ once: true }}
                 className="rounded-xl border p-6"
               >
-                <uc.icon className="mb-3 h-8 w-8 text-purple-400" />
+                <uc.icon className="mb-3 h-8 w-8 text-primary" />
                 <h3 className="mb-2 font-semibold">{uc.title}</h3>
                 <p className="text-sm text-muted-foreground">{uc.description}</p>
               </motion.div>

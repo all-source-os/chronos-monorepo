@@ -22,21 +22,21 @@ const features = [
     description:
       "Model entities and their relationships as a directed graph. BFS traversal discovers multi-hop connections across domains — customers to orders to products to suppliers — without pre-defined joins.",
     icon: Network,
-    color: "from-purple-500/20 to-purple-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "Vector Embeddings",
     description:
       "HNSW index stores high-dimensional embeddings alongside your events. Semantic similarity search finds related entities even when they share no common identifiers or schemas.",
     icon: Compass,
-    color: "from-blue-500/20 to-blue-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "Compressed Index",
     description:
       "Auto-generated cross-domain scaffolding links entities that co-occur across event streams. A published AllSource project evaluation measured improved cross-domain recall on its test corpus; results depend on your data and queries.",
     icon: Layers,
-    color: "from-cyan-500/20 to-cyan-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "Recall API",
@@ -127,7 +127,7 @@ export default function PrimePage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm text-purple-400">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-foreground">
             <Brain className="h-4 w-4" />
             Add-on Module
           </div>
@@ -168,7 +168,7 @@ export default function PrimePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
             >
-              <div className="text-3xl font-bold text-purple-400">{stat.value}</div>
+              <div className="text-3xl font-bold text-primary">{stat.value}</div>
               <div className="text-sm font-medium text-foreground">{stat.label}</div>
               <div className="text-xs text-muted-foreground">{stat.sub}</div>
             </motion.div>
@@ -214,7 +214,7 @@ export default function PrimePage() {
         className="py-16"
       >
         <motion.div
-          className="mx-auto max-w-3xl overflow-hidden rounded-xl border bg-[#0c0c14]"
+          className="bg-brand-ink mx-auto max-w-3xl overflow-hidden rounded-xl border"
           initial={{ opacity: 0, scale: 0.98 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
@@ -248,7 +248,7 @@ export default function PrimePage() {
               className="flex items-start gap-4"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/50">
-                <bullet.icon className="h-5 w-5 text-purple-400" />
+                <bullet.icon className="h-5 w-5 text-primary" />
               </div>
               <p className="text-muted-foreground">{bullet.text}</p>
             </motion.div>

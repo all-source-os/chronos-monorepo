@@ -23,7 +23,7 @@ const features = [
     title: "11.9μs p99 Projection Reads",
     description:
       "Published Core reference benchmark: 11.9μs p99 indexed reads from the concurrent in-memory map. Parquet provides persistence; network, API, range, graph, and vector paths measure differently.",
-    className: "order-3 xl:order-none hover:bg-blue-500/10 transition-all duration-500 ease-out",
+    className: "order-3 xl:order-none hover:bg-primary/10 transition-all duration-500 ease-out",
     content: (
       <Safari
         src={"/assets/hero-screenshot.png"}

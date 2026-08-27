@@ -20,14 +20,14 @@ const features = [
     description:
       "Accepted state changes are append-only events with CRC32 checksums. Existing event payloads are not updated in place, so their provenance remains queryable.",
     icon: Lock,
-    color: "from-blue-500/20 to-blue-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "Time-Travel Queries",
     description:
       "Reconstruct entity state at a historical timestamp by replaying accepted events. Core's 11.9us p99 indexed-read reference does not measure this reconstructive path.",
     icon: History,
-    color: "from-purple-500/20 to-purple-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "WAL + Parquet Durability",
@@ -48,7 +48,7 @@ const features = [
     description:
       "Build materialized views that stay in sync with your event stream. Checkpoint snapshots periodically to keep recovery fast as your event volume grows.",
     icon: GitBranch,
-    color: "from-cyan-500/20 to-cyan-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "Schema Governance",
@@ -85,7 +85,7 @@ export default function EventSourcingPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-foreground">
             <Database className="h-4 w-4" />
             Platform
           </div>
@@ -168,7 +168,7 @@ export default function EventSourcingPage() {
         className="py-16"
       >
         <motion.div
-          className="mx-auto max-w-3xl overflow-hidden rounded-xl border bg-[#0c0c14]"
+          className="bg-brand-ink mx-auto max-w-3xl overflow-hidden rounded-xl border"
           initial={{ opacity: 0, scale: 0.98 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}

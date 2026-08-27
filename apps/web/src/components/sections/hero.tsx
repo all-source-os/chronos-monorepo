@@ -39,7 +39,7 @@ function HeroCTA({ indiePrice }: { indiePrice: string }) {
           href="/signup"
           className={cn(
             buttonVariants({ variant: "default" }),
-            "flex w-full gap-2 px-8 text-background sm:w-auto"
+            "flex w-full gap-2 px-8 text-primary-foreground sm:w-auto"
           )}
         >
           <Icons.logo className="h-5 w-5" />

@@ -50,7 +50,7 @@ export default function Header() {
           </Link>
           <Link
             href="/signup"
-            className={cn(buttonVariants({ variant: "default" }), "text-background")}
+            className={cn(buttonVariants({ variant: "default" }), "text-primary-foreground")}
           >
             Start 14-day trial
           </Link>
@@ -79,7 +79,7 @@ export default function Header() {
               </Link>
               <Link
                 href="/signup"
-                className={cn(buttonVariants({ variant: "default" }), "text-background")}
+                className={cn(buttonVariants({ variant: "default" }), "text-primary-foreground")}
               >
                 Start 14-day trial
               </Link>

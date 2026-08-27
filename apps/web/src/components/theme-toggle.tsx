@@ -20,9 +20,9 @@ export function ThemeToggle() {
         size="icon"
         aria-label="Toggle theme"
         disabled
-        className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full border bg-background/80 backdrop-blur-sm shadow-lg"
+        className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full border border-primary/40 bg-primary text-primary-foreground shadow-lg"
       >
-        <span aria-hidden="true" className="h-5 w-5" />
+        <Moon aria-hidden="true" className="h-5 w-5 text-primary-foreground" />
       </Button>
     );
   }
@@ -33,14 +33,14 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full border bg-background/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
+      className="fixed bottom-4 right-4 z-50 h-10 w-10 rounded-full border border-primary/40 bg-primary text-primary-foreground shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       <Sun
-        className={`h-5 w-5 text-primary transition-all duration-300 ${isDark ? "scale-0 rotate-90 opacity-0" : "scale-100 rotate-0 opacity-100"} absolute`}
+        className={`h-5 w-5 text-primary-foreground transition-all duration-300 ${isDark ? "scale-0 rotate-90 opacity-0" : "scale-100 rotate-0 opacity-100"} absolute`}
       />
       <Moon
-        className={`h-5 w-5 text-primary transition-all duration-300 ${isDark ? "scale-100 rotate-0 opacity-100" : "scale-0 -rotate-90 opacity-0"} absolute`}
+        className={`h-5 w-5 text-primary-foreground transition-all duration-300 ${isDark ? "scale-100 rotate-0 opacity-100" : "scale-0 -rotate-90 opacity-0"} absolute`}
       />
       <span className="sr-only">Toggle theme</span>
     </Button>

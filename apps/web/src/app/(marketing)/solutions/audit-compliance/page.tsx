@@ -21,7 +21,7 @@ const features = [
     description:
       "Accepted changes append new events instead of updating prior payloads in place. The WAL supports CRC32 integrity checks and configurable fsync.",
     icon: Database,
-    color: "from-blue-500/20 to-blue-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "CRC32 Integrity Checks",
@@ -35,7 +35,7 @@ const features = [
     description:
       "Reconstruct entity state at a past timestamp with as_of queries and return the source events used by that reconstruction.",
     icon: Clock,
-    color: "from-cyan-500/20 to-cyan-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "RBAC: 4 Roles, 7 Permissions",
@@ -49,7 +49,7 @@ const features = [
     description:
       "Define custom authorization policies beyond RBAC. Enforce data retention rules, access windows, IP restrictions, and tenant-specific compliance requirements.",
     icon: Shield,
-    color: "from-purple-500/20 to-purple-500/5",
+    color: "from-primary/20 to-primary/5",
   },
   {
     title: "Full Event Provenance",
@@ -71,7 +71,7 @@ export default function AuditCompliancePage() {
           transition={{ duration: 0.6 }}
         >
           <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
-            <FileCheck className="h-4 w-4 text-blue-400" />
+            <FileCheck className="h-4 w-4 text-primary" />
             Audit & Compliance
           </span>
           <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
@@ -130,13 +130,13 @@ export default function AuditCompliancePage() {
         </p>
         <div className="mx-auto max-w-3xl">
           <div className="overflow-hidden rounded-xl border">
-            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
+            <div className="bg-brand-ink flex items-center gap-2 px-4 py-3">
               <div className="h-3 w-3 rounded-full bg-red-500" />
               <div className="h-3 w-3 rounded-full bg-yellow-500" />
               <div className="h-3 w-3 rounded-full bg-green-500" />
               <span className="ml-4 font-mono text-sm text-neutral-400">compliance-audit.sh</span>
             </div>
-            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
+            <pre className="bg-brand-ink/95 overflow-x-auto p-6 text-sm leading-relaxed text-green-400">
               {`# Reconstruct account state at the time of the audit
 curl -s https://api.all-source.xyz/api/v1/events/query \\
   -H "Authorization: Bearer $API_KEY" \\
@@ -166,7 +166,7 @@ curl -s https://api.all-source.xyz/api/v1/events/query \\
 
       {/* CTA */}
       <Section className="pb-24 text-center">
-        <Lock className="mx-auto mb-4 h-12 w-12 text-blue-400" />
+        <Lock className="mx-auto mb-4 h-12 w-12 text-primary" />
         <h2 className="mb-4 text-3xl font-bold">Prepare audit evidence from event history</h2>
         <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
           Query prior state, export its source-event sequence, and verify WAL integrity checks from

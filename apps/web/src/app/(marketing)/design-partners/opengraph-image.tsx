@@ -25,20 +25,20 @@ export default function DesignPartnersOpenGraphImage() {
           inset: 0,
           opacity: 0.17,
           backgroundImage:
-            "linear-gradient(rgba(56,214,200,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(47,140,255,.35) 1px, transparent 1px)",
+            "linear-gradient(rgba(129,212,250,.35) 1px, transparent 1px), linear-gradient(90deg, rgba(41,182,246,.35) 1px, transparent 1px)",
           backgroundSize: "42px 42px",
         }}
       />
-      <div style={{ display: "flex", flexDirection: "column", width: "840px", zIndex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", width: "840px" }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
             alignSelf: "flex-start",
-            border: "1px solid rgba(56,214,200,.55)",
+            border: "1px solid rgba(129,212,250,.75)",
             borderRadius: 999,
             padding: "10px 18px",
-            color: "#72EFE2",
+            color: "#81D4FA",
             fontSize: 22,
             letterSpacing: 3,
           }}
@@ -59,7 +59,7 @@ export default function DesignPartnersOpenGraphImage() {
         <div
           style={{
             display: "flex",
-            color: "#C5D0DF",
+            color: "#D4E5F7",
             fontSize: 28,
             lineHeight: 1.35,
             marginTop: 28,
@@ -78,15 +78,15 @@ export default function DesignPartnersOpenGraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          borderLeft: "2px solid rgba(56,214,200,.55)",
+          borderLeft: "2px solid rgba(129,212,250,.75)",
           paddingLeft: 28,
-          color: "#72EFE2",
+          color: "#81D4FA",
           fontFamily: "monospace",
           fontSize: 18,
         }}
       >
         <span>application.opened</span>
-        <span style={{ color: "#7AADEB" }}>memory.integrated</span>
+        <span style={{ color: "#F7FBFF" }}>memory.integrated</span>
         <span>recall.verified</span>
       </div>
       <div

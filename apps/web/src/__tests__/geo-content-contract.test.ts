@@ -33,6 +33,10 @@ describe("GEO canonical product facts", () => {
     expect(organization.name).toBe("AllSource Event Store");
     expect(organization.alternateName).toContain("AllSource");
     expect(organization.disambiguatingDescription).toContain("Esri ArcGIS AllSource");
+    expect(organization.sameAs).toEqual([
+      "https://github.com/all-source-os/all-source",
+      "https://x.com/ddonprogramming",
+    ]);
 
     const productMap = productVerticalListSchema(productVerticals);
     expect(productMap.numberOfItems).toBe(5);
@@ -43,6 +47,18 @@ describe("GEO canonical product facts", () => {
       "Hosted AllSource",
       "AllSource MCP connectors",
     ]);
+  });
+
+  it("keeps public pages on the canonical blue marketing theme", () => {
+    const globals = source("src/app/globals.css");
+    const home = source("src/app/page.tsx");
+    const marketingLayout = source("src/app/(marketing)/layout.tsx");
+
+    expect(globals).toContain("--brand-field: #07549a");
+    expect(globals).toContain(".dark .marketing-theme");
+    expect(home).toContain("marketing-theme");
+    expect(marketingLayout).toContain("marketing-theme");
+    expect(siteConfig.links).not.toHaveProperty("instagram");
   });
 
   it("keeps answer-first entity surfaces aligned", () => {

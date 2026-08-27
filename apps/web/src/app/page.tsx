@@ -22,7 +22,7 @@ export default async function Home() {
   const indiePrice = indexByTier(catalog).indie?.monthly?.formatted ?? defaultIndiePrice;
 
   return (
-    <main className="relative overflow-hidden">
+    <main className="marketing-theme relative min-h-screen overflow-hidden bg-background text-foreground">
       <Header />
       <Hero indiePrice={indiePrice} />
       {/* Stats demoted below the fold — final values painted, never "0K" flash */}

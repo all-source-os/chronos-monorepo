@@ -17,7 +17,7 @@ const capabilities = [
     title: "Time-Travel Queries",
     description:
       "Reconstruct any entity's state at any point in time with as_of queries. Debug issues, audit changes, or replay historical states instantly.",
-    color: "hover:bg-purple-500/10",
+    color: "hover:bg-primary/10",
     metric: "Any timestamp",
   },
   {
@@ -41,7 +41,7 @@ const capabilities = [
     title: "Projections",
     description:
       "Materialized views that update automatically. Entity snapshots, counters, time series, funnels, and custom projections.",
-    color: "hover:bg-blue-500/10",
+    color: "hover:bg-primary/10",
     metric: "5 types",
   },
   {
@@ -169,7 +169,7 @@ export default function QuantIntelligence() {
               <div className="rounded-lg bg-primary/10 p-2">
                 <capability.icon className="h-5 w-5 text-primary" />
               </div>
-              <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+              <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-foreground">
                 {capability.metric}
               </span>
             </div>

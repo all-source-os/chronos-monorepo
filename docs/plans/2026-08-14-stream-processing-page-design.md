@@ -16,7 +16,8 @@ Alternatives considered:
 
 ## Token system
 
-- Abyss `#0E1A2A`: existing dark site background.
+- Brand field `#07549A`: public page background.
+- Source ink `#122033`: code and diagnostic panels only.
 - Panel `#122235`: quiet execution surfaces.
 - Trace cyan `#12B7E8`: active operator path.
 - Signal green `#20C997`: supported result/status.
