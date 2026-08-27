@@ -17,7 +17,8 @@ token definitions only.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| Brand field | `#07549A` | Default marketing field and campaign backgrounds |
+| Deep field | `#063A6C` | Default marketing field and campaign backgrounds |
+| Surface blue | `#07549A` | Cards, popovers, and raised blue surfaces |
 | Core blue | `#0277BD` | Light-theme actions and links |
 | Signal blue | `#29B6F6` | Diagrams, traces, and large decorative signals |
 | Ice blue | `#81D4FA` | Dark-theme actions, links, focus, and small signal text |
@@ -26,13 +27,13 @@ token definitions only.
 
 Rules:
 
-- Blue owns branded surfaces. Do not use near-black as a full-page marketing
-  background.
+- Deep blue owns branded fields; mid-blue creates surface hierarchy. Do not use
+  near-black as a full-page marketing background.
 - Source ink may appear behind code, terminals, and technical diagrams.
 - Green, amber, and red communicate success, warning, and failure only.
 - Do not use purple, orange, or rainbow gradients as decoration.
-- Body text and controls must meet WCAG 2.2 AA. Ice blue on brand field is
-  4.64:1; paper on brand field is 7.36:1.
+- Body text and controls must meet WCAG 2.2 AA. Ice blue on deep field is
+  6.96:1; paper on deep field is 11.04:1. Ice blue on surface blue is 4.64:1.
 
 ## Typography
 

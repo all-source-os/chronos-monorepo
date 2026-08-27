@@ -16,7 +16,8 @@ Alternatives considered:
 
 ## Token system
 
-- Brand field `#07549A`: public page background.
+- Deep field `#063A6C`: public page background.
+- Surface blue `#07549A`: raised blue sections and cards.
 - Source ink `#122033`: code and diagnostic panels only.
 - Panel `#122235`: quiet execution surfaces.
 - Trace cyan `#12B7E8`: active operator path.

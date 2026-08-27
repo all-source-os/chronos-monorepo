@@ -11,7 +11,7 @@ export default function DesignPartnersOpenGraphImage() {
         width: "100%",
         height: "100%",
         display: "flex",
-        background: "#07549A",
+        background: "#063A6C",
         color: "white",
         padding: "64px 72px",
         position: "relative",

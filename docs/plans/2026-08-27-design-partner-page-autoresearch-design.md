@@ -22,8 +22,8 @@ Rejected alternatives:
 
 ## Visual system
 
-- Brand blue: `#07549A`
-- Deep blue: `#063A6C`
+- Deep field: `#063A6C`
+- Surface blue: `#07549A`
 - Paper: `#F7F9FC`
 - Ink: `#122033`
 - Signal cyan: `#33C6D0`

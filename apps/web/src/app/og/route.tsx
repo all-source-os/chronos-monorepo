@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#07549A",
+        backgroundColor: "#063A6C",
         backgroundImage:
           "radial-gradient(circle at 25% 15%, rgba(129,212,250,.28) 0%, transparent 42%), radial-gradient(circle at 80% 0%, rgba(41,182,246,.22) 0%, transparent 48%)",
         color: "#F7FBFF",

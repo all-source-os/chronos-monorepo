@@ -11,9 +11,10 @@ older indigo palette unrelated to current logo.
 
 ## Chosen approach
 
-Add a marketing-scoped semantic theme derived from the logo and approved
-`#07549A` field. Home and every route under marketing layout inherit it. Keep
-dashboard on existing product UI tokens.
+Add a marketing-scoped semantic theme derived from the logo and approved deep
+`#063A6C` field. Use `#07549A` for raised blue surfaces. Home and every route
+under marketing layout inherit it. Keep dashboard on existing product UI
+tokens.
 
 Rejected approaches:
 
@@ -24,8 +25,9 @@ Rejected approaches:
 ## System
 
 Light marketing theme uses paper, source ink, and core blue. Default dark
-marketing theme uses brand field, blue cards, paper text, and ice-blue actions.
-Code and diagnostic panels use source ink. Status colors stay semantic.
+marketing theme uses deep field, mid-blue cards, paper text, and ice-blue
+actions. Code and diagnostic panels use source ink. Status colors stay
+semantic.
 
 Typography remains system sans plus functional monospace. Provenance rail is
 the only reusable signature and must describe real event flow.
