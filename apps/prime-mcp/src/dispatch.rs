@@ -51,6 +51,8 @@ pub const COOKBOOK: &str = "\
 - prime_context: configurable via max_tokens (default: uncapped)
 - prime_stats: ~50 tokens
 - prime_neighbors: ~100 tokens per node returned
+- prime_search: ~30 tokens per summary row, 50 rows max per call — read `total`
+  and page with `offset` rather than raising `limit`
 ";
 
 /// Dispatch one JSON-RPC request. Returns `None` for notifications (no reply),

@@ -39,6 +39,7 @@ mod templates;
 mod tools;
 mod toon;
 mod transport;
+mod wire;
 
 use transport::StdioTransport;
 
