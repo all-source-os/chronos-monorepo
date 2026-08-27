@@ -9,12 +9,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // splitting the entity across sitemap URLs. Update only when public content
   // changes; request time is not a truthful last-modified signal.
   const base = siteConfig.url;
-  const contentUpdatedAt = new Date("2026-08-14T00:00:00Z");
+  const contentUpdatedAt = new Date("2026-08-27T00:00:00Z");
 
   // Static marketing pages
   const staticPages = [
     { url: base, priority: 1.0, changeFrequency: "weekly" as const },
     { url: `${base}/pricing`, priority: 0.9, changeFrequency: "monthly" as const },
+    { url: `${base}/design-partners`, priority: 0.9, changeFrequency: "weekly" as const },
     { url: `${base}/blog`, priority: 0.8, changeFrequency: "weekly" as const },
     { url: `${base}/docs`, priority: 0.8, changeFrequency: "monthly" as const },
     { url: `${base}/docs/api`, priority: 0.7, changeFrequency: "monthly" as const },

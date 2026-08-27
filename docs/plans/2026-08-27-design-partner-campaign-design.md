@@ -91,7 +91,9 @@ Failure behavior:
 
 ## Admin inbox
 
-Create `/dashboard/admin/design-partners` behind existing admin authorization.
+Create `/design-partners` in the separate `admin.all-source.xyz` app behind its
+existing admin authorization. This reuses the real admin BFF and avoids adding
+operator-only PII to the customer dashboard.
 The inbox shows applications grouped by status:
 
 - new

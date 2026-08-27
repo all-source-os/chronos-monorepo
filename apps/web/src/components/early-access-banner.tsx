@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "allsource-ea-dismissed";
+const STORAGE_KEY = "allsource-design-partners-dismissed";
 
 // Marketing-only banner. It lives in the root layout, so without this guard it
 // also renders on the auth screens (/login, /signup) and the dashboard, where a
@@ -38,16 +38,16 @@ export function EarlyAccessBanner() {
   return (
     <div className="relative isolate flex items-center gap-x-6 overflow-hidden bg-primary px-6 py-2.5 sm:px-3.5 sm:before:flex-1">
       <p className="text-sm/6 text-primary-foreground">
-        <strong className="font-semibold">Your AI agent can now pay per call</strong>
+        <strong className="font-semibold">Building an AI agent with cross-session memory?</strong>
         <svg viewBox="0 0 2 2" aria-hidden="true" className="mx-2 inline size-0.5 fill-current">
           <circle r={1} cx={1} cy={1} />
         </svg>
-        x402 micropayments are live in v0.19.
+        Five design partner spots are open.
         <a
-          href="/pricing"
+          href="/design-partners?utm_source=website&utm_medium=banner&utm_campaign=design_partners_2026"
           className="ml-2 font-semibold text-primary-foreground underline underline-offset-2 hover:opacity-80"
         >
-          See pricing &rarr;
+          See program &rarr;
         </a>
       </p>
       <div className="flex flex-1 justify-end">

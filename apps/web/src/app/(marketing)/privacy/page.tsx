@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
   return (
     <div className="mx-auto w-full max-w-screen-md px-4 lg:px-8 py-24">
       <h1 className="text-3xl font-bold text-foreground sm:text-4xl mb-2">Privacy Policy</h1>
-      <p className="text-sm text-muted-foreground mb-10">Last updated: February 12, 2026</p>
+      <p className="text-sm text-muted-foreground mb-10">Last updated: August 27, 2026</p>
 
       <div className="prose prose-neutral dark:prose-invert max-w-none space-y-8">
         <section>
@@ -77,6 +77,28 @@ export default function PrivacyPolicy() {
             ask AI assistants before finding us, and what to write next. They are not used for
             advertising, are not sold, and are not shared with third parties. Ask us and we will
             delete yours — see the Contact section below.
+          </p>
+
+          <h3
+            id="design-partner-applications"
+            className="scroll-mt-24 text-lg font-medium text-foreground mt-4 mb-2"
+          >
+            2.6 Design Partner Applications
+          </h3>
+          <p className="text-muted-foreground leading-relaxed">
+            If you apply to the design partner program, we collect your name, work email, project or
+            company, agent use case, current memory problem, integration timeline, campaign
+            attribution parameters, consent version, and submission time. We use this information
+            only to assess fit, contact you about the program, support an accepted integration, and
+            evaluate which campaign sources produce qualified applications.
+          </p>
+          <p className="text-muted-foreground leading-relaxed mt-2">
+            Application details are stored in a private administrative event stream. We do not put
+            applicant contact details or answers in public analytics properties, campaign URLs,
+            GitHub issues, or public event streams. Rejected and waitlisted applications receive a
+            retention deadline 90 days after the decision. Accepted applications receive a retention
+            deadline 90 days after the 60-day program. You can request earlier removal using the
+            contact address below.
           </p>
         </section>
 
