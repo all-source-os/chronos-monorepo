@@ -63,6 +63,9 @@ export const metadata: Metadata = constructMetadata({
   description:
     "AllSource Event Store is developer infrastructure for durable event history and AI-agent memory. Core stores events; Prime derives memory.",
   canonical: "/",
+  verification: {
+    google: "BbHb4BnJ4QZYJmCEPpGhADhmJdSq6eGYRtAteMyjYwU",
+  },
 });
 
 export const viewport: Viewport = {
