@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 const fieldClassName =
-  "focus-visible:border-brand-core focus-visible:ring-brand-core focus-visible:ring-offset-brand-paper bg-brand-paper text-brand-ink min-h-11 border-slate-400 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-offset-2";
+  "min-h-11 border-slate-400 bg-white text-[#122033] placeholder:text-slate-500 focus-visible:border-[#0C69C7] focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7F9FC] dark:bg-white";
 
 interface CampaignSource {
   source: string;
@@ -99,10 +99,10 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   if (applicationID) {
     return (
       <div
-        className="border-brand-signal/45 bg-brand-paper text-brand-ink rounded-xl border p-6 shadow-lg shadow-black/20 sm:p-8"
+        className="rounded-xl border border-[#33C6D0]/45 bg-[#F7F9FC] p-6 text-[#122033] shadow-lg shadow-black/20 sm:p-8"
         role="status"
       >
-        <div className="bg-brand-signal/15 flex h-12 w-12 items-center justify-center rounded-full">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#33C6D0]/15">
           <CheckCircle2 className="h-6 w-6 text-[#087C72]" aria-hidden="true" />
         </div>
         <h2 className="mt-6 text-2xl font-semibold tracking-tight">Application received.</h2>
@@ -113,7 +113,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
         <p className="mt-7 font-mono text-xs text-slate-600">reference · {applicationID}</p>
         <Link
           href="/docs/prime/quickstart"
-          className="text-brand-core decoration-brand-core/35 focus-visible:ring-brand-core mt-8 inline-flex min-h-6 items-center gap-2 font-medium underline underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="mt-8 inline-flex min-h-6 items-center gap-2 font-medium text-[#0C69C7] underline decoration-[#0C69C7]/35 underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
         >
           Explore Prime while you wait <ArrowRight className="h-4 w-4" />
         </Link>
@@ -124,7 +124,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-brand-paper text-brand-ink rounded-xl border border-slate-300 p-5 shadow-lg shadow-black/20 sm:p-7"
+      className="rounded-xl border border-slate-300 bg-[#F7F9FC] p-5 text-[#122033] shadow-lg shadow-black/20 sm:p-7"
       aria-busy={pending}
       aria-label="Design partner application"
     >
@@ -202,13 +202,13 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
           aria-describedby="dp-consent-copy"
           required
           disabled={pending}
-          className="accent-brand-core focus-visible:ring-brand-core h-6 w-6 shrink-0 rounded border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          className="h-6 w-6 shrink-0 rounded border-slate-400 accent-[#0C69C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
         />
         <span id="dp-consent-copy">
           AllSource may use these answers to assess my application and contact me. See{" "}
           <Link
             href="/privacy#design-partner-applications"
-            className="text-brand-core focus-visible:ring-brand-core rounded-sm font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            className="rounded-sm font-medium text-[#0C69C7] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2"
           >
             application privacy
           </Link>
@@ -230,7 +230,7 @@ export function DesignPartnerForm({ campaignSource }: DesignPartnerFormProps) {
       <Button
         type="submit"
         disabled={pending || Boolean(TURNSTILE_SITE_KEY && !turnstileToken)}
-        className="bg-brand-core hover:bg-brand-field focus-visible:ring-brand-core focus-visible:ring-offset-brand-paper mt-5 min-h-12 w-full text-white focus-visible:ring-2 focus-visible:ring-offset-2"
+        className="mt-5 min-h-12 w-full bg-[#0C69C7] text-white hover:bg-[#0959A9] focus-visible:ring-2 focus-visible:ring-[#0C69C7] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7F9FC]"
       >
         {pending ? (
           <>

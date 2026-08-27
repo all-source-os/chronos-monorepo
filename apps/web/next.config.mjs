@@ -26,7 +26,7 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com",
+              `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"} https://www.googletagmanager.com https://challenges.cloudflare.com`,
               "style-src 'self' 'unsafe-inline' https://rsms.me",
               "img-src 'self' data: blob: https://randomuser.me",
               "font-src 'self' data: https://rsms.me",

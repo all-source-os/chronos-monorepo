@@ -156,13 +156,13 @@ export default function IotTelemetryPage() {
         </p>
         <div className="mx-auto max-w-3xl">
           <div className="overflow-hidden rounded-xl border">
-            <div className="bg-brand-ink flex items-center gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
               <div className="h-3 w-3 rounded-full bg-red-500" />
               <div className="h-3 w-3 rounded-full bg-yellow-500" />
               <div className="h-3 w-3 rounded-full bg-green-500" />
               <span className="ml-4 font-mono text-sm text-neutral-400">sensor-ingest.sh</span>
             </div>
-            <pre className="bg-brand-ink/95 overflow-x-auto p-6 text-sm leading-relaxed text-green-400">
+            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
               {`# Batch ingest sensor readings from an edge gateway
 curl -s -X POST https://api.all-source.xyz/api/v1/events \\
   -H "Authorization: Bearer $API_KEY" \\

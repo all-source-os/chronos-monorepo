@@ -32,10 +32,10 @@ export default async function DesignPartnerPage({ searchParams }: DesignPartnerP
   };
 
   return (
-    <div className="bg-brand-field text-white">
+    <div className="bg-[#0B1522] text-white">
       <section className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
         <header>
-          <p className="border-brand-ice text-brand-ice border-l-2 pl-3 text-sm font-semibold">
+          <p className="border-l-2 border-[#33C6D0] pl-3 text-sm font-semibold text-[#72E7E2]">
             Design partner program <span className="text-slate-300">· Five teams</span>
           </p>
           <h1 className="mt-4 max-w-[14ch] text-4xl font-semibold leading-[1.04] tracking-[-0.035em] text-white sm:text-5xl">
@@ -62,18 +62,18 @@ export default async function DesignPartnerPage({ searchParams }: DesignPartnerP
           <DesignPartnerForm campaignSource={campaignSource} />
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 border-t border-white/20 pt-5 text-sm leading-6 text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col gap-3 border-t border-white/15 pt-5 text-sm leading-6 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <p>Reply within five business days. No review or public mention required.</p>
           <div className="flex gap-5">
             <Link
               href="/docs/prime"
-              className="focus-visible:ring-brand-ice text-slate-200 underline decoration-white/30 underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2"
+              className="text-slate-200 underline decoration-white/30 underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#33C6D0]"
             >
               Technical docs
             </Link>
             <Link
               href="/privacy#design-partner-applications"
-              className="focus-visible:ring-brand-ice text-slate-200 underline decoration-white/30 underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2"
+              className="text-slate-200 underline decoration-white/30 underline-offset-4 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#33C6D0]"
             >
               Application privacy
             </Link>

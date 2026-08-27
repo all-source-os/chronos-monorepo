@@ -1,12 +1,11 @@
 import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
-import { EarlyAccessBanner } from "@/components/early-access-banner";
 import { GeoReferralTracker } from "@/components/geo-referral-tracker";
 import { GoogleAnalytics } from "@/components/google-analytics";
 import { TailwindIndicator } from "@/components/tailwind-indicator";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import {
+  founderSchema,
   organizationSchema,
   softwareApplicationSchema,
   websiteSchema,
@@ -71,8 +70,8 @@ export const metadata: Metadata = constructMetadata({
 export const viewport: Viewport = {
   colorScheme: "dark",
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#063A6C" },
-    { media: "(prefers-color-scheme: light)", color: "#F7FBFF" },
+    { media: "(prefers-color-scheme: dark)", color: "black" },
+    { media: "(prefers-color-scheme: light)", color: "white" },
   ],
 };
 
@@ -92,6 +91,11 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(founderSchema()) }}
+        />
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data requires dangerouslySetInnerHTML
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema()) }}
         />
         <script
@@ -103,9 +107,7 @@ export default function RootLayout({
       <body className={cn("min-h-screen bg-background antialiased w-full mx-auto scroll-smooth")}>
         <GoogleAnalytics />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <EarlyAccessBanner />
           {children}
-          <ThemeToggle />
           <TailwindIndicator />
           <GeoReferralTracker />
           <Analytics />

@@ -28,7 +28,7 @@ const features = [
     description:
       "Four built-in roles with seven granular permissions covering event ingestion, querying, schema management, projection access, and tenant administration.",
     icon: Users,
-    color: "from-primary/20 to-primary/5",
+    color: "from-purple-500/20 to-purple-500/5",
   },
   {
     title: "Policy Engine with Custom Rules",
@@ -56,7 +56,7 @@ const features = [
     description:
       "Each tenant gets isolated API keys with configurable scopes and expiration. Rotate keys without downtime. Revoke compromised keys instantly across all services.",
     icon: Key,
-    color: "from-primary/20 to-primary/5",
+    color: "from-blue-500/20 to-blue-500/5",
   },
 ];
 
@@ -134,13 +134,13 @@ export default function MultiTenantSaasPage() {
         </p>
         <div className="mx-auto max-w-3xl">
           <div className="overflow-hidden rounded-xl border">
-            <div className="bg-brand-ink flex items-center gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
               <div className="h-3 w-3 rounded-full bg-red-500" />
               <div className="h-3 w-3 rounded-full bg-yellow-500" />
               <div className="h-3 w-3 rounded-full bg-green-500" />
               <span className="ml-4 font-mono text-sm text-neutral-400">tenant-setup.sh</span>
             </div>
-            <pre className="bg-brand-ink/95 overflow-x-auto p-6 text-sm leading-relaxed text-green-400">
+            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
               {`# 1. Create a new tenant with quota limits
 curl -s -X POST https://api.all-source.xyz/api/v1/tenants \\
   -H "Authorization: Bearer $ADMIN_KEY" \\

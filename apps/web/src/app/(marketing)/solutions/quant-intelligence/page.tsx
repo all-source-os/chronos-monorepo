@@ -31,7 +31,7 @@ const capabilities = [
       "By Date: Microsecond timestamp precision",
     ],
     metric: "32 partitions",
-    color: "from-primary/20 to-primary/5",
+    color: "from-blue-500/20 to-blue-500/5",
   },
   {
     question: "How fast is time slicing?",
@@ -70,7 +70,7 @@ const capabilities = [
       "Event Replay: Full deterministic replay",
     ],
     metric: "Replayable inputs",
-    color: "from-primary/20 to-primary/5",
+    color: "from-purple-500/20 to-purple-500/5",
   },
   {
     question: "How easy is Python integration?",
@@ -312,7 +312,7 @@ export default function QuantIntelligencePage() {
                 <div className="flex-grow">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold">{cap.question}</h3>
-                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-foreground">
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                       {cap.metric}
                     </span>
                   </div>

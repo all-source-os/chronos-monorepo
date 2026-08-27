@@ -85,7 +85,7 @@ cn sync`;
 function CodeBlock({ title, code }: { title: string; code: string }) {
   return (
     <motion.div
-      className="bg-brand-ink overflow-hidden rounded-xl border"
+      className="overflow-hidden rounded-xl border bg-[#0c0c14]"
       initial={{ opacity: 0, y: 10 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -114,7 +114,7 @@ export default function TenantSetupPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-foreground">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary">
             <Key className="h-4 w-4" />
             Docs
           </div>

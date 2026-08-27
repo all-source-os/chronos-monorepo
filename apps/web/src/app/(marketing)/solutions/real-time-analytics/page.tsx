@@ -20,14 +20,14 @@ const features = [
     description:
       "Serve event queries, stream discovery, schemas, projection state, and replay jobs through authenticated request-response endpoints.",
     icon: Zap,
-    color: "from-primary/20 to-primary/5",
+    color: "from-cyan-500/20 to-cyan-500/5",
   },
   {
     title: "Rebuildable Read Models",
     description:
       "Fold each tenant's Core stream into current-state projections. Rebuild them from durable history when projection logic changes.",
     icon: Layers,
-    color: "from-primary/20 to-primary/5",
+    color: "from-blue-500/20 to-blue-500/5",
   },
   {
     title: "Phoenix Realtime Channels",
@@ -70,7 +70,7 @@ export default function RealTimeAnalyticsPage() {
           transition={{ duration: 0.6 }}
         >
           <span className="inline-flex items-center gap-2 rounded-full border bg-background/50 px-4 py-1.5 text-sm backdrop-blur-sm">
-            <Activity className="h-4 w-4 text-primary" />
+            <Activity className="h-4 w-4 text-cyan-400" />
             Query Service read plane
           </span>
           <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-6xl">
@@ -110,7 +110,7 @@ export default function RealTimeAnalyticsPage() {
                 key={metric.label}
                 className="rounded-xl border bg-background/50 p-4 backdrop-blur-sm"
               >
-                <div className="text-2xl font-bold text-primary">{metric.value}</div>
+                <div className="text-2xl font-bold text-cyan-400">{metric.value}</div>
                 <div className="text-sm text-muted-foreground">{metric.label}</div>
               </div>
             ))}
@@ -154,7 +154,7 @@ export default function RealTimeAnalyticsPage() {
         </p>
         <div className="mx-auto max-w-3xl">
           <div className="overflow-hidden rounded-xl border">
-            <div className="bg-brand-ink flex items-center gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
               <div className="h-3 w-3 rounded-full bg-red-500" />
               <div className="h-3 w-3 rounded-full bg-yellow-500" />
               <div className="h-3 w-3 rounded-full bg-green-500" />
@@ -162,7 +162,7 @@ export default function RealTimeAnalyticsPage() {
                 query-service-paths.txt
               </span>
             </div>
-            <pre className="bg-brand-ink/95 overflow-x-auto p-6 text-sm leading-relaxed text-green-400">
+            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
               {`# 1. HTTP — request-response event query
 curl -s "https://your-query-service.example.com/api/events/query?event_type=page_view&limit=100" \\
   -H "Authorization: Bearer $API_KEY" \\
@@ -184,7 +184,7 @@ socket.channel("events:all", {}).join();`}
 
       {/* CTA */}
       <Section className="pb-24 text-center">
-        <BarChart3 className="mx-auto mb-4 h-12 w-12 text-primary" />
+        <BarChart3 className="mx-auto mb-4 h-12 w-12 text-cyan-400" />
         <h2 className="mb-4 text-3xl font-bold">Choose read path, not another database</h2>
         <p className="mx-auto mb-8 max-w-xl text-muted-foreground">
           Use HTTP for request-response reads, Phoenix Channels for live delivery, analytics routes

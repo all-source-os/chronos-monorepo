@@ -22,10 +22,7 @@ export default function CtaSection() {
         <div className="mt-8 flex shrink-0 flex-col gap-3 sm:flex-row lg:mt-0 lg:flex-col xl:flex-row">
           <Link
             href="/signup"
-            className={cn(
-              buttonVariants({ variant: "default" }),
-              "gap-2 px-6 text-primary-foreground"
-            )}
+            className={cn(buttonVariants({ variant: "default" }), "gap-2 px-6 text-background")}
           >
             <Icons.logo className="h-4 w-4" />
             Start 14-day trial

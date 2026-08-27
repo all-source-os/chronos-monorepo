@@ -27,7 +27,7 @@ export default function BlogCard({ data, priority }: { data: Post; priority?: bo
             {formatDate(data.publishedAt)}
           </time>
           {categoryLabel && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-foreground">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
               {categoryLabel}
             </span>
           )}

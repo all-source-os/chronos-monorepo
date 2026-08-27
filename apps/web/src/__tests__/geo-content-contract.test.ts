@@ -49,19 +49,6 @@ describe("GEO canonical product facts", () => {
     ]);
   });
 
-  it("keeps public pages on the canonical blue marketing theme", () => {
-    const globals = source("src/app/globals.css");
-    const home = source("src/app/page.tsx");
-    const marketingLayout = source("src/app/(marketing)/layout.tsx");
-
-    expect(globals).toContain("--brand-field: #063a6c");
-    expect(globals).toContain("--brand-surface: #07549a");
-    expect(globals).toContain(".dark .marketing-theme");
-    expect(home).toContain("marketing-theme");
-    expect(marketingLayout).toContain("marketing-theme");
-    expect(siteConfig.links).not.toHaveProperty("instagram");
-  });
-
   it("keeps answer-first entity surfaces aligned", () => {
     const answerSurfaces = [
       "public/llms.txt",

@@ -1,12 +1,18 @@
+import { cookies } from "next/headers";
+import { EarlyAccessBanner } from "@/components/early-access-banner";
 import Footer from "@/components/sections/footer";
 import Header from "@/components/sections/header";
 
-export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+export default async function MarketingLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const bannerDismissed = cookieStore.get("allsource-design-partners-dismissed")?.value === "1";
+
   return (
-    <div className="marketing-theme min-h-screen bg-background text-foreground">
+    <>
+      <EarlyAccessBanner initialDismissed={bannerDismissed} />
       <Header />
       <main id="main-content">{children}</main>
       <Footer />
-    </div>
+    </>
   );
 }

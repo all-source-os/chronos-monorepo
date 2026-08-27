@@ -4,6 +4,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Privacy Policy",
   description: `Privacy Policy for ${siteConfig.name} - how we collect, use, and protect your data.`,
+  canonical: "/privacy",
 });
 
 export default function PrivacyPolicy() {
@@ -17,9 +18,9 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-semibold text-foreground mb-3">1. Introduction</h2>
           <p className="text-muted-foreground leading-relaxed">
             AllSource (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) operates the AllSource
-            platform, including the Chronos event store, query service, MCP server, and web
-            dashboard (collectively, the &quot;Service&quot;). This Privacy Policy explains how we
-            collect, use, disclose, and safeguard your information when you use our Service.
+            platform, including AllSource Core, Query Service, MCP servers, and web dashboard
+            (collectively, the &quot;Service&quot;). This Privacy Policy explains how we collect,
+            use, disclose, and safeguard your information when you use our Service.
           </p>
         </section>
 

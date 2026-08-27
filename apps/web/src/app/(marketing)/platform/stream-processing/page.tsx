@@ -221,7 +221,7 @@ export default function StreamProcessingPage() {
   ]);
 
   return (
-    <main className="overflow-hidden">
+    <div className="overflow-hidden">
       <JsonLd value={breadcrumb} />
       <JsonLd value={faqPageSchema(streamProcessingFaqs)} />
 
@@ -376,10 +376,10 @@ export default function StreamProcessingPage() {
               This example matches the current Rust `PipelineConfig` serde shape, including required
               `id` and `output` fields and nested window aggregation.
             </p>
-            <div className="bg-brand-ink mt-8 overflow-hidden border border-border">
+            <div className="mt-8 overflow-hidden border border-border bg-[#0b1522]">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                 <span className="font-mono text-xs text-white/60">daily-revenue.json</span>
-                <span className="text-brand-ice font-mono text-[0.65rem] uppercase tracking-[0.16em]">
+                <span className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-cyan-400">
                   POST /api/v1/pipelines
                 </span>
               </div>
@@ -555,6 +555,6 @@ export default function StreamProcessingPage() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

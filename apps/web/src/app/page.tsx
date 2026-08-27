@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+import { EarlyAccessBanner } from "@/components/early-access-banner";
 import Blog from "@/components/sections/blog";
 import CTA from "@/components/sections/cta";
 import FAQ from "@/components/sections/faq";
@@ -20,9 +22,12 @@ export default async function Home() {
   // Live LemonSqueezy prices (source of truth) for the hero CTA + pricing cards.
   const catalog = await fetchCatalog();
   const indiePrice = indexByTier(catalog).indie?.monthly?.formatted ?? defaultIndiePrice;
+  const cookieStore = await cookies();
+  const bannerDismissed = cookieStore.get("allsource-design-partners-dismissed")?.value === "1";
 
   return (
-    <main className="marketing-theme relative min-h-screen overflow-hidden bg-background text-foreground">
+    <main className="relative overflow-hidden">
+      <EarlyAccessBanner initialDismissed={bannerDismissed} />
       <Header />
       <Hero indiePrice={indiePrice} />
       {/* Stats demoted below the fold — final values painted, never "0K" flash */}

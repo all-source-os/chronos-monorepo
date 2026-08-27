@@ -49,7 +49,7 @@ const features = [
     description:
       "Cross-reference transaction logs and flag discrepancies as new events arrive. The published 11.9us p99 Core indexed-read reference does not measure a complete reconciliation workflow.",
     icon: CreditCard,
-    color: "from-primary/20 to-primary/5",
+    color: "from-cyan-500/20 to-cyan-500/5",
   },
   {
     title: "Multi-Tenant Isolation for Client Accounts",
@@ -134,13 +134,13 @@ export default function FinancialServicesPage() {
         </p>
         <div className="mx-auto max-w-3xl">
           <div className="overflow-hidden rounded-xl border">
-            <div className="bg-brand-ink flex items-center gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 bg-neutral-900 px-4 py-3">
               <div className="h-3 w-3 rounded-full bg-red-500" />
               <div className="h-3 w-3 rounded-full bg-yellow-500" />
               <div className="h-3 w-3 rounded-full bg-green-500" />
               <span className="ml-4 font-mono text-sm text-neutral-400">balance-timetravel.sh</span>
             </div>
-            <pre className="bg-brand-ink/95 overflow-x-auto p-6 text-sm leading-relaxed text-green-400">
+            <pre className="overflow-x-auto bg-neutral-950 p-6 text-sm leading-relaxed text-green-400">
               {`# What was account balance at market close on March 15th?
 curl -s https://api.all-source.xyz/api/v1/events/query \\
   -H "Authorization: Bearer $API_KEY" \\

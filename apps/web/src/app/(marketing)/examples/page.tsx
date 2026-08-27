@@ -10,6 +10,7 @@ import { constructMetadata } from "@/lib/utils";
 export const metadata = constructMetadata({
   title: "Interactive AllSource Demo: Timeline, Time Travel, Graph, Pipelines, Projections, MCP",
   description: `Use one ${siteConfig.name} event stream to demo event timelines, point-in-time state, graph visualisation, pipelines, projections, and MCP data access.`,
+  canonical: "/examples",
 });
 
 const codeExamples = [

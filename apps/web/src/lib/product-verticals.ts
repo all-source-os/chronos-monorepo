@@ -34,7 +34,7 @@ export const productVerticals: readonly ProductVertical[] = [
     id: "query",
     name: "AllSource Query Service",
     role: "Read",
-    path: "/solutions/real-time-analytics",
+    path: "/platform/query-service",
     directAnswer:
       "Stateless Elixir/Phoenix read plane that separates tenant-scoped HTTP queries, realtime channels, analytics endpoints, and rebuildable read models over Core events.",
     stores:

@@ -24,20 +24,20 @@ const brandSvg = (className: string | undefined, children: React.ReactNode) => (
 
 export const Icons = {
   logo: ({ className, style }: IconProps) => (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/logo.png"
-      alt="all.source"
+    <svg
+      viewBox="0 0 512 512"
+      aria-hidden="true"
       className={cn(
         "h-6 w-6 object-contain",
         "drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]",
         "hover:drop-shadow-[0_4px_12px_rgba(79,195,247,0.5)]",
-        "transition-all duration-300",
-        "hover:scale-110",
+        "transition-shadow duration-200",
         className
       )}
       style={style}
-    />
+    >
+      <image href="/logo.svg" width="512" height="512" />
+    </svg>
   ),
   google: ({ className }: IconProps) => (
     <svg className={cn("h-4 w-4", className)} viewBox="0 0 24 24" aria-hidden="true">

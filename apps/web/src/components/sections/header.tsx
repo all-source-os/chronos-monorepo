@@ -1,11 +1,13 @@
 import { buttonVariants, cn, Icons } from "@allsource/ui";
 import { Menu } from "lucide-react";
 import Link from "next/link";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { siteConfig } from "@/lib/config";
 
 const primaryNavigation = [
   { href: "/what-is-allsource", label: "Product map" },
   { href: "/platform/event-sourcing", label: "Event store" },
+  { href: "/platform/query-service", label: "Query service" },
   { href: "/prime", label: "Agent memory" },
   { href: "/design-partners", label: "Design partners" },
   { href: "/use-cases", label: "Use cases" },
@@ -21,7 +23,7 @@ export default function Header() {
         <Link
           href="/"
           title="AllSource home"
-          className="flex shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-12 shrink-0 items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Icons.logo className="h-9 w-9" aria-hidden="true" />
           <span className="leading-tight">
@@ -32,32 +34,33 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-1 xl:flex">
           {primaryNavigation.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex min-h-12 items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {item.label}
             </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 xl:flex">
+          <ThemeToggle />
           <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
             Sign in
           </Link>
           <Link
             href="/signup"
-            className={cn(buttonVariants({ variant: "default" }), "text-primary-foreground")}
+            className={cn(buttonVariants({ variant: "default" }), "text-background")}
           >
             Start 14-day trial
           </Link>
         </div>
 
-        <details className="group relative lg:hidden">
-          <summary className="flex h-10 cursor-pointer list-none items-center gap-2 rounded-md border border-border px-3 text-sm font-medium marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <details className="group relative xl:hidden">
+          <summary className="flex h-12 cursor-pointer list-none items-center gap-2 rounded-md border border-border px-3 text-sm font-medium marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Menu className="h-4 w-4" aria-hidden="true" />
             Menu
           </summary>
@@ -67,19 +70,23 @@ export default function Header() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex min-h-12 items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {item.label}
                 </Link>
               ))}
             </nav>
             <div className="mt-2 grid gap-2 border-t border-border pt-2">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <span className="text-sm text-muted-foreground">Theme</span>
+                <ThemeToggle />
+              </div>
               <Link href="/login" className={buttonVariants({ variant: "outline" })}>
                 Sign in
               </Link>
               <Link
                 href="/signup"
-                className={cn(buttonVariants({ variant: "default" }), "text-primary-foreground")}
+                className={cn(buttonVariants({ variant: "default" }), "text-background")}
               >
                 Start 14-day trial
               </Link>

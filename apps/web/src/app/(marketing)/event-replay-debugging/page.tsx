@@ -382,7 +382,7 @@ export default function EventReplayDebuggingPage() {
         </div>
       </Section>
 
-      <Section className="bg-brand-ink border-y border-border py-16 text-white sm:py-24">
+      <Section className="border-y border-border bg-[#090b12] py-16 text-white sm:py-24">
         <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.75fr_1.25fr] lg:items-start">
           <div>
             <Badge variant="outline" className="border-white/25 text-white">

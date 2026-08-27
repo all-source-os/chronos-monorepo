@@ -21,10 +21,12 @@ export async function GET(req: NextRequest) {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#063A6C",
+        // Branded dark gradient. Replaces a former url(/og.png) reference whose
+        // asset was missing, leaving every generated card on blank white.
+        backgroundColor: "#000",
         backgroundImage:
-          "radial-gradient(circle at 25% 15%, rgba(129,212,250,.28) 0%, transparent 42%), radial-gradient(circle at 80% 0%, rgba(41,182,246,.22) 0%, transparent 48%)",
-        color: "#F7FBFF",
+          "radial-gradient(circle at 25% 15%, #1e293b 0%, transparent 45%), radial-gradient(circle at 80% 0%, #0f172a 0%, transparent 50%)",
+        color: "#fff",
         fontSize: 32,
         fontWeight: 600,
       }}
@@ -39,8 +41,23 @@ export async function GET(req: NextRequest) {
           top: "125px",
         }}
       >
-        {/* biome-ignore lint/performance/noImgElement: ImageResponse requires a native image element. */}
-        <img src={`${siteConfig.url}/logo.png`} alt="AllSource logo" width={72} height={72} />
+        {/* Inline SVG logo — avoids importing @allsource/ui which bloats the edge bundle past 1MB */}
+        <svg
+          width="64"
+          height="64"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          role="img"
+          aria-label="AllSource logo"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+          <path d="M2 12h20" />
+        </svg>
 
         <div
           style={{
@@ -63,14 +80,13 @@ export async function GET(req: NextRequest) {
             fontSize: "16px",
             fontWeight: "500",
             marginTop: "16px",
-            color: "#D4E5F7",
+            color: "#808080",
           }}
         >
           {siteConfig.name}
         </div>
       </div>
 
-      {/* biome-ignore lint/performance/noImgElement: ImageResponse requires a native image element. */}
       <img
         src={`${siteConfig.url}/dashboard.png`}
         alt="Dashboard preview"
@@ -78,9 +94,11 @@ export async function GET(req: NextRequest) {
         style={{
           position: "relative",
           bottom: -160,
-          border: "4px solid #81D4FA",
-          background: "#F7FBFF",
+          aspectRatio: "auto",
+          border: "4px solid lightgray",
+          background: "lightgray",
           borderRadius: 20,
+          zIndex: 1,
         }}
       />
     </div>,

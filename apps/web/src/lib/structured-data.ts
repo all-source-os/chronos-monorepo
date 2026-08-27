@@ -15,6 +15,7 @@ import type { ProductVertical } from "@/lib/product-verticals";
 
 const ORG_ID = `${siteConfig.url}/#organization`;
 const WEBSITE_ID = `${siteConfig.url}/#website`;
+const FOUNDER_ID = `${siteConfig.url}/#founder`;
 
 /** Public profiles that prove the entity is the same one across the web. */
 const sameAs = [siteConfig.links.github, siteConfig.links.twitter];
@@ -29,18 +30,46 @@ export function organizationSchema() {
     url: siteConfig.url,
     logo: {
       "@type": "ImageObject",
-      url: `${siteConfig.url}/logo.png`,
+      url: `${siteConfig.url}/logo.svg`,
     },
     description:
       "Developer infrastructure for durable event history and AI-agent memory, built on an Apache-2.0 Rust event-store core. Published Core reference results: 469K events/sec ingestion and 11.9us p99 indexed reads.",
     disambiguatingDescription:
       "Developer infrastructure published at all-source.xyz; unrelated to Esri ArcGIS AllSource, the all-source intelligence discipline, and other companies using AllSource or Allsource.",
     sameAs,
+    founder: { "@id": FOUNDER_ID },
+    parentOrganization: {
+      "@type": "Organization",
+      name: "Wolven Tech",
+      url: "https://wolventech.com",
+    },
     contactPoint: {
       "@type": "ContactPoint",
       email: siteConfig.links.email,
       contactType: "customer service",
     },
+  };
+}
+
+export function founderSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "@id": FOUNDER_ID,
+    name: "Decebal Dobrica",
+    url: "https://decebaldobrica.com",
+    jobTitle: "Founder and product engineer",
+    worksFor: {
+      "@type": "Organization",
+      name: "Wolven Tech",
+      url: "https://wolventech.com",
+    },
+    knowsAbout: ["Event sourcing", "Rust", "AI agent memory", "Model Context Protocol"],
+    sameAs: [
+      "https://github.com/decebal",
+      "https://www.linkedin.com/in/decebaldobrica",
+      "https://x.com/ddonprogramming",
+    ],
   };
 }
 
@@ -162,7 +191,7 @@ export function softwareApplicationSchema(catalog?: Catalog | null) {
     url: siteConfig.url,
     applicationCategory: "DeveloperApplication",
     applicationSubCategory: "Event store / agent memory",
-    operatingSystem: "Linux, macOS, Windows (Docker), or fully hosted",
+    operatingSystem: "Linux, macOS, Windows",
     description:
       "AllSource Event Store records state changes as immutable events and lets applications or agents query prior state. Its Apache-2.0 Rust core uses a CRC32-checked write-ahead log, Parquet persistence, and concurrent indexed reads.",
     disambiguatingDescription:
@@ -221,9 +250,10 @@ export function blogPostingSchema(post: BlogPostingInput) {
     ...(post.keywords?.length && { keywords: post.keywords }),
     ...(typeof post.wordCount === "number" && { wordCount: post.wordCount }),
     author: {
-      "@type": "Organization",
-      name: post.author || siteConfig.name,
-      url: siteConfig.url,
+      "@type": "Person",
+      "@id": FOUNDER_ID,
+      name: post.author || "Decebal Dobrica",
+      url: "https://decebaldobrica.com",
     },
     publisher: { "@id": ORG_ID },
   };
