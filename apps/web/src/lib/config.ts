@@ -50,6 +50,7 @@ export const siteConfig = {
     twitter: "https://x.com/ddonprogramming",
     discord: "https://github.com/all-source-os/all-source/discussions",
     github: "https://github.com/all-source-os/all-source",
+    instagram: "https://instagram.com/allsourcedev",
   },
   header: [
     {
