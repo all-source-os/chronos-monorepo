@@ -250,3 +250,10 @@ Follow-up due for sent messages: 2026-09-03 (four business days).
 | 2026-08-28 02:43 | Tathastu Naranje | LinkedIn | `https://www.linkedin.com/in/tathastu-naranje/` | Profile URL and sent message verified. |
 | 2026-08-28 02:44 | Nithin R | LinkedIn | `https://www.linkedin.com/in/nithin-r-385943188/` | Profile URL and sent message verified. |
 | 2026-08-28 02:45 | Matthias Howell | LinkedIn | `https://www.linkedin.com/in/matthias-howell-7b115811/` | Profile URL and sent message verified. |
+
+## Reply log
+
+| Received (WEST) | Recipient | Reply | Response sent (WEST) | Outcome |
+| --- | --- | --- | --- | --- |
+| 2026-08-28 08:04 | Diogo Santos | Confirmed overlap; requested a concrete AllSource–ContextWeaver boundary example before deciding on a working session. | 2026-08-28 11:22 | Sent and verified: durable event timeline versus phase-aware selection, with restart-and-correction test flow. |
+| 2026-08-28 04:42 | Sanjay Rohith L | Asked to learn more. | 2026-08-28 11:22 | Sent and verified: event-history model plus a Dejavu correction, isolation, and historical-replay test flow. |
