@@ -16,9 +16,7 @@ Alternatives considered:
 
 ## Token system
 
-- Deep field `#063A6C`: public page background.
-- Surface blue `#07549A`: raised blue sections and cards.
-- Source ink `#122033`: code and diagnostic panels only.
+- Abyss `#0E1A2A`: existing dark site background.
 - Panel `#122235`: quiet execution surfaces.
 - Trace cyan `#12B7E8`: active operator path.
 - Signal green `#20C997`: supported result/status.

@@ -39,8 +39,7 @@ valid.
 - `max-w-3xl` centered content with 16–24px viewport gutters.
 - No sticky page content.
 - One clear headline, one offer block, one form.
-- AllSource deep blue `#063A6C` page field, paper form, and cyan accents. Use
-  `#07549A` for raised blue surfaces. Do not use near-black as page background.
+- Existing midnight/paper/cyan palette.
 - 44px controls, visible focus, no horizontal overflow at 320px.
 
 ## Verification

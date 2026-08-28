@@ -8,7 +8,7 @@ application without guessing what happens next.
 
 ## Chosen direction
 
-Use a conversion-first application brief. Keep AllSource's blue product
+Use a conversion-first application brief. Keep AllSource's midnight product
 identity, but remove generic landing-page decoration: blurred glows, ornamental
 grid, excessive pills, repeated terminal labels, oversized headline, and heavy
 card rounding. Retain one product-specific signature: a compact event trace that
@@ -22,8 +22,8 @@ Rejected alternatives:
 
 ## Visual system
 
-- Deep field: `#063A6C`
-- Surface blue: `#07549A`
+- Night: `#0B1522`
+- Deep panel: `#111E2E`
 - Paper: `#F7F9FC`
 - Ink: `#122033`
 - Signal cyan: `#33C6D0`
