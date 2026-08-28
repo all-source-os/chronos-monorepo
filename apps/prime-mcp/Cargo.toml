@@ -16,6 +16,11 @@ name = "allsource-prime"
 path = "src/main.rs"
 
 [features]
+# `cargo install allsource-prime` must work on a machine that cannot reach
+# HuggingFace, so the model is baked in by default (+86 MB). Shipped artifacts
+# pass --no-default-features and get the model from the bundle beside them; a
+# contributor who wants a fast build does the same.
+default = ["prime-bundled-model"]
 # In-process CPU profiling endpoint behind /debug/pprof/profile.
 # Gate at the HTTP layer — do NOT ship with this enabled by default.
 profiling = ["dep:pprof"]
