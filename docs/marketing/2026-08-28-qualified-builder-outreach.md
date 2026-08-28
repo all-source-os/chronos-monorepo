@@ -2,8 +2,10 @@
 
 Campaign: `design_partners_2026`
 
-Status: exact recipients and drafts prepared for founder review. Nothing below
-has been sent.
+Status: founder approved exact recipients and drafts. Eight LinkedIn messages
+were sent and verified on 2026-08-28. Kiell is blocked because DEV is signed
+out; Sajjad is blocked pending explicit approval to transmit sender contact
+details through his form.
 
 Rules:
 
@@ -225,9 +227,26 @@ Draft:
 
 ## Send checklist
 
-- [ ] Founder confirms exact ten recipients and drafts.
-- [ ] Open correct profile and verify name/project match again.
-- [ ] Send one message per recipient through listed channel.
-- [ ] Record send timestamp and canonical profile URL.
+- [x] Founder confirms exact ten recipients and drafts.
+- [x] Verify and send LinkedIn messages to Doniyor, Diogo, Sanjay,
+  Dineshsuriya, Izzy, Tathastu, Nithin, and Matthias.
+- [ ] Send Kiell through DEV Connect after DEV authentication.
+- [ ] Send Sajjad through his contact form after sender-data approval.
+- [x] Record send timestamps and canonical profile URLs.
 - [ ] Schedule one follow-up for four business days later.
 - [ ] Stop after follow-up unless recipient responds.
+
+## Send log
+
+Follow-up due for sent messages: 2026-09-03 (four business days).
+
+| Sent (WEST) | Recipient | Channel | Canonical profile | Verification |
+| --- | --- | --- | --- | --- |
+| 2026-08-28 02:32 | Doniyor Aliyev | LinkedIn | `https://www.linkedin.com/in/doniyor-aliyev/` | Conversation list showed sent message. |
+| 2026-08-28 02:36 | Diogo Santos | LinkedIn | `https://www.linkedin.com/in/diogo-santos-genious/` | Recipient URL and sent message verified. |
+| 2026-08-28 02:39 | Sanjay Rohith L | LinkedIn | `https://www.linkedin.com/in/sanjayrohith18/` | Profile URL and sent message verified. |
+| 2026-08-28 02:41 | Dineshsuriya D | LinkedIn | `https://www.linkedin.com/in/dinesh106/` | Profile URL and sent message verified. |
+| 2026-08-28 02:42 | Israel “Izzy” Ekpo | LinkedIn | `https://www.linkedin.com/in/israelekpo/` | Profile URL and sent message verified. |
+| 2026-08-28 02:43 | Tathastu Naranje | LinkedIn | `https://www.linkedin.com/in/tathastu-naranje/` | Profile URL and sent message verified. |
+| 2026-08-28 02:44 | Nithin R | LinkedIn | `https://www.linkedin.com/in/nithin-r-385943188/` | Profile URL and sent message verified. |
+| 2026-08-28 02:45 | Matthias Howell | LinkedIn | `https://www.linkedin.com/in/matthias-howell-7b115811/` | Profile URL and sent message verified. |
