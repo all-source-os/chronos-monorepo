@@ -46,16 +46,16 @@ Rules:
 | `saterdoe` | Oberth memory provenance | 2026-08-29 | GitHub issue | Awaiting batch approval | No |
 | René-Jean Corneille / `RonsenbergVI` | Fraise recall traceability | 2026-08-29 | GitHub issue | Awaiting batch approval | No |
 | Abhinaysai Kamineni / `askmy-stack` | Parallax stale-memory recovery | 2026-08-29 | GitHub issue | Awaiting batch approval | No |
-| Allison Coleman / `alliecatowo` | Polyphony crash-safe orchestration | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Edi Hasaj / `edihasaj` | Paseo Docker agent recovery | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Keith Struzzieri / `kstruzzieri` | go-llm memory provenance | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| `eooo-io` | Tessera GraphRun memory provenance | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Jesse Vincent / `obra` | Evener episodic recall | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Coby / `cglusky` | SemStreams restart settlement | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Harshit Singh Bhandari / `harshitsinghbhandari` | Hosted AO machine handoff | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Tatsuro Shibamura / `shibayan` | Agent Framework JS state ownership | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Andrew Burke / `Aburke225` | PathReview restart recovery | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
-| Jimmy McBride / `JimmyMcBride` | Brain Cloud agent-authored provenance | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Allison Coleman / `alliecatowo` | Polyphony crash-safe orchestration | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Edi Hasaj / `edihasaj` | Paseo Docker agent recovery | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Keith Struzzieri / `kstruzzieri` | go-llm memory provenance | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| `eooo-io` | Tessera GraphRun memory provenance | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Jesse Vincent / `obra` | Evener episodic recall | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Coby / `cglusky` | SemStreams restart settlement | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Harshit Singh Bhandari / `harshitsinghbhandari` | Hosted AO machine handoff | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Tatsuro Shibamura / `shibayan` | Agent Framework JS state ownership | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Andrew Burke / `Aburke225` | PathReview restart recovery | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Jimmy McBride / `JimmyMcBride` | Brain Cloud agent-authored provenance | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
 
 Prior batch detail and verified send log:
 [`docs/marketing/2026-08-28-qualified-builder-outreach.md`](../marketing/2026-08-28-qualified-builder-outreach.md).
@@ -338,7 +338,7 @@ Message (91 words):
 
 ## Batch — 2026-08-30 08:00 UTC
 
-Batch status: **awaiting founder approval; nothing sent**.
+Batch status: **approved and sent; all ten public replies verified**.
 
 Research used public GitHub repositories, issue bodies, profiles, and
 contributor histories. All ten builders are new to this ledger and actively
@@ -608,14 +608,23 @@ Message (86 words):
 
 ## 2026-08-30 approval and send log
 
-- [ ] Founder approves exact ten recipients and exact drafts.
-- [ ] Send approved messages one at a time through authenticated channels.
-- [ ] Verify each successful send and record canonical URL, timestamp, and
+- [x] Founder approved exact ten recipients and exact drafts.
+- [x] Sent approved messages one at a time through authenticated channels.
+- [x] Verified each successful send and recorded canonical URL, timestamp, and
   outcome below.
 
 | Sent time | Recipient | Channel | Public URL | Outcome |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Awaiting approval |
+| 2026-08-30 12:21 WEST | Allison Coleman | GitHub issue | <https://github.com/alliecatowo/polyphony/issues/3#issuecomment-5468370730> | Sent and verified |
+| 2026-08-30 12:21 WEST | Edi Hasaj | GitHub issue | <https://github.com/getpaseo/paseo/issues/3935#issuecomment-5468370831> | Sent and verified |
+| 2026-08-30 12:21 WEST | Keith Struzzieri | GitHub issue | <https://github.com/kstruzzieri/go-llm/issues/446#issuecomment-5468370903> | Sent and verified |
+| 2026-08-30 12:21 WEST | `eooo-io` | GitHub issue | <https://github.com/eooo-io/tessera/issues/86#issuecomment-5468370972> | Sent and verified |
+| 2026-08-30 12:21 WEST | Jesse Vincent | GitHub issue | <https://github.com/prime-radiant-inc/evener/issues/334#issuecomment-5468371050> | Sent and verified |
+| 2026-08-30 12:21 WEST | Coby | GitHub issue | <https://github.com/C360Studio/semstreams/issues/1146#issuecomment-5468372455> | Sent and verified |
+| 2026-08-30 12:21 WEST | Harshit Singh Bhandari | GitHub issue | <https://github.com/agentlab-in/hosted-ao/issues/136#issuecomment-5468372561> | Sent and verified |
+| 2026-08-30 12:21 WEST | Tatsuro Shibamura | GitHub issue | <https://github.com/polymind-inc/agent-framework-js/issues/104#issuecomment-5468372624> | Sent and verified |
+| 2026-08-30 12:21 WEST | Andrew Burke | GitHub issue | <https://github.com/codepath/pathreview/issues/17#issuecomment-5468372718> | Sent and verified |
+| 2026-08-30 12:21 WEST | Jimmy McBride | GitHub issue | <https://github.com/JimmyMcBride/brain-cloud/issues/19#issuecomment-5468372785> | Sent and verified |
 
 ## Batch — 2026-08-29 08:00 UTC
 
