@@ -46,6 +46,16 @@ Rules:
 | `saterdoe` | Oberth memory provenance | 2026-08-29 | GitHub issue | Awaiting batch approval | No |
 | René-Jean Corneille / `RonsenbergVI` | Fraise recall traceability | 2026-08-29 | GitHub issue | Awaiting batch approval | No |
 | Abhinaysai Kamineni / `askmy-stack` | Parallax stale-memory recovery | 2026-08-29 | GitHub issue | Awaiting batch approval | No |
+| Allison Coleman / `alliecatowo` | Polyphony crash-safe orchestration | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Edi Hasaj / `edihasaj` | Paseo Docker agent recovery | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Keith Struzzieri / `kstruzzieri` | go-llm memory provenance | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| `eooo-io` | Tessera GraphRun memory provenance | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Jesse Vincent / `obra` | Evener episodic recall | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Coby / `cglusky` | SemStreams restart settlement | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Harshit Singh Bhandari / `harshitsinghbhandari` | Hosted AO machine handoff | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Tatsuro Shibamura / `shibayan` | Agent Framework JS state ownership | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Andrew Burke / `Aburke225` | PathReview restart recovery | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
+| Jimmy McBride / `JimmyMcBride` | Brain Cloud agent-authored provenance | 2026-08-30 | GitHub issue | Awaiting batch approval | No |
 
 Prior batch detail and verified send log:
 [`docs/marketing/2026-08-28-qualified-builder-outreach.md`](../marketing/2026-08-28-qualified-builder-outreach.md).
@@ -316,6 +326,287 @@ Message (91 words):
 > reply “pass” and I will not follow up.
 
 ## Approval and send log
+
+- [ ] Founder approves exact ten recipients and exact drafts.
+- [ ] Send approved messages one at a time through authenticated channels.
+- [ ] Verify each successful send and record canonical URL, timestamp, and
+  outcome below.
+
+| Sent time | Recipient | Channel | Public URL | Outcome |
+| --- | --- | --- | --- | --- |
+| — | — | — | — | Awaiting approval |
+
+## Batch — 2026-08-30 08:00 UTC
+
+Batch status: **awaiting founder approval; nothing sent**.
+
+Research used public GitHub repositories, issue bodies, profiles, and
+contributor histories. All ten builders are new to this ledger and actively
+own or contribute to the named projects. Proposed channel: context-matched
+public GitHub issue reply.
+
+### 1. Allison Coleman — Polyphony
+
+- Builder: Allison Coleman (`alliecatowo`), Polyphony owner and primary
+  contributor.
+- Public source: [Polyphony crash-recovery issue](https://github.com/alliecatowo/polyphony/issues/3).
+- Exact public evidence: Polyphony plans durable checkpoints for orchestrator
+  state, issue claims, attempts, workspace paths, Codex thread/turn IDs, and
+  shared app-server connectivity. Restart recovery must reconcile GitHub state
+  without double-dispatch.
+- Inferred memory problem: worker recovery needs one ordered history proving
+  which attempt, claim, and external state were current before restart.
+- Fit: active Elixir coding-agent orchestrator with explicit restart tests and
+  replay/idempotency requirements.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/alliecatowo/polyphony/issues/3>.
+
+Message (78 words):
+
+> Allison — Polyphony #3 tracks durable checkpoints for issue claims, workspace
+> paths, Codex thread/turn IDs, and restart reconciliation without
+> double-dispatch. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test one crash boundary: persist orchestration
+> events, restart a worker, reconcile GitHub and prior attempts, then prove
+> exactly which work resumed or requeued. Design-partner access is available if
+> useful. Interested in a small Elixir adapter experiment? If not, reply “pass”
+> and I will not follow up.
+
+### 2. Edi Hasaj — Paseo
+
+- Builder: Edi Hasaj (`edihasaj`), Paseo contributor and issue author.
+- Public source: [Paseo Docker-recovery issue](https://github.com/getpaseo/paseo/issues/3935).
+- Exact public evidence: persistent `/home/paseo` retains agent records and
+  provider handles after container replacement, but active agents still need
+  manual recovery. Eligible sessions should resume without unknown mid-tool
+  replay or repeated retry.
+- Inferred memory problem: persistence handles lack a durable recovery decision
+  showing why a session resumed, stopped, or became non-resumable.
+- Fit: large active coding-agent orchestrator with a concrete Docker restart
+  boundary and duplicate-work constraint.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/getpaseo/paseo/issues/3935>.
+
+Message (81 words):
+
+> Edi — Paseo #3935 preserves `/home/paseo` and provider session handles across
+> container replacement, yet active agents still need manual recovery. I build
+> AllSource, an event-sourced agent-memory and provenance layer. I can help test
+> a recovery ledger that records interruption, provider resumability, user
+> cancellation, and final resume/requeue choice, without replaying unknown
+> mid-tool work. That would make each startup decision inspectable rather than
+> inferred from current records. Worth testing on one Docker flow? If not,
+> reply “pass” and I will leave it there.
+
+### 3. Keith Struzzieri — go-llm
+
+- Builder: Keith Struzzieri (`kstruzzieri`), go-llm owner and primary
+  contributor.
+- Public source: [go-llm provenance issue](https://github.com/kstruzzieri/go-llm/issues/446).
+- Exact public evidence: signed agent-written memories can remain valid yet
+  poisoned, then re-enter every later session. Planned controls add originating
+  session, tool, trust class, recall-time fencing, and human promotion.
+- Inferred memory problem: signatures prove integrity but not changing trust or
+  supersession history across recalls.
+- Fit: active Go agent stack with MCP recall paths and an explicit cross-session
+  memory-injection threat.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/kstruzzieri/go-llm/issues/446>.
+
+Message (81 words):
+
+> Keith — go-llm #446 identifies a sharp failure: a correctly signed poisoned
+> memory can re-enter every future session. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test immutable trust transitions
+> around your session, origin-tool, and trust-class fields: agent write, human
+> promotion, later revocation, then replay of what each session was allowed to
+> recall. That complements fencing without treating signatures as authority.
+> Interested in one MCP recall-path experiment? If not, reply “pass” and I will
+> not follow up.
+
+### 4. `eooo-io` — Tessera
+
+- Builder: `eooo-io`, Tessera owner and primary contributor.
+- Public source: [Tessera GraphRun-memory issue](https://github.com/eooo-io/tessera/issues/86).
+- Exact public evidence: Tessera makes working graph state ephemeral while
+  durable memory follows `GraphRun → NodeRun → evidence/artifact → proposal →
+  review/promotion`. Node context and handoff packages must stay least-privilege.
+- Inferred memory problem: promotion needs durable lineage from recalled memory
+  back to exact graph node, evidence, and review decision.
+- Fit: active Rust agent context vault centered on policy-gated retrieval,
+  auditable receipts, and cross-node provenance.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/eooo-io/tessera/issues/86>.
+
+Message (80 words):
+
+> Tessera #86 defines a useful chain: GraphRun → NodeRun → evidence → memory
+> proposal → review/promotion, with node-scoped context and explicit handoffs. I
+> build AllSource, an event-sourced agent-memory and provenance layer. I can help
+> test that chain as immutable transitions, then reconstruct which evidence and
+> review made a memory eligible for one node without leaking it to another.
+> Design-partner access is available if useful. Interested in a bounded Rust
+> integration? If not, reply “pass” and I will not follow up.
+
+### 5. Jesse Vincent — Evener
+
+- Builder: Jesse Vincent (`obra`), Evener primary contributor and issue author.
+- Public source: [Evener episodic-recall issue](https://github.com/prime-radiant-inc/evener/issues/334).
+- Exact public evidence: Evener needs prior-session recall without loading full
+  transcripts. Design questions include retrieval units, project/session/agent/
+  branch/time lineage filters, source links, redaction, deletion, and isolation
+  from transcript prompt injection.
+- Inferred memory problem: vector recall alone cannot reconstruct which
+  transcript version or branch supplied a fact at decision time.
+- Fit: active multi-provider coding agent with explicit local-first memory,
+  provenance, security, and evaluation requirements.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/prime-radiant-inc/evener/issues/334>.
+
+Message (86 words):
+
+> Jesse — Evener #334 asks how episodic recall should preserve project, session,
+> agent, branch, time, and source-transcript lineage without exposing raw
+> untrusted history. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test one retrieval unit against immutable
+> transcript events: recall a fact, retain exact source and branch, correct it
+> later, then reconstruct what the agent saw before correction. That gives your
+> recall agent a narrow auditable substrate. Worth a small Go experiment? If
+> not, reply “pass” and I will leave it there.
+
+### 6. Coby — SemStreams
+
+- Builder: Coby (`cglusky`), SemStreams primary contributor and issue author.
+- Public source: [SemStreams restart-settlement issue](https://github.com/C360Studio/semstreams/issues/1146).
+- Exact public evidence: agentic-loop persists `LoopEntity` but keeps model
+  context, tool call ordering, correlation, and caches in process memory. After
+  restart, missing state can return success, ACK durable JetStream input, and
+  strand or lose a transition.
+- Inferred memory problem: durable input and process-local continuation lack a
+  shared, replayable transition history for commit-unknown windows.
+- Fit: beta-gating streaming agent framework issue with stable identities,
+  approval recovery, redelivery, and real-NATS replacement tests.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/C360Studio/semstreams/issues/1146>.
+
+Message (84 words):
+
+> Coby — SemStreams #1146 shows durable JetStream inputs being ACKed after a
+> replacement process loses model context, tool correlation, or approval state,
+> leaving loops stranded. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test one named failpoint: record stable
+> request/call transitions, crash after durable result but before publication,
+> then reconstruct whether redelivery should replay, reconcile, or terminate.
+> This would target one boundary, not introduce a generic supervisor. Useful to
+> compare? If not, reply “pass” and I will not follow up.
+
+### 7. Harshit Singh Bhandari — Hosted AO
+
+- Builder: Harshit Singh Bhandari (`harshitsinghbhandari`), Hosted AO primary
+  contributor and issue author.
+- Public source: [Hosted AO machine-handoff issue](https://github.com/agentlab-in/hosted-ao/issues/136).
+- Exact public evidence: Hosted AO plans active session handoff from machine A
+  to B through checkpoint/export and restore/resume. Portable context and
+  workspace state need integrity checks; secrets and machine-local runtime must
+  stay excluded or be re-established.
+- Inferred memory problem: checkpoint contents need explicit provenance and
+  version history so destination can prove what resumed and what was rebuilt.
+- Fit: active multi-machine coding-agent orchestrator with a concrete portable
+  state and failure-recovery workflow.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/agentlab-in/hosted-ao/issues/136>.
+
+Message (83 words):
+
+> Harshit — Hosted AO #136 needs machine A → B handoff while preserving portable
+> session/workspace state, excluding secrets, and leaving source recoverable when
+> transfer fails. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test an export manifest whose state transitions, integrity
+> checks, exclusions, and restore outcome remain replayable, so destination can
+> prove what resumed versus what was recreated locally. Design-partner access is
+> available. Interested in one Go handoff experiment? If not, reply “pass” and I
+> will not follow up.
+
+### 8. Tatsuro Shibamura — Agent Framework JS
+
+- Builder: Tatsuro Shibamura (`shibayan`), Agent Framework JS contributor and
+  issue author.
+- Public source: [provider-state ownership issue](https://github.com/polymind-inc/agent-framework-js/issues/104).
+- Exact public evidence: stored OpenAI responses return an ID, but fresh local
+  sessions refuse to adopt it, so every turn replays full local history and
+  duplicates provider storage. Adoption would instead transfer transcript
+  ownership and retention dependency to provider state.
+- Inferred memory problem: local and provider histories need an explicit,
+  durable ownership transition to avoid double injection and ambiguous resume.
+- Fit: active agent framework with serialized-session restoration, hosted
+  approval, tool-round, and migration constraints.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/polymind-inc/agent-framework-js/issues/104>.
+
+Message (84 words):
+
+> Tatsuro — Agent Framework JS #104 exposes an ownership fork: keep portable
+> local history and replay it every turn, or adopt OpenAI’s stored response ID
+> and depend on provider retention. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test an explicit ownership event
+> that records promotion, dormant local history, provider continuation IDs, and
+> restoration behavior without double injection. That makes later resume
+> decisions reconstructable. Worth comparing against one serialized session? If
+> not, reply “pass” and I will leave it there.
+
+### 9. Andrew Burke — PathReview
+
+- Builder: Andrew Burke (`Aburke225`), PathReview contributor and issue author.
+- Public source: [PathReview restart-state issue](https://github.com/codepath/pathreview/issues/17).
+- Exact public evidence: portfolio reviews spanning five or more repositories
+  lose progress across API restart because in-flight agent state stays in
+  memory and reaches Redis only after completion.
+- Inferred memory problem: completion-only persistence cannot reconstruct safe
+  review progress or prove which repositories and findings were processed.
+- Fit: active AI portfolio-review agent with a specific long-running workflow,
+  named state modules, and reproduced restart loss.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/codepath/pathreview/issues/17>.
+
+Message (83 words):
+
+> Andrew — PathReview #17 loses progress when a five-plus-repository review
+> crosses an API restart because in-flight state reaches Redis only at
+> completion. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test per-repository checkpoints that record findings,
+> orchestration decisions, and completion boundaries, then resume without
+> repeating finished analysis or guessing from one final snapshot. That should
+> expose exactly what the reviewer knew before interruption. Interested in a
+> small Python adapter? If not, reply “pass” and I will not follow up.
+
+### 10. Jimmy McBride — Brain Cloud
+
+- Builder: Jimmy McBride (`JimmyMcBride`), Brain Cloud owner and primary
+  contributor.
+- Public source: [Brain Cloud agent-provenance issue](https://github.com/JimmyMcBride/brain-cloud/issues/19).
+- Exact public evidence: Brain Cloud adds immutable agent-authored memory
+  revisions with exactly one human or agent actor, cross-organization database
+  constraints, content hashes, transactional audit events, and lifecycle-safe
+  write authorization.
+- Inferred memory problem: authentic actor identity still needs temporal
+  reconstruction when access, credentials, or later memory revisions change.
+- Fit: active Elixir/PostgreSQL memory platform with immutable revisions,
+  tenant isolation, race tests, and direct agent write paths.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/JimmyMcBride/brain-cloud/issues/19>.
+
+Message (86 words):
+
+> Jimmy — Brain Cloud #19 gives every immutable memory revision exactly one
+> human or agent actor and commits matching audit provenance transactionally. I
+> build AllSource, an event-sourced agent-memory and provenance layer. I can help
+> test one lifecycle race: agent writes revision, editor grant changes, memory is
+> corrected, then historical replay proves which actor, credential state, and
+> content version existed at each decision. That complements authentic actor
+> identity with temporal reconstruction. Interested in a bounded Elixir test?
+> If not, reply “pass” and I will not follow up.
+
+## 2026-08-30 approval and send log
 
 - [ ] Founder approves exact ten recipients and exact drafts.
 - [ ] Send approved messages one at a time through authenticated channels.
