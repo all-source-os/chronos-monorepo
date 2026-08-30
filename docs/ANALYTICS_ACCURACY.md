@@ -31,3 +31,11 @@ GA4 Data API authentication and property access pass without error. Production t
 unknown until rows aggregate; current empty results are not recorded as zero.
 
 Unknown data must remain unknown, not zero. GA4 has no AllSource history before collector deployment.
+
+## Organic source contract — 30 August 2026
+
+GA4 page views keep path-only `page_location` and now receive allow-listed
+manual-campaign fields for portfolio, community, creator, newsletter, social,
+and Play acquisition. Campaign must be `product_directory` or
+`allsource_YYYY-MM`; arbitrary UTM values and query strings are dropped. Source
+tests pass; production deployment and receipt remain pending.

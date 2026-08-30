@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import { useEffect, useState } from "react";
+import { acquisitionAttributionForUrl } from "@/lib/acquisition-attribution";
 
 const PRODUCTION_MEASUREMENT_ID = "G-3347JLG51K";
 const PRODUCTION_HOSTS = new Set(["all-source.xyz", "www.all-source.xyz"]);
@@ -48,6 +49,7 @@ export function GoogleAnalytics() {
     if (!measurementId) return;
 
     const page = {
+      ...acquisitionAttributionForUrl(window.location.href),
       page_location: `${window.location.origin}${pathname}`,
       page_path: pathname,
       page_referrer: cleanReferrer(),
