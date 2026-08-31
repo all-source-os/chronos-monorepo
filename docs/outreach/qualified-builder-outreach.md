@@ -56,16 +56,16 @@ Rules:
 | Tatsuro Shibamura / `shibayan` | Agent Framework JS state ownership | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
 | Andrew Burke / `Aburke225` | PathReview restart recovery | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
 | Jimmy McBride / `JimmyMcBride` | Brain Cloud agent-authored provenance | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
-| Trevor Walker / `rynfar` | Pylon active-turn adoption | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| `PulseInjector` | agentfix evidence-gated memory | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| Dvd Trsnk / `dvdtrsnk` | Semprec dormant-conversation reconstruction | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| James Bower / `BowerJames` | Otter durable AgentSession | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| xåëf / `0xaef` | Dibs verdict-consumption replay | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| Bawa Kulkarni / `bawakul` | Portfolio Manager cross-tool handoff | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| Yerson Argote / `yersonargotev` | Engram mixed-memory checkpoints | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| leimon / `Lei-k` | Hermes project-memory firewall | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| Quinton Miller / `quintonmiller` | Tailored AI model-request replay | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
-| Joshua Soteras / `Joshua-Soteras` | Aigis durable session search | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| Trevor Walker / `rynfar` | Pylon active-turn adoption | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| `PulseInjector` | agentfix evidence-gated memory | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| Dvd Trsnk / `dvdtrsnk` | Semprec dormant-conversation reconstruction | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| James Bower / `BowerJames` | Otter durable AgentSession | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| xåëf / `0xaef` | Dibs verdict-consumption replay | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| Bawa Kulkarni / `bawakul` | Portfolio Manager cross-tool handoff | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| Yerson Argote / `yersonargotev` | Engram mixed-memory checkpoints | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| leimon / `Lei-k` | Hermes project-memory firewall | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| Quinton Miller / `quintonmiller` | Tailored AI model-request replay | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| Joshua Soteras / `Joshua-Soteras` | Aigis durable session search | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
 
 Prior batch detail and verified send log:
 [`docs/marketing/2026-08-28-qualified-builder-outreach.md`](../marketing/2026-08-28-qualified-builder-outreach.md).
@@ -348,7 +348,7 @@ Message (91 words):
 
 ## Batch — 2026-08-31 08:00 UTC
 
-Batch status: **awaiting founder approval; nothing sent**.
+Batch status: **approved and sent; all ten public replies verified**.
 
 Research used public GitHub projects and issues created or updated between
 2026-08-24 and 2026-08-31. All ten builders are new to this ledger. Each issue
@@ -635,14 +635,23 @@ Message (82 words):
 
 ## 2026-08-31 approval and send log
 
-- [ ] Founder approves exact ten recipients and exact drafts.
-- [ ] Send approved messages one at a time through authenticated channels.
-- [ ] Verify each successful send and record canonical URL, timestamp, and
+- [x] Founder approves exact ten recipients and exact drafts.
+- [x] Send approved messages one at a time through authenticated channels.
+- [x] Verify each successful send and record canonical URL, timestamp, and
   outcome below.
 
 | Sent time | Recipient | Channel | Public URL | Outcome |
 | --- | --- | --- | --- | --- |
-| — | — | — | — | Awaiting approval |
+| 2026-08-31 09:18 WEST | Trevor Walker | GitHub issue | <https://github.com/pylon-code/pylon/issues/84#issuecomment-5475685873> | Sent and verified |
+| 2026-08-31 09:18 WEST | `PulseInjector` | GitHub issue | <https://github.com/PulseInjector/agentfix/issues/1#issuecomment-5475686279> | Sent and verified |
+| 2026-08-31 09:18 WEST | Dvd Trsnk | GitHub issue | <https://github.com/dvdtrsnk/semprec/issues/119#issuecomment-5475686836> | Sent and verified |
+| 2026-08-31 09:18 WEST | James Bower | GitHub issue | <https://github.com/BowerJames/otter/issues/298#issuecomment-5475687348> | Sent and verified |
+| 2026-08-31 09:18 WEST | xåëf | GitHub issue | <https://github.com/Agenxy/dibs/issues/76#issuecomment-5475687789> | Sent and verified |
+| 2026-08-31 09:18 WEST | Bawa Kulkarni | GitHub issue | <https://github.com/bawakul/portfolio-manager/issues/15#issuecomment-5475688151> | Sent and verified |
+| 2026-08-31 09:18 WEST | Yerson Argote | GitHub issue | <https://github.com/yersonargotev/engram/issues/104#issuecomment-5475688585> | Sent and verified |
+| 2026-08-31 09:18 WEST | leimon | GitHub issue | <https://github.com/Lei-k/hermes-agent/issues/3#issuecomment-5475689150> | Sent and verified |
+| 2026-08-31 09:18 WEST | Quinton Miller | GitHub issue | <https://github.com/quintonmiller/tailored-ai/issues/535#issuecomment-5475689610> | Sent and verified |
+| 2026-08-31 09:18 WEST | Joshua Soteras | GitHub issue | <https://github.com/Joshua-Soteras/Aigis/issues/6#issuecomment-5475690067> | Sent and verified |
 
 ## Batch — 2026-08-30 08:00 UTC
 
