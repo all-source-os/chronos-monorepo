@@ -56,6 +56,16 @@ Rules:
 | Tatsuro Shibamura / `shibayan` | Agent Framework JS state ownership | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
 | Andrew Burke / `Aburke225` | PathReview restart recovery | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
 | Jimmy McBride / `JimmyMcBride` | Brain Cloud agent-authored provenance | 2026-08-30 | GitHub issue | Sent 2026-08-30 12:21 WEST | No |
+| Trevor Walker / `rynfar` | Pylon active-turn adoption | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| `PulseInjector` | agentfix evidence-gated memory | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| Dvd Trsnk / `dvdtrsnk` | Semprec dormant-conversation reconstruction | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| James Bower / `BowerJames` | Otter durable AgentSession | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| xåëf / `0xaef` | Dibs verdict-consumption replay | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| Bawa Kulkarni / `bawakul` | Portfolio Manager cross-tool handoff | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| Yerson Argote / `yersonargotev` | Engram mixed-memory checkpoints | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| leimon / `Lei-k` | Hermes project-memory firewall | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| Quinton Miller / `quintonmiller` | Tailored AI model-request replay | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
+| Joshua Soteras / `Joshua-Soteras` | Aigis durable session search | 2026-08-31 | GitHub issue | Awaiting batch approval | No |
 
 Prior batch detail and verified send log:
 [`docs/marketing/2026-08-28-qualified-builder-outreach.md`](../marketing/2026-08-28-qualified-builder-outreach.md).
@@ -326,6 +336,304 @@ Message (91 words):
 > reply “pass” and I will not follow up.
 
 ## Approval and send log
+
+- [ ] Founder approves exact ten recipients and exact drafts.
+- [ ] Send approved messages one at a time through authenticated channels.
+- [ ] Verify each successful send and record canonical URL, timestamp, and
+  outcome below.
+
+| Sent time | Recipient | Channel | Public URL | Outcome |
+| --- | --- | --- | --- | --- |
+| — | — | — | — | Awaiting approval |
+
+## Batch — 2026-08-31 08:00 UTC
+
+Batch status: **awaiting founder approval; nothing sent**.
+
+Research used public GitHub projects and issues created or updated between
+2026-08-24 and 2026-08-31. All ten builders are new to this ledger. Each issue
+author is the repository owner, a collaborator, or an active contributor.
+Proposed channel is a public, context-matched GitHub issue reply. A check of
+each issue found no prior comment from `decebal`.
+
+### 1. Trevor Walker — Pylon
+
+- Builder: Trevor Walker (`rynfar`), Pylon collaborator and issue author.
+- Public source: [Pylon active-turn recovery issue](https://github.com/pylon-code/pylon/issues/84).
+- Exact public evidence: Pylon can project a Prime turn as active after a
+  server restart while losing the process-local ownership needed to adopt its
+  live client-owned worker. Recovery must preserve the canonical turn ID,
+  event cursor, scoped MCP ownership, and exactly-once settlement.
+- Inferred memory problem: durable state can describe the turn but cannot yet
+  prove and transfer ownership of the exact live execution lineage.
+- Fit: active agent control plane with a precise restart reproduction,
+  recovery contract, and cross-process provenance requirement.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/pylon-code/pylon/issues/84>.
+
+Message (92 words):
+
+> Trevor — Pylon #84 identifies an exact failure: the projected turn remains
+> active after a server restart, but the new process cannot adopt Prime’s
+> client-owned execution without duplicate admission or lineage. I build
+> AllSource, an event-sourced agent-memory and provenance layer. I can help
+> model the private recovery ledger and test one invariant: adopt the same
+> execution, preserve its canonical turn ID and event cursor, then prove
+> exactly-once settlement after downtime. Interested in comparing designs or
+> testing a small integration? If this is not useful, reply “pass” and I will
+> not follow up.
+
+### 2. `PulseInjector` — agentfix
+
+- Builder: `PulseInjector`, agentfix owner and primary contributor.
+- Public source: [agentfix evidence-gated memory issue](https://github.com/PulseInjector/agentfix/issues/1).
+- Exact public evidence: a CPU-alert chat should produce a finding when the
+  agent restarts before checking metrics, draft memory from that trace, require
+  human approval plus the same offline eval, then inject only passing memory
+  into the next session.
+- Inferred memory problem: finding, approval, evaluation, and activation need
+  one durable lineage so an active memory remains traceable to the failure and
+  evidence that justified it.
+- Fit: serious pre-production agent reliability tool with a deterministic
+  scenario and explicit memory-governance workflow.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/PulseInjector/agentfix/issues/1>.
+
+Message (91 words):
+
+> PulseInjector — agentfix #1 keeps failed-chat memory inactive until its
+> evidence is reviewed and the same offline eval passes; the next session
+> should load approved memory and stop repeating the restart-before-metrics
+> mistake. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help make finding → draft → approval → activation one replayable
+> event history, preserving the exact trace and eval evidence behind each
+> active memory. Worth testing on scenario 001-cpu-before-restart? I can offer
+> design-partner access and hands-on integration. If not relevant, reply “pass”
+> and I will close the loop.
+
+### 3. Dvd Trsnk — Semprec
+
+- Builder: Dvd Trsnk (`dvdtrsnk`), Semprec owner and primary contributor.
+- Public source: [Semprec dormant-conversation issue](https://github.com/dvdtrsnk/semprec/issues/119).
+- Exact public evidence: Semprec will reconstruct dormant delegated and user
+  conversations from ordered `agent_run_events`, validate message/tool
+  protocol, compact oversized history before the first resumed provider call,
+  and persist continuation events for deterministic repeated restart.
+- Inferred memory problem: compaction and reconstruction can change model
+  input unless the continuation remains joined to exact source events and
+  replayable pre-turn state.
+- Fit: active agent runtime with explicit durable history, restart, compaction,
+  and replay acceptance criteria.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/dvdtrsnk/semprec/issues/119>.
+
+Message (89 words):
+
+> Dvd — Semprec #119 reconstructs dormant conversations from ordered
+> `agent_run_events`, compacts oversized history before the provider call, and
+> requires deterministic resume after repeated restarts. I build AllSource, an
+> event-sourced agent-memory and provenance layer. I can help test event
+> projection at that boundary: restore message/tool invariants, record the
+> compaction continuation, and replay the same pre-turn state without relying
+> on process memory. Interested in a bounded comparison against Semprec’s
+> Postgres event stream? I can offer hands-on integration or design-partner
+> access. If not useful, reply “pass” and I will not follow up.
+
+### 4. James Bower — Otter
+
+- Builder: James Bower (`BowerJames`), Otter owner and primary contributor.
+- Public source: [Otter durable AgentSession issue](https://github.com/BowerJames/otter/issues/298).
+- Exact public evidence: `AgentSession` appends each streamed message to a
+  durable log, resumes by replaying the stored prefix, and preserves partial
+  history even when a run failure poisons the live session. The issue reports
+  119 passing behavioral tests.
+- Inferred memory problem: prefix replay restores conversation content but
+  needs source-linked lineage to explain which stored event produced recalled
+  state after failure and reopen.
+- Fit: active agent core implementing durable record/resume with a concrete
+  failure-path contract.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/BowerJames/otter/issues/298>.
+
+Message (94 words):
+
+> James — Otter #298 records every run message into an append-only session log
+> and resumes by replaying the log prefix; a run failure may poison the live
+> session while durable partial history remains. I build AllSource, an
+> event-sourced agent-memory and provenance layer. I can help test one awkward
+> path: fail mid-run, reopen the manager, reconstruct the exact prefix, then
+> prove recalled state points back to stored message events. Worth comparing
+> with AgentSession’s current 119-test contract? I can offer direct integration
+> help. If this is outside scope, reply “pass” and I will leave it there.
+
+### 5. xåëf — Dibs
+
+- Builder: xåëf (`0xaef`), Dibs contributor and issue author.
+- Public source: [Dibs duplicate-verdict issue](https://github.com/Agenxy/dibs/issues/76).
+- Exact public evidence: `read_mail` clears a verdict notice only from an
+  ephemeral map. If the daemon restarts before the sender's next activation,
+  rebuild delivers the same verdict again because no replayable record says
+  the sender consumed it.
+- Inferred memory problem: outcome consumption needs its own durable event;
+  overloading the recipient's `Message.Consumed` or sender's `AckedSerial`
+  would erase distinct provenance semantics.
+- Fit: live daemon reproduction with a specific ledger-level state transition
+  and duplicate-delivery failure.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/Agenxy/dibs/issues/76>.
+
+Message (96 words):
+
+> xåëf — Dibs #76 shows `read_mail` clearing only the ephemeral notice map; a
+> restart between reading the verdict and the next activation delivers the
+> same notice again because no replayable record proves the sender consumed
+> the outcome. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help model a consumed-outcome event without overloading
+> `AckedSerial`, then test rebuild across daemon restart and duplicate delivery.
+> Interested in comparing a narrow ledger change against the current wire
+> contract? I can offer technical help or design-partner access. If not
+> relevant, reply “pass” and I will not follow up.
+
+### 6. Bawa Kulkarni — Portfolio Manager
+
+- Builder: Bawa Kulkarni (`bawakul`), Portfolio Manager owner and primary
+  contributor.
+- Public source: [Portfolio Manager cross-session issue](https://github.com/bawakul/portfolio-manager/issues/15).
+- Exact public evidence: moving between Claude Code and Pi, or between Pi
+  sessions, requires manual session notes or re-explaining context. The
+  dashboard initiative currently relies on a hand-written handoff document.
+- Inferred memory problem: generated handoff summaries can drift unless each
+  decision and open task remains linked to its source session evidence.
+- Fit: active builder documenting a reproducible cross-tool, cross-session
+  continuity problem in a real project workflow.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/bawakul/portfolio-manager/issues/15>.
+
+Message (91 words):
+
+> Bawa — portfolio-manager #15 describes context dying between Claude Code and
+> Pi, leaving manual session notes and hand-written handoff docs as the only
+> continuity. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test one tool-neutral handoff: capture decisions and
+> unfinished work as events, surface only relevant state next session, and keep
+> each recalled claim linked to original session evidence instead of another
+> summary. Worth trying on the dashboard initiative? I can offer design-partner
+> access and hands-on setup. If not, reply “pass” and I will close the loop.
+
+### 7. Yerson Argote — Engram
+
+- Builder: Yerson Argote (`yersonargotev`), Engram owner and primary
+  contributor.
+- Public source: [Engram mixed-memory checkpoint issue](https://github.com/yersonargotev/engram/issues/104).
+- Exact public evidence: terminal preflight must create no provisional writes;
+  final commit atomically records settled memories, at most one immutable
+  unresolved proposal, ordered references, and a checkpoint. Exact replay must
+  return the original result before retry validation or mutation.
+- Inferred memory problem: mixed settled/review state needs one transactional
+  event lineage so rollback and retry cannot rewrite prior checkpoint history.
+- Fit: active agent-memory implementation with explicit atomicity, replay,
+  audit, reopen, and transport-error tests.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/yersonargotev/engram/issues/104>.
+
+Message (90 words):
+
+> Yerson — Engram #104 requires non-persisting duplicate/conflict preflight,
+> then one atomic checkpoint containing settled memories plus at most one
+> immutable unresolved proposal, with exact replay returning the original
+> result before retry validation. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test checkpoint lineage,
+> rollback, and replay invariants so review state remains reconstructable
+> without leaking into ordinary recall. Interested in comparing event contracts
+> on a mixed-memory checkpoint? I can offer technical integration help or
+> design-partner access. If not timely, reply “pass” and I will not follow up.
+
+### 8. leimon — Hermes Agent fork
+
+- Builder: leimon (`Lei-k`), fork owner and primary contributor.
+- Public source: [Hermes project-memory firewall issue](https://github.com/Lei-k/hermes-agent/issues/3).
+- Exact public evidence: one authorized Telegram gateway conversation switched
+  between Argus and Sensa under shared `/opt/data`; profile-level `MEMORY` and
+  `USER` context mixed project facts, causing an Argus review to include Sensa
+  terminology and an unrelated artifact path.
+- Inferred memory problem: project scope needs durable explicit binding and
+  model-input provenance rather than mutable cwd inference or global context.
+- Fit: reproduced agent-memory contamination in a long-lived control-plane
+  session with concrete isolation acceptance tests.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/Lei-k/hermes-agent/issues/3>.
+
+Message (86 words):
+
+> leimon — Hermes fork #3 reproduces Argus/Sensa memory bleed in one Telegram
+> gateway session using shared `/opt/data` and profile-level `MEMORY`/`USER`
+> context. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test explicit project binding plus source-scoped recall:
+> switch projects only at a defined session boundary, reject unbound project
+> facts, and reconstruct which context entered each model call. Worth testing
+> on the two-project reproduction? I can offer direct integration help or
+> design-partner access. If not relevant, reply “pass” and I will leave it
+> there.
+
+### 9. Quinton Miller — Tailored AI
+
+- Builder: Quinton Miller (`quintonmiller`), Tailored AI owner and primary
+  contributor.
+- Public source: [Tailored AI request-replay issue](https://github.com/quintonmiller/tailored-ai/issues/535).
+- Exact public evidence: stored messages omit system prompt, persona, context
+  files, core and recalled memory, room framing, skill body, budget notices,
+  and tool schemas. Current state therefore cannot reconstruct what the model
+  actually read during an earlier round.
+- Inferred memory problem: debugging and evaluation require immutable capture
+  of model-visible inputs and their versions, not re-derivation from current
+  mutable state.
+- Fit: active production-oriented agent with a concrete “model-visible iff
+  logged” replay invariant and measured 10,857-token tool-schema input.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/quintonmiller/tailored-ai/issues/535>.
+
+Message (87 words):
+
+> Quinton — tailored-ai #535 states a clean invariant: model-visible iff
+> logged. Today the system prompt, recalled memory, skills, tool schemas, and
+> history bounds cannot be reconstructed after state moves. I build AllSource,
+> an event-sourced agent-memory and provenance layer. I can help test one round
+> capture: persist request inputs by event/digest, reconstruct the exact
+> model-visible request, and assert equality before replay. Interested in
+> comparing append-only source-of-truth versus faithful-copy trade-offs? I can
+> offer hands-on integration or design-partner access. If not useful, reply
+> “pass” and I will not follow up.
+
+### 10. Joshua Soteras — Aigis
+
+- Builder: Joshua Soteras (`Joshua-Soteras`), Aigis owner and primary
+  contributor.
+- Public source: [Aigis durable-session search issue](https://github.com/Joshua-Soteras/Aigis/issues/6).
+- Exact public evidence: `server.py` holds chat sessions in an in-memory dict,
+  losing them on every restart. Aigis also cannot retrieve a past conversation
+  outside bounded `MEMORY.md` and `CONTEXT.md`; proposed SQLite FTS5 search
+  returns original messages rather than summaries.
+- Inferred memory problem: durable search needs source-linked session history
+  so recovered messages retain temporal context and can reconstruct prior
+  agent state.
+- Fit: serious pre-production assistant with explicit restart data loss,
+  cross-session recall, and non-summary retrieval requirements.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/Joshua-Soteras/Aigis/issues/6>.
+
+Message (82 words):
+
+> Joshua — Aigis #6 keeps chats in `server.py` memory and cannot search past
+> conversations outside bounded `MEMORY.md`/`CONTEXT.md`; a restart loses
+> sessions completely. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test SQLite/FTS5 search against durable event
+> history, so returned messages retain exact session and source while past
+> state remains replayable instead of summary-only. Worth trying on one
+> `cerebras-version` conversation? I can offer hands-on integration or
+> design-partner access. If not relevant, reply “pass” and I will close the
+> loop.
+
+## 2026-08-31 approval and send log
 
 - [ ] Founder approves exact ten recipients and exact drafts.
 - [ ] Send approved messages one at a time through authenticated channels.
