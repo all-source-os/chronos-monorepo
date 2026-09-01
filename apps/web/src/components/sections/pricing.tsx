@@ -179,7 +179,7 @@ export default function PricingSection({
                     "group relative w-full gap-2 overflow-hidden text-base font-semibold tracking-tight",
                     "transform-gpu ring-offset-current transition-all duration-300 ease-out hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:bg-primary hover:text-primary-foreground",
                     plan.isPopular
-                      ? "bg-primary text-primary-foreground"
+                      ? "!bg-[#075985] !text-white hover:!bg-[#064E75]"
                       : "bg-background text-foreground"
                   )}
                 >
@@ -207,7 +207,7 @@ export default function PricingSection({
             href={enterpriseTier.href}
             className={cn(
               buttonVariants({ variant: "outline" }),
-              "shrink-0 bg-[#F1F7FB] text-[#0E2E4F] hover:bg-white"
+              "shrink-0 !bg-[#F1F7FB] !text-[#0E2E4F] hover:!bg-white"
             )}
           >
             {enterpriseTier.buttonText}
