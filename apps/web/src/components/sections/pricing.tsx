@@ -71,7 +71,9 @@ export default function PricingSection({
             )}
           >
             Yearly
-            <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full">-20%</span>
+            <span className="rounded-full bg-emerald-950 px-1.5 py-0.5 text-xs text-emerald-100">
+              -20%
+            </span>
           </button>
         </div>
       </div>
@@ -114,8 +116,10 @@ export default function PricingSection({
             >
               {plan.isPopular && (
                 <div className="absolute top-0 right-0 bg-primary py-0.5 px-2 rounded-bl-xl rounded-tr-xl flex items-center">
-                  <FaStar className="text-white" />
-                  <span className="text-white ml-1 font-sans font-semibold">Popular</span>
+                  <FaStar className="text-primary-foreground" />
+                  <span className="ml-1 font-sans font-semibold text-primary-foreground">
+                    Popular
+                  </span>
                 </div>
               )}
               <div>
@@ -173,8 +177,10 @@ export default function PricingSection({
                   className={cn(
                     buttonVariants({ variant: "outline" }),
                     "group relative w-full gap-2 overflow-hidden text-base font-semibold tracking-tight",
-                    "transform-gpu ring-offset-current transition-all duration-300 ease-out hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:bg-primary hover:text-white",
-                    plan.isPopular ? "bg-primary text-white" : "bg-background text-foreground"
+                    "transform-gpu ring-offset-current transition-all duration-300 ease-out hover:ring-2 hover:ring-primary hover:ring-offset-1 hover:bg-primary hover:text-primary-foreground",
+                    plan.isPopular
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-foreground"
                   )}
                 >
                   {plan.buttonText}
@@ -188,7 +194,7 @@ export default function PricingSection({
 
       {/* Enterprise — quieter strip below, width-matched to the cards above. */}
       {enterpriseTier && (
-        <div className="mx-auto mt-6 flex max-w-5xl flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-foreground px-8 py-6 text-background sm:flex-row sm:items-center">
+        <div className="mx-auto mt-6 flex max-w-5xl flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-[#0E2E4F] px-8 py-6 text-[#F1F7FB] sm:flex-row sm:items-center">
           <div>
             <p className="text-lg font-semibold">{enterpriseTier.name}</p>
             <p className="text-sm opacity-80">
@@ -201,7 +207,7 @@ export default function PricingSection({
             href={enterpriseTier.href}
             className={cn(
               buttonVariants({ variant: "outline" }),
-              "shrink-0 bg-background text-foreground hover:bg-background/90"
+              "shrink-0 bg-[#F1F7FB] text-[#0E2E4F] hover:bg-white"
             )}
           >
             {enterpriseTier.buttonText}
