@@ -110,7 +110,7 @@ export default function RootLayout({
           {children}
           <TailwindIndicator />
           <GeoReferralTracker />
-          <Analytics />
+          {process.env.VERCEL ? <Analytics /> : null}
         </ThemeProvider>
       </body>
     </html>

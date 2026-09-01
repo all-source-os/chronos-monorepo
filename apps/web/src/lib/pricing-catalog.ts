@@ -26,6 +26,8 @@ export type Catalog = {
 
 export type CatalogByTier = Record<string, CatalogTier>;
 
+const CATALOG_FETCH_TIMEOUT_MS = 2_000;
+
 function controlPlaneUrl(): string {
   return process.env.CONTROL_PLANE_INTERNAL_URL || "http://localhost:3901";
 }
@@ -47,6 +49,7 @@ export async function fetchCatalog(): Promise<Catalog | null> {
   try {
     const res = await fetch(`${controlPlaneUrl()}/api/v1/billing/catalog`, {
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(CATALOG_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return lastGoodCatalog;
     const catalog = (await res.json()) as Catalog;

@@ -2,19 +2,21 @@
 
 import { X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "allsource-product-hunt-launch-dismissed";
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90;
 
-export function EarlyAccessBanner({ initialDismissed = false }: { initialDismissed?: boolean }) {
-  const [dismissed, setDismissed] = useState(initialDismissed);
+export function EarlyAccessBanner() {
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    setDismissed(globalThis.localStorage?.getItem(STORAGE_KEY) === "1");
+  }, []);
 
   if (dismissed) return null;
 
   const handleDismiss = () => {
-    localStorage.setItem(STORAGE_KEY, "1");
-    document.cookie = `${STORAGE_KEY}=1; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax; Secure`;
+    globalThis.localStorage?.setItem(STORAGE_KEY, "1");
     setDismissed(true);
   };
 
