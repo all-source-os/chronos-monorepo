@@ -66,6 +66,16 @@ Rules:
 | leimon / `Lei-k` | Hermes project-memory firewall | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
 | Quinton Miller / `quintonmiller` | Tailored AI model-request replay | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
 | Joshua Soteras / `Joshua-Soteras` | Aigis durable session search | 2026-08-31 | GitHub issue | Sent 2026-08-31 09:18 WEST | No |
+| Kennedy Mosoti / `kmosoti` | Gordian canonical persistence and replay | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Zach Manson / `zachpmanson` | pi-msg interrupted-run recovery | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Wellington Prado / `well-prado` | Blok durable approval suspension | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| `rps321321` | Alpine lossless execution-context recovery | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| David Rezkalla / `davidadel66` | Evie Workspace workflow memory | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Mary Perry / `sifrious` | Funes provider-neutral execution history | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Tadas Antanavicius / `tadasant` | Zimmer replayed-turn deduplication | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Kedar Dabhadkar / `dkedar7` | langstage-cli stale thread history | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Luigi / `LuigiFerronatto` | TESSERA long-term-memory contract | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| `Predator04` | Hermes-CoAgent workflow-memory replay | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
 
 Prior batch detail and verified send log:
 [`docs/marketing/2026-08-28-qualified-builder-outreach.md`](../marketing/2026-08-28-qualified-builder-outreach.md).
@@ -336,6 +346,286 @@ Message (91 words):
 > reply “pass” and I will not follow up.
 
 ## Approval and send log
+
+- [ ] Founder approves exact ten recipients and exact drafts.
+- [ ] Send approved messages one at a time through authenticated channels.
+- [ ] Verify each successful send and record canonical URL, timestamp, and
+  outcome below.
+
+| Sent time | Recipient | Channel | Public URL | Outcome |
+| --- | --- | --- | --- | --- |
+| — | — | — | — | Awaiting approval |
+
+## Batch — 2026-09-01 08:00 UTC
+
+Batch status: **awaiting founder approval; nothing sent**.
+
+Research used public GitHub issues created between 2026-08-29 and 2026-09-01,
+repository metadata, and public profiles. All ten builders own the named active
+repository, are new to this ledger, and have no prior comment from `decebal` on
+the destination issue. Proposed channel: context-matched public GitHub issue
+reply.
+
+### 1. Kennedy Mosoti — Gordian
+
+- Builder: Kennedy Mosoti (`kmosoti`), Gordian owner and active developer.
+- Public source: [Gordian canonical-persistence issue](https://github.com/kmosoti/gordian/issues/25).
+- Exact public evidence: Gordian must persist immutable specification revisions,
+  attempts, evidence identities, leases, and canonical events transactionally;
+  every projection must rebuild deterministically from durable history.
+- Inferred memory problem: a reconstructed decision needs proof of the exact
+  evidence and lease state visible at its historical event sequence.
+- Fit: active Rust orchestration project with explicit event append, projection
+  rebuild, provenance, and replay acceptance criteria.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/kmosoti/gordian/issues/25>.
+
+Message (88 words):
+
+> Kennedy — Gordian #25 requires canonical identities, specification revisions,
+> attempts, evidence, leases, and events to persist transactionally while
+> projections remain disposable. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test one sharp invariant: delete
+> a projection, rebuild it from immutable history, then prove the same evidence
+> and lease state was visible before a decision. Interested in comparing
+> PostgreSQL event contracts on one Gordian workflow? I can offer direct
+> integration help or design-partner access. If not useful, reply “pass” and I
+> will not follow up.
+
+### 2. Zach Manson — pi-msg
+
+- Builder: Zach Manson (`zachpmanson`), pi-msg owner and active developer.
+- Public source: [pi-msg interrupted-run issue](https://github.com/zachpmanson/pi-msg/issues/47).
+- Exact public evidence: pi-msg already broadcasts mid-thought and mid-command
+  state over XMPP, but a deploy restart preserves inbound chat while outbound
+  in-flight work disappears; the issue proposes a one-shot interruption marker.
+- Inferred memory problem: restart lacks a durable record distinguishing safe
+  continuation from a consequential command whose outcome is unknown.
+- Fit: active agent messaging system with an exact shutdown boundary and live
+  per-agent state already available for capture.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/zachpmanson/pi-msg/issues/47>.
+
+Message (84 words):
+
+> Zach — pi-msg #47 separates inbound XMPP replay from outbound work interrupted
+> mid-thought or mid-command during deploy. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test an interruption event that
+> records activity, pending tool identity, and continuation decision, then
+> reconstructs what survived without blindly rerunning a consequential command.
+> Worth trying against one persona restart using the existing presence state? I
+> can offer hands-on integration or design-partner access. If this is outside
+> scope, reply “pass” and I will leave it there.
+
+### 3. Wellington Prado — Blok
+
+- Builder: Wellington Prado (`well-prado`), Blok owner and active developer.
+- Public source: [Blok durable-interaction issue](https://github.com/well-prado/blok/issues/918).
+- Exact public evidence: Blok must persist approval suspension before returning,
+  resume after a full process restart, reject stale or conflicting answers, and
+  avoid rerunning committed effects across parallel branches.
+- Inferred memory problem: request, authorization, branch, resolution, and resume
+  need one immutable lineage to prevent stale approval from activating work.
+- Fit: active event-sourced agent harness with concrete restart, idempotency, and
+  approval-policy contracts.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/well-prado/blok/issues/918>.
+
+Message (86 words):
+
+> Wellington — Blok #918 persists approval suspension before returning control,
+> then must reject duplicate, stale, unauthorized, or mismatched answers after
+> restart without repeating committed effects. I build AllSource, an
+> event-sourced agent-memory and provenance layer. I can help model request →
+> suspension → answer → resume as one immutable lineage, including branch
+> identity and optimistic concurrency. Interested in testing a crash immediately
+> before and after resolution commit? I can offer direct engineering help or
+> design-partner access. If not relevant, reply “pass” and I will not follow up.
+
+### 4. `rps321321` — Alpine
+
+- Builder: `rps321321`, Alpine owner and active developer.
+- Public source: [Alpine execution-context issue](https://github.com/rps321321/Alpine/issues/61).
+- Exact public evidence: Alpine restart restoration drops tool calls, approval
+  context, policy state, real usage, stop reason, and errors, then fabricates
+  zero usage and successful termination from visible transcript text.
+- Inferred memory problem: historical execution cannot be resumed or audited
+  honestly when unknown fields are replaced by clean-looking defaults.
+- Fit: active desktop agent runtime with field-level recovery invariants and
+  restart tests across tools, compaction, cancellation, and provider errors.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/rps321321/Alpine/issues/61>.
+
+Message (84 words):
+
+> rps321321 — Alpine #61 shows transcript restoration dropping tool calls,
+> approvals, policy state, real usage, stop reasons, and errors, then fabricating
+> usage 0 and successful stop. I build AllSource, an event-sourced agent-memory
+> and provenance layer. I can help test provider-neutral execution events that
+> rebuild every captured semantic field while marking unavailable data unknown
+> rather than inventing it. Worth comparing on one restart-after-tool-result
+> scenario? I can offer hands-on integration or design-partner access. If this
+> is not useful, reply “pass” and I will close the loop.
+
+### 5. David Rezkalla — Evie
+
+- Builder: David Rezkalla (`davidadel66`), Evie owner and active developer.
+- Public source: [Evie memory-and-workflow amendment](https://github.com/davidadel66/evie/issues/73).
+- Exact public evidence: Evie separates reviewed Git definitions,
+  conversational SQLite events, workflow-run SQLite state, and external effect
+  truth while adding explicit Workspace-scoped memory and independent run leases.
+- Inferred memory problem: a run surviving its originating session needs durable
+  scope, definition, checkpoint, authority, effect-intent, and receipt lineage.
+- Fit: serious pre-production personal agent with explicit memory isolation,
+  workflow recovery, and provenance requirements.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/davidadel66/evie/issues/73>.
+
+Message (86 words):
+
+> David — Evie #73 separates reviewed Git definitions, conversational SQLite
+> history, workflow-run SQLite state, and external effect truth while adding
+> Workspace-scoped memory. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test one boundary: start a Workspace workflow,
+> disconnect its originating session, resume from a durable checkpoint, then
+> reconstruct definition version, scope, effect intent, and receipt without
+> widening authority. Interested in comparing event contracts? I can offer
+> technical help or design-partner access. If not timely, reply “pass” and I
+> will not follow up.
+
+### 6. Mary Perry — Funes
+
+- Builder: Mary Perry (`sifrious`), Funes owner and active developer.
+- Public source: [Funes execution-history issue](https://github.com/sifrious/dep-funes/issues/16).
+- Exact public evidence: Funes must preserve exact prompt, ordered stdout/stderr,
+  provenance, tool calls, human pauses, handoffs, artifacts, status transitions,
+  and one complete Turn/Run evidence chain under idempotent export replay.
+- Inferred memory problem: conflicting reuse of execution identity can silently
+  replace historical evidence unless acceptance is immutable and conflict-aware.
+- Fit: active provider-neutral history package whose stated purpose directly
+  covers provenance, durable reference, and replay.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/sifrious/dep-funes/issues/16>.
+
+Message (87 words):
+
+> Mary — Funes #16 requires a provider-neutral Turn and Run record preserving
+> exact prompt, ordered stdout/stderr, tool calls, human pauses, handoffs,
+> artifacts, status transitions, and provenance. I build AllSource, an
+> event-sourced agent-memory and provenance layer. I can help test idempotent
+> ingestion plus conflict handling: replay one execution export, retrieve the
+> complete evidence chain, then reject reused identity with different content.
+> Worth comparing Funes references with AllSource events? I can offer direct
+> integration help or design-partner access. If not relevant, reply “pass” and
+> I will leave it there.
+
+### 7. Tadas Antanavicius — Zimmer
+
+- Builder: Tadas Antanavicius (`tadasant`), Zimmer owner and active developer.
+- Public source: [Zimmer duplicate-session issue](https://github.com/tadasant/zimmer/issues/724).
+- Exact public evidence: one router `start_session` call produced two equivalent
+  child sessions around an interrupted-and-resumed turn; per-attempt idempotency
+  keys cannot deduplicate a replayed logical intent that derives a fresh key.
+- Inferred memory problem: restart loses stable logical-work identity and cannot
+  prove whether child execution already exists before creating another.
+- Fit: active self-hosted coding-agent orchestrator with observed duplicate work,
+  budget impact, and an explicit provenance gap.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/tadasant/zimmer/issues/724>.
+
+Message (91 words):
+
+> Tadas — Zimmer #724 records one start_session call producing two equivalent
+> child sessions after an interrupted router turn, while per-attempt idempotency
+> keys could not dedupe replayed intent. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test a logical-work identity
+> carried across interruption, admission, and child creation so restart can
+> reconcile existing execution before spawning another. Interested in
+> instrumenting one replay path and proving exactly where session 11391
+> originated? I can offer technical help or design-partner access. If not
+> useful, reply “pass” and I will not follow up.
+
+### 8. Kedar Dabhadkar — langstage-cli
+
+- Builder: Kedar Dabhadkar (`dkedar7`), langstage-cli owner and active developer.
+- Public source: [langstage-cli stale-thread issue](https://github.com/dkedar7/langstage-cli/issues/139).
+- Exact public evidence: `/clear` and `/reset` change the displayed thread ID,
+  but the run loop keeps using a frozen original ID; the next LangGraph turn
+  therefore receives the full supposedly cleared history under both persistence
+  modes.
+- Inferred memory problem: UI state, checkpointer identity, and model-visible
+  conversation history have diverged without an atomic boundary event.
+- Fit: released CLI with a deterministic keyless reproduction of stale context
+  surviving an explicit user reset.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/dkedar7/langstage-cli/issues/139>.
+
+Message (86 words):
+
+> Kedar — langstage-cli #139 changes the displayed thread ID on /clear or
+> /reset, but the run loop keeps using its frozen original ID, so the agent still
+> receives full prior history. I build AllSource, an event-sourced agent-memory
+> and provenance layer. I can help test an explicit conversation-boundary event
+> where display, checkpointer key, and model-visible history advance atomically
+> and remain reconstructable. Worth trying against your deterministic
+> message-count repro? I can offer hands-on integration or design-partner
+> access. If not relevant, reply “pass” and I will close the loop.
+
+### 9. Luigi — TESSERA
+
+- Builder: Luigi (`LuigiFerronatto`), TESSERA owner and active developer.
+- Public source: [TESSERA long-term-memory issue](https://github.com/LuigiFerronatto/TESSERA/issues/168).
+- Exact public evidence: TESSERA separates canonical long-term memory from
+  derived indexes, query-conditioned state, working context, and final answers;
+  it requires admission, lineage, revisions, supersession, and context
+  invalidation after durable writes.
+- Inferred memory problem: compiled context needs source-version lineage so a
+  later correction does not erase what an earlier run actually saw.
+- Fit: active memory system with explicit durable/ephemeral boundaries and
+  measurable contamination, lineage, and supersession requirements.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/LuigiFerronatto/TESSERA/issues/168>.
+
+Message (89 words):
+
+> Luigi — TESSERA #168 draws a clean boundary between canonical long-term
+> memory, derived indexes, query-conditioned state, and disposable working
+> context. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test one run-end lifecycle: admit a candidate memory,
+> version it, compile context from that exact source, then invalidate derived
+> context after correction while preserving what the earlier agent saw.
+> Interested in comparing contracts on one fact or insight? I can offer
+> technical help or design-partner access. If not useful, reply “pass” and I
+> will not follow up.
+
+### 10. `Predator04` — Hermes-CoAgent
+
+- Builder: `Predator04`, Hermes-CoAgent owner and active developer.
+- Public source: [Hermes-CoAgent workflow-memory issue](https://github.com/Predator04/Hermes-CoAgent/issues/1301).
+- Exact public evidence: Hermes-CoAgent proposes caching successful
+  screen-state → action-sequence → verified-outcome episodes, then replaying a
+  cached workflow when its fused UIA/OCR/SOM fingerprint matches later state.
+- Inferred memory problem: cached behavior needs version, source-state,
+  verification, reuse, and invalidation history so stale actions are not
+  silently reinforced.
+- Fit: active Windows computer-use agent with existing trajectory capture,
+  verification, and a concrete cross-run behavior-memory plan.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/Predator04/Hermes-CoAgent/issues/1301>.
+
+Message (88 words):
+
+> Predator04 — Hermes-CoAgent #1301 proposes caching screen-state →
+> action-sequence → verified outcome and replaying it when a fused UIA/OCR/SOM
+> fingerprint matches. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test each cached workflow as versioned trajectory
+> events with source state, verification evidence, reuse decision, and stale
+> invalidation, so a bad replay can be reconstructed instead of silently
+> reinforced. Worth trying on one repeated desktop task? I can offer hands-on
+> integration or design-partner access. If not relevant, reply “pass” and I
+> will leave it there.
+
+## 2026-09-01 approval and send log
 
 - [ ] Founder approves exact ten recipients and exact drafts.
 - [ ] Send approved messages one at a time through authenticated channels.
