@@ -5,7 +5,7 @@ import Header from "@/components/sections/header";
 
 export default async function MarketingLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const bannerDismissed = cookieStore.get("allsource-design-partners-dismissed")?.value === "1";
+  const bannerDismissed = cookieStore.get("allsource-product-hunt-launch-dismissed")?.value === "1";
 
   return (
     <>

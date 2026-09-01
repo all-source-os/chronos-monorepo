@@ -23,7 +23,7 @@ export default async function Home() {
   const catalog = await fetchCatalog();
   const indiePrice = indexByTier(catalog).indie?.monthly?.formatted ?? defaultIndiePrice;
   const cookieStore = await cookies();
-  const bannerDismissed = cookieStore.get("allsource-design-partners-dismissed")?.value === "1";
+  const bannerDismissed = cookieStore.get("allsource-product-hunt-launch-dismissed")?.value === "1";
 
   return (
     <main className="relative overflow-hidden">
