@@ -4,7 +4,7 @@ import { decodeJwt, isAdminRole } from "@/lib/auth";
 /**
  * Proxy that protects all authenticated routes.
  *
- * - Public routes (/login, /api/auth/*, /api/v1/auth/*) are allowed through.
+ * - Public routes (/login, /api/healthz, /api/auth/*, /api/v1/auth/*) are allowed through.
  * - The view-as API routes (/api/viewas/*) are allowed through here and enforce
  *   their OWN auth: start/stop/status read the admin_token cookie server-side and
  *   401 without it; the read-only data proxy reads the SEPARATE viewas_token and
@@ -29,6 +29,7 @@ export function proxy(request: NextRequest) {
   // Public routes — no auth required
   if (
     pathname === "/login" ||
+    pathname === "/api/healthz" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/v1/auth/") ||
     pathname.startsWith("/api/viewas/") ||

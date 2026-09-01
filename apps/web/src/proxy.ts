@@ -18,6 +18,16 @@ const _publicRoutes = [
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostname = request.headers.get("host")?.split(":", 1)[0]?.toLowerCase();
+
+  // Keep one canonical origin after moving DNS from Vercel to Fly.io.
+  if (hostname === "all-source.xyz") {
+    const canonicalUrl = request.nextUrl.clone();
+    canonicalUrl.protocol = "https";
+    canonicalUrl.hostname = "www.all-source.xyz";
+    canonicalUrl.port = "";
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
 
   // Check if the route is protected
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
