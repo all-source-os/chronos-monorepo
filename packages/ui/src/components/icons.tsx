@@ -24,8 +24,10 @@ const brandSvg = (className: string | undefined, children: React.ReactNode) => (
 
 export const Icons = {
   logo: ({ className, style }: IconProps) => (
-    <svg
-      viewBox="0 0 512 512"
+    // biome-ignore lint/performance/noImgElement: shared UI package must remain framework-neutral.
+    <img
+      src="/logo.png"
+      alt=""
       aria-hidden="true"
       className={cn(
         "h-6 w-6 object-contain",
@@ -35,9 +37,7 @@ export const Icons = {
         className
       )}
       style={style}
-    >
-      <image href="/logo.svg" width="512" height="512" />
-    </svg>
+    />
   ),
   google: ({ className }: IconProps) => (
     <svg className={cn("h-4 w-4", className)} viewBox="0 0 24 24" aria-hidden="true">
