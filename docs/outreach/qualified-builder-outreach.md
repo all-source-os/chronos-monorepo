@@ -76,9 +76,317 @@ Rules:
 | Kedar Dabhadkar / `dkedar7` | langstage-cli stale thread history | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
 | Luigi / `LuigiFerronatto` | TESSERA long-term-memory contract | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
 | `Predator04` | Hermes-CoAgent workflow-memory replay | 2026-09-01 | GitHub issue | Awaiting batch approval | No |
+| Aditya Yadav / `Officially-aditya` | Cuppet PE3 routing recovery | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| Alexey Leshchenko / `leshchenko1979` | OpenCrabs durable sub-agent tombstones | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| Michael Goodness / `mgoodness` | Liam session persistence | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| ORCHORDS.COM / `ORCHORDS` | OrchordsBrowserPilot task memory | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| Daniel / `DerpcatMusic` | SERAPH checkpoint and resume contract | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| `DrejT` | Alineo durable HITL pause | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| Cherilyn Buren / `NiuBlibing` | ZeroClaw append-only execution history | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| Dallen Pyrah / `dallenpyrah` | Generalist memory consolidation | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| `cytostack` | OpenWolf memory provenance boundary | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
+| Nguyen Quang Minh / `n24q02m` | Oh My Pi crash-safe recovery | 2026-09-02 | GitHub issue | Awaiting batch approval | No |
 
 Prior batch detail and verified send log:
 [`docs/marketing/2026-08-28-qualified-builder-outreach.md`](../marketing/2026-08-28-qualified-builder-outreach.md).
+
+## Batch — 2026-09-02 08:00 UTC
+
+Batch status: **awaiting founder approval; nothing sent**.
+
+Research used public GitHub issues and repository metadata. All ten builders
+are new to this ledger. Each issue author owns the repository or is an active
+contributor. Every repository received recent code updates. Proposed channel
+is a context-matched public GitHub issue reply.
+
+### 1. Aditya Yadav — Cuppet
+
+- Builder: Aditya Yadav (`Officially-aditya`), Cuppet owner and primary
+  contributor.
+- Public source: [Cuppet PE3 restart issue](https://github.com/Officially-aditya/Cuppet-code/issues/10).
+- Exact public evidence: `TaskAgentRouter` keeps task-to-session routing in an
+  in-memory map. OpenCode sessions survive restart, but Cuppet loses dormant
+  agent identity, task descriptors, paths, symbols, stale-path state, and
+  workspace epochs. Acceptance requires bounded project-scoped restoration.
+- Inferred memory problem: persisted routing metadata needs versioned
+  reconciliation against current workspace truth so stale state cannot regain
+  authority after restart.
+- Fit: active TypeScript coding-agent fork with explicit restart tests and a
+  narrow persistence boundary that excludes transcripts and secrets.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/Officially-aditya/Cuppet-code/issues/10>.
+
+Message (86 words):
+
+> Aditya — Cuppet #10 loses PE3’s dormant task-agent identities after restart
+> even though underlying OpenCode sessions survive. I build AllSource, an
+> event-sourced memory and provenance layer for agents. I can help test a
+> bounded routing journal that records task fingerprints, workspace epochs,
+> stale-path invalidations, and reconciliation outcomes without copying
+> transcripts. Recovery could then prove why “go back to auth” selected agent
+> A and whether its file-specific state remained valid. Interested in one
+> restart adapter experiment? If not relevant, reply “pass” and I will not
+> follow up.
+
+### 2. Alexey Leshchenko — OpenCrabs
+
+- Builder: Alexey Leshchenko (`leshchenko1979`), OpenCrabs owner and primary
+  contributor.
+- Public source: [OpenCrabs durable tombstone issue](https://github.com/leshchenko1979/opencrabs/issues/73).
+- Exact public evidence: six sub-agents died during daemon swaps. Recovery
+  detected each death, but addressed tombstones to dead child sessions and
+  parked them in a process-local vector erased by the next restart. Parent
+  sessions continued reporting that dead agents were still reading.
+- Inferred memory problem: parent/child lifecycle events need durable routing
+  and acknowledgement history so a later restart cannot erase unconsumed death
+  evidence.
+- Fit: active Rust autonomous-agent runtime with observed production receipts,
+  a named failure boundary, and owner-approved durable parking design.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/leshchenko1979/opencrabs/issues/73>.
+
+Message (85 words):
+
+> OpenCrabs #73 detects sub-agent deaths correctly, then loses the evidence by
+> addressing tombstones to dead child sessions and parking them in memory. I
+> build AllSource, an event-sourced agent-memory and provenance layer. I can
+> help test parent-addressed lifecycle events that persist before notification,
+> survive repeated daemon swaps, and record whether a live ancestor consumed
+> each report. That would make the observed “still reading” state
+> reconstructable instead of silently plausible. Worth testing against the six
+> recorded deaths? If not, reply “pass” and I will not follow up.
+
+### 3. Michael Goodness — Liam
+
+- Builder: Michael Goodness (`mgoodness`), Liam owner and primary contributor.
+- Public source: [Liam session-persistence issue](https://github.com/mgoodness/liam/issues/105).
+- Exact public evidence: Liam keeps sessions in process memory, so quitting
+  loses all conversations. Design questions include linear versus tree-shaped
+  history, resume and fork UX, storage keyed by working directory, and whether
+  compaction retains pre- or post-compaction transcripts.
+- Inferred memory problem: resumed branches and compaction need immutable
+  ancestry so later state can distinguish original messages from derived
+  summaries without duplicating conversation authority.
+- Fit: active Go coding agent with owner-defined persistence scope and concrete
+  prior-art comparison.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/mgoodness/liam/issues/105>.
+
+Message (84 words):
+
+> Michael — Liam #105 currently loses every conversation when the process
+> exits, and the open design choice is linear persistence versus tree-shaped
+> fork history. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test one model where messages, compaction, resume, and fork
+> are immutable events while the active transcript remains a derived view.
+> That preserves both pre- and post-compaction history without making two
+> stores authoritative. Useful for one cwd-scoped session prototype? If not,
+> reply “pass” and I will not follow up.
+
+### 4. ORCHORDS.COM — OrchordsBrowserPilot
+
+- Builder: ORCHORDS.COM (`ORCHORDS`), OrchordsBrowserPilot owner and primary
+  contributor.
+- Public source: [BrowserPilot task-memory issue](https://github.com/ORCHORDS/OrchordsBrowserPilot/issues/101).
+- Exact public evidence: follow-up browser tasks need prior goals, validated
+  outputs, workflow variables, and action summaries without resending raw page
+  snapshots. Memory entries must carry provenance, run/action IDs, sensitivity,
+  budgets, stale-fact revalidation, deletion, and tenant isolation.
+- Inferred memory problem: summarized browser-task context needs immutable
+  source links and supersession history so stale observations cannot be treated
+  as current page truth.
+- Fit: active TypeScript MCP browser agent with explicit production-style
+  privacy, persistence, and cross-tenant acceptance tests.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/ORCHORDS/OrchordsBrowserPilot/issues/101>.
+
+Message (85 words):
+
+> OrchordsBrowserPilot #101 needs follow-up tasks to reuse validated goals and
+> action summaries without persisting raw snapshots, secrets, or stale page
+> facts as current truth. I build AllSource, an event-sourced agent-memory and
+> provenance layer. I can help test provider-neutral memory records linked to
+> exact run/action events, with sensitivity labels, deterministic eviction,
+> deletion, and explicit revalidation when historical browser facts are reused.
+> That targets continuity without turning browser state into permanent memory.
+> Interested in one E2E fixture? If not, reply “pass” and I will not follow up.
+
+### 5. Daniel — SERAPH
+
+- Builder: Daniel (`DerpcatMusic`), active SERAPH contributor and
+  checkpoint-contract issue author.
+- Public source: [SERAPH execution-state issue](https://github.com/Matari-Audio/SERAPH/issues/11).
+- Exact public evidence: SERAPH must allocate state across a Python kernel,
+  Rust workflow journal, filesystem delta, artifact store, agent registry, task
+  graph, mailbox, memory projection, and usage ledger. Design explicitly
+  separates transactional, compensatable, and irreversible mutations.
+- Inferred memory problem: checkpoint replay needs one causal event trail that
+  records receipts and compensation without claiming external side effects can
+  be rewound.
+- Fit: active Rust agentic execution runtime with precise atomicity, recovery,
+  invalidation, and irreversible-effect constraints.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/Matari-Audio/SERAPH/issues/11>.
+
+Message (86 words):
+
+> SERAPH #11 splits execution state across the Python kernel, Rust journal,
+> filesystem delta, artifacts, task graph, mailbox, memory projection, and
+> usage ledger. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test one checkpoint contract where transactional changes
+> commit atomically, compensatable effects retain receipt plus inverse action,
+> and irreversible effects remain visible without false rewind claims. Replay
+> would rebuild agent state while exposing external effects it cannot undo.
+> Worth comparing on one workflow? If not, reply “pass” and I will not follow
+> up.
+
+### 6. `DrejT` — Alineo
+
+- Builder: `DrejT`, Alineo owner and primary contributor.
+- Public source: [Alineo durable HITL issue](https://github.com/DrejT/alineo/issues/228).
+- Exact public evidence: pending permission approval survives host restart only
+  while sandbox process memory remains. Rootfs-only pause/checkpoint discards
+  the parked promise and pending-permissions map. Existing ledger already emits
+  `PermissionRequested` and `PermissionResolved` events.
+- Inferred memory problem: resume needs a durable continuation derived from
+  unresolved approval events, plus idempotent re-drive after long pauses.
+- Fit: active TypeScript sandbox framework with shipped audit events and a
+  concrete hour/day pause failure.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/DrejT/alineo/issues/228>.
+
+Message (83 words):
+
+> Drej — Alineo #228 already records `PermissionRequested` and
+> `PermissionResolved`, but rootfs-only pause drops the parked promise and
+> pending map needed to continue. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test resume from the unresolved
+> permission event: persist tool intent and checkpoint cursor, record one human
+> decision, then re-drive or reject exactly once after an hour-long pause. That
+> keeps continuation separate from process memory. Useful for the R2b path? If
+> not, reply “pass” and I will not follow up.
+
+### 7. Cherilyn Buren — ZeroClaw
+
+- Builder: Cherilyn Buren (`NiuBlibing`), active ZeroClaw contributor and RFC
+  author.
+- Public source: [ZeroClaw append-only history RFC](https://github.com/zeroclaw-labs/zeroclaw/issues/10526).
+- Exact public evidence: mutable conversation messages cannot reconstruct
+  provider attempts, tool effects, approvals, trimming, branches, sub-agent
+  execution, or ambiguous crashes. RFC proposes append-only canonical session
+  events, linked child streams, deterministic projections, and explicit
+  privacy erasure.
+- Inferred memory problem: conformance must prove append-before-advance and
+  crash ambiguity across provider, tool, and child-agent boundaries without
+  re-executing effects.
+- Fit: active high-usage Rust agent runtime and contributor-authored design
+  directly aligned with AllSource event history.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/zeroclaw-labs/zeroclaw/issues/10526>.
+
+Message (84 words):
+
+> Niu — ZeroClaw #10526 makes append-only session events authoritative across
+> provider attempts, tools, approvals, trimming, branches, and child agents. I
+> build AllSource, an event-sourced agent-memory and provenance layer. Rather
+> than propose another architecture, I can help test one hard contract:
+> append intent, crash across a non-idempotent tool boundary, preserve unknown
+> outcome, then rebuild parent and child projections without replaying the
+> effect. That would exercise append-before-advance and linked-stream
+> authorization together. Useful as a conformance fixture? If not, reply
+> “pass” and I will not follow up.
+
+### 8. Dallen Pyrah — Generalist
+
+- Builder: Dallen Pyrah (`dallenpyrah`), active Generalist contributor and
+  memory-consolidation issue author.
+- Public source: [Generalist consolidation issue](https://github.com/In-Time-Tec/generalist/issues/360).
+- Exact public evidence: a scheduled background agent will read journal
+  episodes and propose semantic-memory rewrites. Changes must be versioned,
+  evidence-linked, revertible, budgeted, and adapter-conformant; contradictions
+  become paired forget and remember operations rather than silent overwrite.
+- Inferred memory problem: consolidation needs deterministic provenance from
+  source episodes through proposal, approval, supersession, and rollback.
+- Fit: active typed durable-agent runtime with explicit memory history and
+  conformance tests.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/In-Time-Tec/generalist/issues/360>.
+
+Message (81 words):
+
+> Darren — Generalist #360 turns recent journal episodes into scheduled memory
+> rewrites that must remain versioned, evidenced, and revertible across every
+> adapter. I build AllSource, an event-sourced agent-memory and provenance
+> layer. I can help test one contradiction flow: source episodes produce a
+> proposal, approval applies paired forget/remember events, history shows the
+> superseded version, and rollback reconstructs the prior projection without
+> deleting evidence. That could become a shared adapter-conformance fixture.
+> Worth comparing? If not, reply “pass” and I will not follow up.
+
+### 9. `cytostack` — OpenWolf
+
+- Builder: `cytostack`, OpenWolf owner and primary contributor.
+- Public source: [OpenWolf memory-provenance issue](https://github.com/cytostack/openwolf/issues/97).
+- Exact public evidence: agent-authored `.wolf/cerebrum.md` and `STATUS.md`
+  persist across agents and sessions without recording whether a line came from
+  the user, repository, tool output, or fetched content. One-session prompt
+  injection can therefore become trusted standing instruction.
+- Inferred memory problem: immutable source and taint events must survive
+  memory rewriting, with human confirmation separated from agent authority.
+- Fit: active portable-memory product with a precise cross-session trust
+  boundary and explicit provenance limitations.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/cytostack/openwolf/issues/97>.
+
+Message (86 words):
+
+> OpenWolf #97 identifies the dangerous case precisely: one untrusted tool or
+> fetched-page instruction can be written into `cerebrum.md`, then loaded as
+> trusted guidance by every later agent. I build AllSource, an event-sourced
+> agent-memory and provenance layer. I can help test immutable source and taint
+> events around each durable entry, with quarantine and human promotion as
+> separate actions an agent cannot rewrite. Replay could then show exactly when
+> poisoned guidance became eligible. Interested in one hooked-agent prototype?
+> If not, reply “pass” and I will not follow up.
+
+### 10. Nguyen Quang Minh — Oh My Pi
+
+- Builder: Nguyen Quang Minh (`n24q02m`), Oh My Pi owner and primary
+  contributor.
+- Public source: [Oh My Pi crash-recovery issue](https://github.com/n24q02m/oh-my-pi/issues/21).
+- Exact public evidence: Windows fail-fast or process-tree termination can
+  bypass cleanup, leaving durable work without a terminal exit record. Planned
+  recovery persists sanitized liveness at provider, tool, and retry boundaries
+  and records unknown outcomes when runtime observed no completion.
+- Inferred memory problem: resume needs ordered liveness and outcome events so
+  completed, interrupted, and ambiguous turns remain distinguishable after
+  both runtime and sentinel loss.
+- Fit: active terminal coding agent with exact crash boundary and focused
+  lifecycle tests.
+- Channel: public GitHub issue reply.
+- Destination: <https://github.com/n24q02m/oh-my-pi/issues/21>.
+
+Message (84 words):
+
+> Oh My Pi #21 handles a hard boundary: fail-fast termination can leave
+> durable work with no terminal exit record, so resume cannot distinguish
+> completed from interrupted. I build AllSource, an event-sourced agent-memory
+> and provenance layer. I can help test liveness events at provider stream,
+> tool execution, and retry wait, followed by an explicit unknown outcome when
+> neither runtime nor sentinel observed completion. Recovery stays idempotent
+> without inventing success. Useful for one Windows process-tree fixture? If
+> not, reply “pass” and I will not follow up.
+
+## 2026-09-02 approval and send log
+
+- [ ] Founder approves exact ten recipients and exact drafts.
+- [ ] Send approved messages one at a time through authenticated channels.
+- [ ] Verify each successful send and record canonical URL, timestamp, and
+  outcome below.
+
+| Sent time | Recipient | Channel | Public URL | Outcome |
+| --- | --- | --- | --- | --- |
+| — | — | — | — | Awaiting approval |
 
 ## Batch — 2026-08-28 08:00 UTC
 
