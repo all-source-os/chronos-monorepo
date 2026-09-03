@@ -44,6 +44,7 @@ struct Cli {
 }
 
 #[tokio::main]
+/// Start the read-only MCP server over standard input and output.
 async fn main() -> Result<()> {
     // Log to stderr so stdout is reserved for MCP JSON-RPC
     tracing_subscriber::fmt()

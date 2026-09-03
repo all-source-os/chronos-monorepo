@@ -16,6 +16,7 @@ use crate::{
 const DEFAULT_LIMIT: usize = 50;
 const MAX_LIMIT: usize = 500;
 
+/// Build a read-only tool descriptor with shared diagnostic input and annotations.
 fn read_tool(name: &str, title: &str, description: &str, mut input_schema: Value) -> ToolDef {
     input_schema["properties"]["diagnostic"] = json!({
         "type": "object",
@@ -208,6 +209,7 @@ pub async fn execute_tool(
     }
 }
 
+/// Dispatch a validated tool call to its implementation.
 async fn execute_tool_inner(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -235,6 +237,7 @@ enum PayloadMode {
     Full,
 }
 
+/// Resolve payload exposure mode while enforcing hosted redaction policy.
 fn payload_mode(args: &Value, policy: &DiagnosticPolicy) -> Result<PayloadMode> {
     let default = if policy.is_hosted_tenant() {
         "redacted"
@@ -259,6 +262,7 @@ fn payload_mode(args: &Value, policy: &DiagnosticPolicy) -> Result<PayloadMode> 
     }
 }
 
+/// Read and bound a positive pagination argument.
 fn limit_arg(args: &Value, key: &str, default: usize, maximum: usize) -> Result<usize> {
     let raw = args
         .get(key)
@@ -272,6 +276,7 @@ fn limit_arg(args: &Value, key: &str, default: usize, maximum: usize) -> Result<
     Ok(limit)
 }
 
+/// Parse an optional RFC 3339 timestamp argument.
 fn timestamp_arg(args: &Value, key: &str) -> Result<Option<DateTime<Utc>>> {
     args.get(key)
         .and_then(Value::as_str)
@@ -283,6 +288,7 @@ fn timestamp_arg(args: &Value, key: &str) -> Result<Option<DateTime<Utc>>> {
         .transpose()
 }
 
+/// Hash tenant, source, tool, effective limit, and filters into cursor identity.
 fn query_signature(
     policy: &DiagnosticPolicy,
     tool_name: &str,
@@ -310,6 +316,7 @@ fn query_signature(
     format!("{:x}", hasher.finalize())
 }
 
+/// Validate an opaque cursor against current query identity and return its offset.
 fn cursor_offset(args: &Value, signature: &str) -> Result<usize> {
     let Some(cursor) = args.get("cursor").and_then(Value::as_str) else {
         return Ok(0);
@@ -328,6 +335,7 @@ fn cursor_offset(args: &Value, signature: &str) -> Result<usize> {
     Ok(offset.unwrap_or_default())
 }
 
+/// Build a tenant-bound query and matching cursor signature.
 fn scoped_query(
     policy: &DiagnosticPolicy,
     tool_name: &str,
@@ -372,6 +380,7 @@ fn scoped_query(
     Ok((query, signature))
 }
 
+/// Recursively redact values under credential-like object keys.
 fn redact(value: &Value) -> Value {
     match value {
         Value::Object(map) => Value::Object(
@@ -405,6 +414,7 @@ fn redact(value: &Value) -> Value {
     }
 }
 
+/// Render an event payload according to selected exposure mode.
 fn event_payload(payload: &Value, mode: PayloadMode) -> Value {
     match mode {
         PayloadMode::None => Value::Null,
@@ -428,6 +438,7 @@ struct EvidencePageOptions<'a> {
     force_incomplete: bool,
 }
 
+/// Wrap a query page with provenance, pagination, and completeness metadata.
 fn evidence_page(
     policy: &DiagnosticPolicy,
     page: &allsource_core::embedded::QueryPage,
@@ -467,6 +478,7 @@ fn evidence_page(
     })
 }
 
+/// Execute a filtered tenant-bound event query.
 async fn exec_query_events(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -508,6 +520,7 @@ async fn exec_query_events(
     ))
 }
 
+/// Execute a bounded newest-first event sample.
 async fn exec_sample_events(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -550,6 +563,7 @@ async fn exec_sample_events(
     ))
 }
 
+/// Return exact scoped counts, freshness, and durability.
 async fn exec_quick_stats(core: &EmbeddedCore, policy: &DiagnosticPolicy) -> Result<Value> {
     let durability = core.durability_status();
     let (statistics, fresh_through) = if let Some(tenant_id) = policy.tenant_id() {
@@ -587,6 +601,7 @@ async fn exec_quick_stats(core: &EmbeddedCore, policy: &DiagnosticPolicy) -> Res
     }))
 }
 
+/// Read one named authoritative projection state when policy permits it.
 fn exec_get_snapshot(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -626,6 +641,7 @@ fn exec_get_snapshot(
     }))
 }
 
+/// Return a stable paginated timeline for one entity.
 async fn exec_event_timeline(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -667,6 +683,7 @@ async fn exec_event_timeline(
     ))
 }
 
+/// Summarize a bounded entity lifecycle without claiming omitted history.
 async fn exec_explain_entity(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -726,6 +743,7 @@ async fn exec_explain_entity(
     }))
 }
 
+/// Produce a deprecated non-authoritative last-write-wins payload fold.
 async fn exec_reconstruct_state(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,
@@ -792,6 +810,7 @@ async fn exec_reconstruct_state(
     }))
 }
 
+/// Return bounded event-level changes for one entity.
 async fn exec_analyze_changes(
     core: &EmbeddedCore,
     policy: &DiagnosticPolicy,

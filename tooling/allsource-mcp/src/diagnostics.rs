@@ -19,6 +19,7 @@ pub struct DiagnosticPolicy {
 }
 
 impl DiagnosticPolicy {
+    /// Build a diagnostic policy and validate required immutable bindings.
     pub fn new(profile: AccessProfile, tenant_id: Option<String>, source_id: &str) -> Result<Self> {
         let tenant_id = tenant_id
             .map(|tenant| tenant.trim().to_string())
@@ -39,18 +40,22 @@ impl DiagnosticPolicy {
         })
     }
 
+    /// Return the configured tenant boundary, when present.
     pub fn tenant_id(&self) -> Option<&str> {
         self.tenant_id.as_deref()
     }
 
+    /// Return the safe source label emitted in diagnostic provenance.
     pub fn source_id(&self) -> &str {
         &self.source_id
     }
 
+    /// Report whether this policy represents a hosted tenant caller.
     pub fn is_hosted_tenant(&self) -> bool {
         matches!(self.profile, AccessProfile::HostedTenant)
     }
 
+    /// Build evidence provenance for one observation.
     pub fn context(&self, fresh_through: Option<&str>) -> Value {
         let (binding, verified) = match (self.profile, self.tenant_id.as_deref()) {
             (AccessProfile::HostedTenant | AccessProfile::Local, Some(_)) => {
@@ -90,6 +95,7 @@ impl DiagnosticPolicy {
         })
     }
 
+    /// Copy accepted request correlation identifiers into result context.
     pub fn attach_correlation(result: &mut Value, args: &Value) {
         let Some(context) = result.get_mut("context") else {
             return;
@@ -98,6 +104,7 @@ impl DiagnosticPolicy {
     }
 }
 
+/// Normalize supported wire and storage names into one correlation object.
 fn correlation(args: &Value) -> Value {
     let diagnostic = args.get("diagnostic").unwrap_or(&Value::Null);
     let value = |camel: &str, snake: &str| {
@@ -119,6 +126,7 @@ fn correlation(args: &Value) -> Value {
     })
 }
 
+/// Read one non-empty environment value.
 fn env_value(name: &str) -> Option<String> {
     std::env::var(name)
         .ok()

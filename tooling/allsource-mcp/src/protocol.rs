@@ -27,6 +27,7 @@ pub struct Response {
 }
 
 impl Response {
+    /// Build a successful JSON-RPC response.
     pub fn success(id: Option<Value>, result: Value) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),
@@ -36,6 +37,7 @@ impl Response {
         }
     }
 
+    /// Build a failed JSON-RPC response.
     pub fn error(id: Option<Value>, code: i64, message: impl Into<String>) -> Self {
         Self {
             jsonrpc: "2.0".to_string(),

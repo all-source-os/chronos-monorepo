@@ -20,10 +20,12 @@ pub struct StdioTransport {
 }
 
 impl StdioTransport {
+    /// Create a transport bound to one core and diagnostic policy.
     pub fn new(core: EmbeddedCore, policy: DiagnosticPolicy) -> Self {
         Self { core, policy }
     }
 
+    /// Serve framed MCP requests until standard input closes.
     pub async fn run(&mut self) -> Result<()> {
         let stdin = std::io::stdin();
         let mut stdout = std::io::stdout();
@@ -62,6 +64,7 @@ impl StdioTransport {
         Ok(())
     }
 
+    /// Route one JSON-RPC request, returning no response for notifications.
     async fn handle_request(&self, req: &Request) -> Option<Response> {
         match req.method.as_str() {
             "initialize" => {
@@ -169,6 +172,7 @@ fn read_message(reader: &mut impl BufRead) -> Result<Option<String>> {
     Ok(Some(String::from_utf8_lossy(&body).to_string()))
 }
 
+/// Write one Content-Length-framed JSON-RPC response.
 fn write_response(stdout: &mut impl Write, response: &Response) -> Result<()> {
     let json = serde_json::to_string(response)?;
     tracing::debug!("send: {json}");
