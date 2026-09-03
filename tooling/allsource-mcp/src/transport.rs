@@ -9,17 +9,19 @@ use anyhow::Result;
 use std::io::{BufRead, Write};
 
 use crate::{
+    diagnostics::DiagnosticPolicy,
     protocol::{self, Request, Response},
     tools,
 };
 
 pub struct StdioTransport {
     core: EmbeddedCore,
+    policy: DiagnosticPolicy,
 }
 
 impl StdioTransport {
-    pub fn new(core: EmbeddedCore) -> Self {
-        Self { core }
+    pub fn new(core: EmbeddedCore, policy: DiagnosticPolicy) -> Self {
+        Self { core, policy }
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -62,7 +64,22 @@ impl StdioTransport {
 
     async fn handle_request(&self, req: &Request) -> Option<Response> {
         match req.method.as_str() {
-            "initialize" => Some(Response::success(req.id.clone(), protocol::server_info())),
+            "initialize" => {
+                let requested = req
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("protocolVersion"))
+                    .and_then(serde_json::Value::as_str);
+                let negotiated = if requested == Some(protocol::CURRENT_PROTOCOL_VERSION) {
+                    protocol::CURRENT_PROTOCOL_VERSION
+                } else {
+                    protocol::LEGACY_PROTOCOL_VERSION
+                };
+                Some(Response::success(
+                    req.id.clone(),
+                    protocol::server_info(negotiated),
+                ))
+            }
 
             // Notification — no response
             "notifications/initialized" => None,
@@ -86,7 +103,7 @@ impl StdioTransport {
                     .cloned()
                     .unwrap_or(serde_json::json!({}));
 
-                let result = tools::execute_tool(&self.core, tool_name, &args).await;
+                let result = tools::execute_tool(&self.core, &self.policy, tool_name, &args).await;
                 Some(Response::success(req.id.clone(), result))
             }
 
