@@ -85,7 +85,7 @@ impl StdioTransport {
             "notifications/initialized" => None,
 
             "tools/list" => {
-                let defs = tools::tool_definitions();
+                let defs = tools::tool_definitions(&self.policy);
                 Some(Response::success(
                     req.id.clone(),
                     serde_json::json!({ "tools": defs }),

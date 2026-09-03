@@ -482,6 +482,11 @@ impl EmbeddedCore {
 
     /// Query one stable window and report whether more matches exist.
     pub async fn query_page(&self, query: Query) -> Result<QueryPage> {
+        if query.limit == Some(0) {
+            return Err(crate::error::AllSourceError::InvalidInput(
+                "query page limit must be greater than zero".to_string(),
+            ));
+        }
         let offset = query.offset;
         let descending = query.descending;
         let requested_limit = query.limit;

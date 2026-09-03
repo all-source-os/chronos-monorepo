@@ -56,7 +56,8 @@ impl DiagnosticPolicy {
             (AccessProfile::HostedTenant | AccessProfile::Local, Some(_)) => {
                 ("server_configuration", true)
             }
-            (AccessProfile::Operator, _) => ("operator_profile", true),
+            (AccessProfile::Operator, Some(_)) => ("operator_profile", true),
+            (AccessProfile::Operator, None) => ("operator_profile_unscoped", false),
             (AccessProfile::Local | AccessProfile::HostedTenant, None) => ("unverified", false),
         };
 
@@ -146,6 +147,17 @@ mod tests {
         assert_eq!(context["tenant"]["verified"], false);
         assert_eq!(context["tenant"]["binding"], "unverified");
         assert!(context["correlation"]["runId"].is_null());
+    }
+
+    #[test]
+    fn unbound_operator_context_is_explicitly_unverified() {
+        let policy = DiagnosticPolicy::new(AccessProfile::Operator, None, "production-store")
+            .expect("valid policy");
+
+        let context = policy.context(None);
+        assert_eq!(context["tenant"]["verified"], false);
+        assert_eq!(context["tenant"]["binding"], "operator_profile_unscoped");
+        assert!(context["tenant"]["id"].is_null());
     }
 
     #[test]

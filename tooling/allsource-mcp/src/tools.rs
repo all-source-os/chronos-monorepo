@@ -52,7 +52,12 @@ fn read_tool(name: &str, title: &str, description: &str, mut input_schema: Value
 
 /// Return all available tool definitions.
 #[allow(clippy::too_many_lines)] // Keeping deterministic descriptor order visible aids MCP review.
-pub fn tool_definitions() -> Vec<ToolDef> {
+pub fn tool_definitions(policy: &DiagnosticPolicy) -> Vec<ToolDef> {
+    let payload_modes = if policy.is_hosted_tenant() {
+        json!(["none", "keys", "redacted"])
+    } else {
+        json!(["none", "keys", "redacted", "full"])
+    };
     vec![
         read_tool(
             "query_events",
@@ -66,7 +71,7 @@ pub fn tool_definitions() -> Vec<ToolDef> {
                     "limit": { "type": "integer", "minimum": 1, "maximum": MAX_LIMIT, "default": DEFAULT_LIMIT },
                     "cursor": { "type": "string", "description": "Opaque cursor returned by a previous identical query" },
                     "order": { "type": "string", "enum": ["asc", "desc"], "default": "asc" },
-                    "payload_mode": { "type": "string", "enum": ["none", "keys", "redacted", "full"], "description": "Hosted default is redacted; local default is full" },
+                    "payload_mode": { "type": "string", "enum": payload_modes.clone(), "description": "Hosted mode excludes full payloads; local and operator modes may request them" },
                     "since": { "type": "string", "format": "date-time" },
                     "until": { "type": "string", "format": "date-time" }
                 }
@@ -81,7 +86,7 @@ pub fn tool_definitions() -> Vec<ToolDef> {
                 "properties": {
                     "count": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
                     "cursor": { "type": "string", "description": "Opaque cursor returned by a previous identical sample" },
-                    "payload_mode": { "type": "string", "enum": ["none", "keys", "redacted", "full"] }
+                    "payload_mode": { "type": "string", "enum": payload_modes.clone() }
                 }
             }),
         ),
@@ -159,7 +164,7 @@ pub fn tool_definitions() -> Vec<ToolDef> {
                     "until": { "type": "string", "format": "date-time" },
                     "limit": { "type": "integer", "minimum": 1, "maximum": MAX_LIMIT, "default": 100 },
                     "cursor": { "type": "string" },
-                    "payload_mode": { "type": "string", "enum": ["none", "keys", "redacted", "full"] }
+                    "payload_mode": { "type": "string", "enum": payload_modes }
                 },
                 "required": ["entity_id"]
             }),
@@ -222,7 +227,7 @@ async fn execute_tool_inner(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum PayloadMode {
     None,
     Keys,
@@ -244,6 +249,9 @@ fn payload_mode(args: &Value, policy: &DiagnosticPolicy) -> Result<PayloadMode> 
         "none" => Ok(PayloadMode::None),
         "keys" => Ok(PayloadMode::Keys),
         "redacted" => Ok(PayloadMode::Redacted),
+        "full" if policy.is_hosted_tenant() => anyhow::bail!(
+            "access denied: payload_mode full is unavailable for hosted tenant profiles"
+        ),
         "full" => Ok(PayloadMode::Full),
         value => anyhow::bail!(
             "invalid argument: payload_mode must be none, keys, redacted, or full; got '{value}'"
@@ -275,9 +283,15 @@ fn timestamp_arg(args: &Value, key: &str) -> Result<Option<DateTime<Utc>>> {
         .transpose()
 }
 
-fn query_signature(policy: &DiagnosticPolicy, args: &Value) -> String {
+fn query_signature(
+    policy: &DiagnosticPolicy,
+    tool_name: &str,
+    effective_limit: usize,
+    args: &Value,
+) -> String {
     let mut hasher = Sha256::new();
     for value in [
+        tool_name,
         policy.tenant_id().unwrap_or("*"),
         policy.source_id(),
         args.get("entity_id").and_then(Value::as_str).unwrap_or(""),
@@ -292,13 +306,7 @@ fn query_signature(policy: &DiagnosticPolicy, args: &Value) -> String {
         hasher.update(value.as_bytes());
         hasher.update([0]);
     }
-    for key in ["limit", "count"] {
-        if let Some(value) = args.get(key).and_then(Value::as_u64) {
-            hasher.update(key.as_bytes());
-            hasher.update(value.to_le_bytes());
-        }
-        hasher.update([0]);
-    }
+    hasher.update(effective_limit.to_le_bytes());
     format!("{:x}", hasher.finalize())
 }
 
@@ -320,14 +328,19 @@ fn cursor_offset(args: &Value, signature: &str) -> Result<usize> {
     Ok(offset.unwrap_or_default())
 }
 
-fn scoped_query(policy: &DiagnosticPolicy, args: &Value, limit: usize) -> Result<(Query, String)> {
+fn scoped_query(
+    policy: &DiagnosticPolicy,
+    tool_name: &str,
+    args: &Value,
+    limit: usize,
+) -> Result<(Query, String)> {
     let since = timestamp_arg(args, "since")?;
     let until = timestamp_arg(args, "until")?;
     if since.zip(until).is_some_and(|(start, end)| start > end) {
         anyhow::bail!("invalid argument: since must not be after until");
     }
 
-    let signature = query_signature(policy, args);
+    let signature = query_signature(policy, tool_name, limit, args);
     let offset = cursor_offset(args, &signature)?;
     let descending = match args.get("order").and_then(Value::as_str).unwrap_or("asc") {
         "asc" => false,
@@ -461,7 +474,7 @@ async fn exec_query_events(
 ) -> Result<Value> {
     let limit = limit_arg(args, "limit", DEFAULT_LIMIT, MAX_LIMIT)?;
     let mode = payload_mode(args, policy)?;
-    let (query, signature) = scoped_query(policy, args, limit)?;
+    let (query, signature) = scoped_query(policy, "query_events", args, limit)?;
 
     let page = core.query_page(query).await?;
     let result: Vec<Value> = page
@@ -507,7 +520,7 @@ async fn exec_sample_events(
     let mode = payload_mode(args, policy)?;
     let mut scoped_args = args.clone();
     scoped_args["order"] = Value::String("desc".to_string());
-    let (query, signature) = scoped_query(policy, &scoped_args, count)?;
+    let (query, signature) = scoped_query(policy, "sample_events", &scoped_args, count)?;
     let page = core.query_page(query).await?;
     let result: Vec<Value> = page
         .events
@@ -605,6 +618,10 @@ fn exec_get_snapshot(
         "entityId": entity_id,
         "projectionName": projection_name,
         "authoritative": true,
+        "completeness": {
+            "complete": true,
+            "reason": null,
+        },
         "state": state,
     }))
 }
@@ -619,7 +636,7 @@ async fn exec_event_timeline(
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("invalid argument: entity_id is required"))?;
     let limit = limit_arg(args, "limit", 100, MAX_LIMIT)?;
-    let (query, signature) = scoped_query(policy, args, limit)?;
+    let (query, signature) = scoped_query(policy, "event_timeline", args, limit)?;
     let page = core.query_page(query.entity_id(entity_id)).await?;
 
     let timeline: Vec<Value> = page
@@ -660,7 +677,7 @@ async fn exec_explain_entity(
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("invalid argument: entity_id is required"))?;
     let limit = MAX_LIMIT;
-    let (query, _) = scoped_query(policy, args, limit)?;
+    let (query, _) = scoped_query(policy, "explain_entity", args, limit)?;
     let page = core.query_page(query.entity_id(entity_id)).await?;
 
     if page.events.is_empty() {
@@ -719,7 +736,7 @@ async fn exec_reconstruct_state(
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("invalid argument: entity_id is required"))?;
 
-    let (query, _) = scoped_query(policy, args, MAX_LIMIT)?;
+    let (query, _) = scoped_query(policy, "reconstruct_state", args, MAX_LIMIT)?;
     let page = core.query_page(query.entity_id(entity_id)).await?;
 
     if page.events.is_empty() {
@@ -730,6 +747,11 @@ async fn exec_reconstruct_state(
             "method": "heuristic_last_write_wins",
             "state": null,
             "warning": "Deprecated heuristic. No events found inside the current tenant boundary.",
+            "completeness": {
+                "complete": true,
+                "reason": null,
+                "omitted": 0,
+            },
         }));
     }
 
@@ -781,7 +803,7 @@ async fn exec_analyze_changes(
         .ok_or_else(|| anyhow::anyhow!("invalid argument: entity_id is required"))?;
     let limit = limit_arg(args, "limit", 100, MAX_LIMIT)?;
     let mode = payload_mode(args, policy)?;
-    let (query, signature) = scoped_query(policy, args, limit)?;
+    let (query, signature) = scoped_query(policy, "analyze_changes", args, limit)?;
     let page = core.query_page(query.entity_id(entity_id)).await?;
 
     let changes: Vec<Value> = page
@@ -837,10 +859,13 @@ fn summarize_payload(payload: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use allsource_core::embedded::QueryPage;
+    use allsource_core::embedded::{Config, EmbeddedCore, QueryPage};
     use serde_json::{Value, json};
 
-    use super::{EvidencePageOptions, evidence_page, query_signature, redact};
+    use super::{
+        EvidencePageOptions, evidence_page, exec_reconstruct_state, payload_mode, query_signature,
+        redact, tool_definitions,
+    };
     use crate::diagnostics::{AccessProfile, DiagnosticPolicy};
 
     #[test]
@@ -874,13 +899,58 @@ mod tests {
         let args = json!({ "entity_id": "same-id", "limit": 25, "payload_mode": "redacted" });
 
         assert_ne!(
-            query_signature(&tenant_a, &args),
-            query_signature(&tenant_b, &args)
+            query_signature(&tenant_a, "query_events", 25, &args),
+            query_signature(&tenant_b, "query_events", 25, &args)
         );
         assert_ne!(
-            query_signature(&tenant_a, &args),
-            query_signature(&tenant_a, &json!({ "entity_id": "same-id", "limit": 50 }))
+            query_signature(&tenant_a, "query_events", 25, &args),
+            query_signature(&tenant_a, "query_events", 50, &json!({ "entity_id": "same-id" }))
         );
+        assert_ne!(
+            query_signature(&tenant_a, "query_events", 25, &args),
+            query_signature(&tenant_a, "sample_events", 25, &args)
+        );
+        assert_eq!(
+            query_signature(&tenant_a, "query_events", 50, &json!({ "limit": 50 })),
+            query_signature(&tenant_a, "query_events", 50, &json!({}))
+        );
+    }
+
+    #[test]
+    fn hosted_profiles_cannot_request_or_advertise_full_payloads() {
+        let policy = DiagnosticPolicy::new(
+            AccessProfile::HostedTenant,
+            Some("tenant-a".to_string()),
+            "prod",
+        )
+        .expect("tenant policy");
+
+        let error = payload_mode(&json!({ "payload_mode": "full" }), &policy)
+            .expect_err("hosted profile must reject raw payload access");
+        assert!(error.to_string().starts_with("access denied:"));
+
+        for tool in tool_definitions(&policy) {
+            if let Some(modes) = tool.input_schema["properties"]["payload_mode"]["enum"].as_array()
+            {
+                assert!(!modes.contains(&json!("full")));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn empty_reconstruction_reports_complete_evidence() {
+        let core = EmbeddedCore::open(Config::builder().build().expect("valid config"))
+            .await
+            .expect("in-memory core");
+        let policy =
+            DiagnosticPolicy::new(AccessProfile::Local, None, "local").expect("local policy");
+
+        let result = exec_reconstruct_state(&core, &policy, &json!({ "entity_id": "missing" }))
+            .await
+            .expect("empty reconstruction is a successful result");
+
+        assert_eq!(result["completeness"]["complete"], true);
+        assert_eq!(result["completeness"]["omitted"], 0);
     }
 
     #[test]
