@@ -8,10 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+
 	controlinternal "github.com/allsource/control-plane/internal"
 	"github.com/allsource/control-plane/internal/application/usecases"
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
-	"github.com/gin-gonic/gin"
 )
 
 type designPartnerHandlerCoreFake struct {
@@ -36,7 +37,7 @@ func designPartnerHandlerRequest(t *testing.T, cp *ControlPlane, body map[string
 	}
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/design-partners/applications", bytes.NewReader(encoded))
+	ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/design-partners/applications", bytes.NewReader(encoded))
 	ctx.Request.Header.Set("content-type", "application/json")
 	cp.DesignPartnerApplyHandler(ctx)
 	return recorder

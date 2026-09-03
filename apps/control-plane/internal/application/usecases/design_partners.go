@@ -15,6 +15,8 @@ import (
 	"github.com/allsource/control-plane/internal/infrastructure/clients"
 )
 
+// Design-partner vocabulary. Every value here is persisted inside Core events,
+// so changing one rewrites the meaning of history rather than renaming a symbol.
 const (
 	// DesignPartnerTenant isolates applicant PII from customer and public streams.
 	DesignPartnerTenant = "admin-design-partners"
@@ -22,8 +24,16 @@ const (
 	DesignPartnerSubmittedEventType = "design_partner.application_submitted"
 	DesignPartnerStatusEventType    = "design_partner.status_changed"
 	DesignPartnerConsentVersion     = "2026-08-27"
+
+	DesignPartnerStatusNew        = "new"
+	DesignPartnerStatusReviewing  = "reviewing"
+	DesignPartnerStatusAccepted   = "accepted"
+	DesignPartnerStatusWaitlisted = "waitlisted"
+	DesignPartnerStatusRejected   = "rejected"
 )
 
+// Sentinel errors matched with errors.Is in designPartnerError; anything not
+// listed there falls through to a 503, so a new one needs a case added too.
 var (
 	ErrDesignPartnerInvalidInput = errors.New("design partner: invalid input")
 	ErrDesignPartnerNotFound     = errors.New("design partner: application not found")
@@ -45,10 +55,12 @@ type DesignPartnerUseCase struct {
 	now  func() time.Time
 }
 
+// NewDesignPartnerUseCase binds the use case to a Core client and the wall clock.
 func NewDesignPartnerUseCase(core clients.CoreClient) *DesignPartnerUseCase {
 	return &DesignPartnerUseCase{core: core, now: time.Now}
 }
 
+// DesignPartnerCampaignSource carries the UTM attribution captured at submission.
 type DesignPartnerCampaignSource struct {
 	Source   string `json:"source,omitempty"`
 	Medium   string `json:"medium,omitempty"`
@@ -57,6 +69,8 @@ type DesignPartnerCampaignSource struct {
 	Term     string `json:"term,omitempty"`
 }
 
+// SubmitDesignPartnerRequest is the applicant-supplied payload. IdempotencyKey
+// derives the application ID, so a replayed submission folds onto the same entity.
 type SubmitDesignPartnerRequest struct {
 	Name              string                      `json:"name"`
 	Email             string                      `json:"email"`
@@ -70,6 +84,7 @@ type SubmitDesignPartnerRequest struct {
 	TurnstileResponse string                      `json:"cf_turnstile_response,omitempty"`
 }
 
+// DesignPartnerStatusChange is one entry of the review audit trail.
 type DesignPartnerStatusChange struct {
 	Status    string `json:"status"`
 	ChangedAt string `json:"changed_at"`
@@ -77,6 +92,8 @@ type DesignPartnerStatusChange struct {
 	Note      string `json:"note,omitempty"`
 }
 
+// DesignPartnerApplication is the projection folded from an entity's event
+// stream — never a stored row.
 type DesignPartnerApplication struct {
 	ID             string                      `json:"id"`
 	Name           string                      `json:"name"`
@@ -93,6 +110,8 @@ type DesignPartnerApplication struct {
 	StatusHistory  []DesignPartnerStatusChange `json:"status_history"`
 }
 
+// UpdateDesignPartnerStatusRequest is a reviewer decision. ApplicationID and
+// Actor come from the route and the session, never from the request body.
 type UpdateDesignPartnerStatusRequest struct {
 	ApplicationID string `json:"-"`
 	Status        string `json:"status"`
@@ -100,6 +119,9 @@ type UpdateDesignPartnerStatusRequest struct {
 	Note          string `json:"note,omitempty"`
 }
 
+// Submit validates an application and appends it at version 0, so a replayed
+// idempotency key loses the version race and is reported as success without
+// writing a second event.
 func (uc *DesignPartnerUseCase) Submit(ctx context.Context, req SubmitDesignPartnerRequest) (*DesignPartnerApplication, error) {
 	if uc == nil || uc.core == nil {
 		return nil, ErrDesignPartnerUnavailable
@@ -119,7 +141,7 @@ func (uc *DesignPartnerUseCase) Submit(ctx context.Context, req SubmitDesignPart
 		"agent_use_case":  req.AgentUseCase,
 		"memory_problem":  req.MemoryProblem,
 		"timeline":        req.Timeline,
-		"status":          "new",
+		"status":          DesignPartnerStatusNew,
 		"submitted_at":    submittedAt,
 		"consent_version": DesignPartnerConsentVersion,
 		"campaign_source": campaignSourcePayload(req.CampaignSource),
@@ -140,12 +162,14 @@ func (uc *DesignPartnerUseCase) Submit(ctx context.Context, req SubmitDesignPart
 	return &DesignPartnerApplication{
 		ID: applicationID, Name: req.Name, Email: req.Email, Project: req.Project,
 		AgentUseCase: req.AgentUseCase, MemoryProblem: req.MemoryProblem, Timeline: req.Timeline,
-		Status: "new", SubmittedAt: submittedAt, ConsentVersion: DesignPartnerConsentVersion,
+		Status: DesignPartnerStatusNew, SubmittedAt: submittedAt, ConsentVersion: DesignPartnerConsentVersion,
 		CampaignSource: req.CampaignSource,
-		StatusHistory:  []DesignPartnerStatusChange{{Status: "new", ChangedAt: submittedAt}},
+		StatusHistory:  []DesignPartnerStatusChange{{Status: DesignPartnerStatusNew, ChangedAt: submittedAt}},
 	}, nil
 }
 
+// List folds every application in the tenant. An empty status returns all of
+// them; any other value must be one of the DesignPartnerStatus constants.
 func (uc *DesignPartnerUseCase) List(ctx context.Context, status string) ([]DesignPartnerApplication, error) {
 	if uc == nil || uc.core == nil {
 		return nil, ErrDesignPartnerUnavailable
@@ -169,14 +193,17 @@ func (uc *DesignPartnerUseCase) List(ctx context.Context, status string) ([]Desi
 		return applications, nil
 	}
 	filtered := make([]DesignPartnerApplication, 0, len(applications))
-	for _, application := range applications {
-		if application.Status == status {
-			filtered = append(filtered, application)
+	for i := range applications {
+		if applications[i].Status == status {
+			filtered = append(filtered, applications[i])
 		}
 	}
 	return filtered, nil
 }
 
+// UpdateStatus appends a review decision and returns the refolded application.
+// The write is version-checked, so a concurrent decision fails rather than
+// silently overwriting the other reviewer's.
 func (uc *DesignPartnerUseCase) UpdateStatus(ctx context.Context, req UpdateDesignPartnerStatusRequest) (*DesignPartnerApplication, error) {
 	if uc == nil || uc.core == nil {
 		return nil, ErrDesignPartnerUnavailable
@@ -223,7 +250,8 @@ func (uc *DesignPartnerUseCase) UpdateStatus(ctx context.Context, req UpdateDesi
 	}
 
 	expectedVersion := uint64(len(events))
-	if resp != nil && resp.TotalCount > len(events) {
+	// TotalCount comes off the wire; the >= 0 guards the unsigned conversion.
+	if resp != nil && resp.TotalCount >= 0 && resp.TotalCount > len(events) {
 		expectedVersion = uint64(resp.TotalCount)
 	}
 	_, err = uc.core.IngestEvent(ctx, clients.IngestEventRequest{
@@ -302,7 +330,11 @@ func validDesignPartnerTimeline(value string) bool {
 
 func validDesignPartnerStatus(value string) bool {
 	switch value {
-	case "new", "reviewing", "accepted", "waitlisted", "rejected":
+	case DesignPartnerStatusNew,
+		DesignPartnerStatusReviewing,
+		DesignPartnerStatusAccepted,
+		DesignPartnerStatusWaitlisted,
+		DesignPartnerStatusRejected:
 		return true
 	default:
 		return false
@@ -320,9 +352,9 @@ func designPartnerEntityID(applicationID string) string {
 
 func designPartnerRetentionUntil(status string, changedAt time.Time) time.Time {
 	switch status {
-	case "accepted":
+	case DesignPartnerStatusAccepted:
 		return changedAt.AddDate(0, 0, 150) // 60-day program + 90 days.
-	case "waitlisted", "rejected":
+	case DesignPartnerStatusWaitlisted, DesignPartnerStatusRejected:
 		return changedAt.AddDate(0, 0, 90)
 	default:
 		return time.Time{}
@@ -378,10 +410,10 @@ func projectDesignPartnerApplications(events []clients.EventEntry) []DesignPartn
 				Email: payloadString(event.Payload, "email"), Project: payloadString(event.Payload, "project"),
 				AgentUseCase:  payloadString(event.Payload, "agent_use_case"),
 				MemoryProblem: payloadString(event.Payload, "memory_problem"),
-				Timeline:      payloadString(event.Payload, "timeline"), Status: "new",
+				Timeline:      payloadString(event.Payload, "timeline"), Status: DesignPartnerStatusNew,
 				SubmittedAt: submittedAt, ConsentVersion: payloadString(event.Payload, "consent_version"),
 				CampaignSource: campaignSourceFromPayload(event.Payload["campaign_source"]),
-				StatusHistory:  []DesignPartnerStatusChange{{Status: "new", ChangedAt: submittedAt}},
+				StatusHistory:  []DesignPartnerStatusChange{{Status: DesignPartnerStatusNew, ChangedAt: submittedAt}},
 			}
 			byID[applicationID] = app
 		case DesignPartnerStatusEventType:
